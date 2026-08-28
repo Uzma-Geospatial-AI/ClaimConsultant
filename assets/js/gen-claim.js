@@ -1,6 +1,6 @@
 /* =======================================================================
-   gen-claim.js — jana Personnel Time Sheet (borang Claim Uzma)
-                  dalam format PDF (jsPDF, landskap) dan Word (docx)
+   gen-claim.js — renders the Uzma Personnel Time Sheet (the Claim form)
+               as PDF (jsPDF, landscape) and Word (docx)
    ======================================================================= */
 
 const UZMA_FOOTER = {
@@ -18,9 +18,9 @@ const NOTES = [
   'INCLUDE KEY ACTIVITIES WHEN PERFORMING SERVICE IN AREAS OTHER THAN THE POINT OF ASSIGNMENT.'
 ];
 
-const ROWS_MIN = 8;   // bilangan baris aktiviti minimum seperti templat asal
+const ROWS_MIN = 8;   // minimum activity rows, matching the original form
 
-/** label bulan/tahun ringkas: 'Aug-26' */
+/** compact month/year label: 'Aug-26' */
 function monthLabel (ts) {
   return `${MON3[ts.month]}-${String(ts.year).slice(2)}`;
 }
@@ -31,7 +31,7 @@ function claimFileBase (S) {
   return nm ? `Claim ${my} - ${nm}` : `Claim ${my}`;
 }
 
-/** bina matriks jadual (B): 8+ baris aktiviti + baris TOTAL */
+/** build the section (B) matrix: 8+ activity rows plus the TOTAL row */
 function claimMatrix (S) {
   const ts = S.timesheet;
   const dim = daysInMonth(ts.year, ts.month);
@@ -65,7 +65,7 @@ async function generateClaimPDF (S) {
   const C = S.consultant, P = S.project, ts = S.timesheet;
   const GREY = [235, 235, 235], DARK = [35, 31, 32], ORANGE = [242, 101, 34];
 
-  /* ---------- kepala halaman ---------- */
+  /* ---------- page header ---------- */
   doc.setFillColor(...ORANGE);
   doc.triangle(L, 12, L, 16.4, L + 3.6, 14.2, 'F');
   doc.setFont('helvetica', 'bold').setFontSize(9.5).setTextColor(...DARK);
@@ -78,7 +78,7 @@ async function generateClaimPDF (S) {
   doc.setFillColor(...ORANGE);
   doc.triangle(R - 6.2, 11.6, R - 6.2, 18.2, R - 1.2, 11.6, 'F');
 
-  /* ---------- Seksyen A ---------- */
+  /* ---------- Section A ---------- */
   const secTop = 25, secH = 38;
   const leftW = 152, rightX = L + leftW + 4, rightW = R - rightX;
 
@@ -95,7 +95,7 @@ async function generateClaimPDF (S) {
   sectionHeader(L, secTop, leftW, 'A. PERSONNEL DETAILS');
   sectionHeader(rightX, secTop, rightW, 'PROJECT DETAILS (IF APPLICABLE)');
 
-  /** satu medan bergaris: label : nilai______ */
+  /** one underlined field: label : value______ */
   const field = (x, y, labelW, lineEnd, lab, val, bold) => {
     doc.setFont('helvetica', bold ? 'bold' : 'bold').setFontSize(5.8).setTextColor(...DARK);
     doc.text(lab, x, y);
@@ -128,7 +128,7 @@ async function generateClaimPDF (S) {
   rightFields.forEach((f, i) => {
     const y = fy + i * gap;
     if (i === 3) {
-      // baris ini berkongsi ruang dengan medan "Project Code"
+      // this row shares its space with the "Project Code" field
       field(rightX + 3, y, 62, rightX + 92, f[0], f[1]);
       field(rightX + 97, y, 20, R - 4, 'Project Code', P.code);
     } else {
@@ -136,7 +136,7 @@ async function generateClaimPDF (S) {
     }
   });
 
-  /* ---------- Seksyen B ---------- */
+  /* ---------- Section B ---------- */
   let y = secTop + secH + 4;
   doc.setFont('helvetica', 'bold').setFontSize(6.4).setTextColor(...DARK);
   doc.text('(B)', L, y);
@@ -180,7 +180,7 @@ async function generateClaimPDF (S) {
   });
   y = doc.lastAutoTable.finalY + 4;
 
-  /* ---------- Seksyen C ---------- */
+  /* ---------- Section C ---------- */
   doc.setFont('helvetica', 'bold').setFontSize(6.4).setTextColor(...DARK);
   doc.text('(C)', L, y + 3);
 
@@ -234,7 +234,7 @@ async function generateClaimPDF (S) {
     cy += row.h;
   }
 
-  /* ---------- NOTA ---------- */
+  /* ---------- NOTES ---------- */
   let ny = cy + 5;
   doc.setFont('helvetica', 'bold').setFontSize(6).setTextColor(...DARK);
   doc.text('NOTES:', L, ny);
@@ -296,13 +296,13 @@ async function generateClaimDOCX (S) {
     margins: { top: 20, bottom: 20, left: 30, right: 30 }
   });
 
-  /* ---------- lebar lajur jadual (B) ---------- */
+  /* ---------- section (B) column widths ---------- */
   const TOTAL_DXA = 15680;
   const wAct = 2500, wJob = 620, wA = 800, wB = 900, wC = 800, wBal = 760;
   const wDay = Math.floor((TOTAL_DXA - (wAct + wJob + wA + wB + wC + wBal)) / 31);
   const colWidths = [wAct, wJob, ...Array(31).fill(wDay), wA, wB, wC, wBal];
 
-  /* ---------- Seksyen A ---------- */
+  /* ---------- Section A ---------- */
   const fieldRow = (lab, val) => new TableRow({
     children: [
       cell(para(txt(lab, { bold: true, size: 12 })), { width: 3400, borders: noBorders }),
@@ -342,7 +342,7 @@ async function generateClaimDOCX (S) {
     ]
   });
 
-  // dua jadual bersebelahan di dalam satu jadual pembalut tanpa sempadan
+  // two tables side by side inside one borderless wrapper table
   const sectionA = new Table({
     width: { size: TOTAL_DXA, type: WidthType.DXA },
     borders: { top: NONE, bottom: NONE, left: NONE, right: NONE, insideHorizontal: NONE, insideVertical: NONE },
@@ -354,7 +354,7 @@ async function generateClaimDOCX (S) {
     ] }) ]
   });
 
-  /* ---------- jadual (B) ---------- */
+  /* ---------- section (B) table ---------- */
   const headTexts = ['WORK ACTIVITY & DATE', 'JOB ID NUMBER'];
   for (let d = 1; d <= 31; d++) headTexts.push(String(d));
   headTexts.push('TOTAL DAYS (current month claim) [A]',
@@ -385,7 +385,7 @@ async function generateClaimDOCX (S) {
     rows: [headRow, ...bodyRows]
   });
 
-  /* ---------- Seksyen C ---------- */
+  /* ---------- Section C ---------- */
   const sigCell = async key => {
     const s = await normalizeSignature(S.sig[key]);
     if (!s) return para(txt(''));
@@ -427,7 +427,7 @@ async function generateClaimDOCX (S) {
     ]
   });
 
-  /* ---------- dokumen ---------- */
+  /* ---------- document ---------- */
   const doc = new Document({
     creator: 'Sistem Consultant Claim',
     title: claimFileBase(S),

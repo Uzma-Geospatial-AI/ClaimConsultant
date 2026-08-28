@@ -1,16 +1,17 @@
 /* =======================================================================
-   signature.js — pad tandatangan (lukis) + muat naik imej
+   signature.js — drawable signature pads with image upload
    ======================================================================= */
 
 const SIG_DEFS = [
-  { key: 'personnel', title: 'PREPARED BY — Personnel',  sub: 'Consultant / personnel sendiri (dipakai dalam Claim &amp; Invoice)' },
-  { key: 'hod',       title: 'APPROVED BY — HOD',         sub: 'Ketua Jabatan (opsyenal)' },
-  { key: 'verified',  title: 'VERIFIED BY — Group People &amp; Finance', sub: 'Opsyenal' }
+  { key: 'personnel', title: 'PREPARED BY — Personnel', sub: 'The consultant themselves (used on both the Claim and the Invoice)' },
+  { key: 'hod',       title: 'APPROVED BY — HOD',        sub: 'Head of department (optional)' },
+  { key: 'verified',  title: 'VERIFIED BY — Group People &amp; Finance', sub: 'Optional' }
 ];
 
 const Sig = (() => {
   const pads = {};
   let S = null, onChange = () => {};
+  let resizeBound = false;
 
   function init (state, changeCb) {
     S = state; onChange = changeCb;
@@ -25,11 +26,11 @@ const Sig = (() => {
         <p class="sub">${def.sub}</p>
         <canvas></canvas>
         <div class="btnrow">
-          <button class="btn ghost small" data-a="clear">Padam</button>
-          <button class="btn ghost small" data-a="upload">Muat Naik Imej</button>
+          <button class="btn ghost small" data-a="clear">Clear</button>
+          <button class="btn ghost small" data-a="upload">Upload Image</button>
           <input type="file" accept="image/*" hidden>
         </div>
-        <p class="status">Belum ada tandatangan.</p>`;
+        <p class="status">No signature yet.</p>`;
       host.appendChild(card);
 
       const canvas = card.querySelector('canvas');
@@ -72,15 +73,18 @@ const Sig = (() => {
     });
 
     resizeAll();
-    window.addEventListener('resize', () => resizeAll());
+    if (!resizeBound) {                       // bind once, even if init runs again
+      window.addEventListener('resize', () => resizeAll());
+      resizeBound = true;
+    }
   }
 
-  /** saiz semula canvas ikut DPI skrin, kemudian pulihkan tandatangan sedia ada */
+  /** resize each canvas for the display DPI, then restore the existing signature */
   function resizeAll () {
     Object.keys(pads).forEach(key => {
       const { pad, canvas } = pads[key];
       const rect = canvas.getBoundingClientRect();
-      if (!rect.width) return;                       // panel masih tersembunyi
+      if (!rect.width) return;                       // panel still hidden
       const ratio = Math.max(window.devicePixelRatio || 1, 1);
       canvas.width = rect.width * ratio;
       canvas.height = rect.height * ratio;
@@ -91,7 +95,7 @@ const Sig = (() => {
     });
   }
 
-  /** lukis dataURL ke dalam canvas, muat & berpusat */
+  /** draw a data URL into the canvas, scaled to fit and centred */
   function drawInto (key, dataUrl) {
     const { canvas } = pads[key];
     const ctx = canvas.getContext('2d');
@@ -109,7 +113,7 @@ const Sig = (() => {
 
   function setStatus (key, on) {
     const el = pads[key].card.querySelector('.status');
-    el.textContent = on ? '✓ Tandatangan tersedia — akan dimasukkan ke dalam dokumen.' : 'Belum ada tandatangan.';
+    el.textContent = on ? '✓ Signature ready — it will be embedded in the documents.' : 'No signature yet.';
     el.className = 'status' + (on ? ' on' : '');
   }
 
@@ -125,9 +129,9 @@ const Sig = (() => {
   return { init, resizeAll, refresh };
 })();
 
-/* ---- utiliti imej dikongsi oleh penjana dokumen ---- */
+/* ---- image helpers shared with the document generators ---- */
 
-/** dataURL -> Uint8Array (untuk docx) */
+/** data URL -> Uint8Array (for docx) */
 function dataUrlToBytes (dataUrl) {
   const b64 = String(dataUrl).split(',')[1] || '';
   const bin = atob(b64);
@@ -136,7 +140,7 @@ function dataUrlToBytes (dataUrl) {
   return arr;
 }
 
-/** dapatkan saiz asal imej dari dataURL */
+/** natural size of an image given as a data URL */
 function imageSize (dataUrl) {
   return new Promise(resolve => {
     const img = new Image();
@@ -147,8 +151,8 @@ function imageSize (dataUrl) {
 }
 
 /**
- * Tukar sebarang dataURL (termasuk JPEG) kepada PNG dengan latar telus dibuang
- * dan dipotong (trim) ruang kosong — supaya tandatangan nampak kemas dalam PDF/Word.
+ * Convert any data URL (JPEG included) to a PNG with the surrounding blank space
+ * trimmed away, so the signature sits tidily in the PDF and Word output.
  */
 function normalizeSignature (dataUrl) {
   return new Promise(resolve => {
@@ -163,7 +167,7 @@ function normalizeSignature (dataUrl) {
       try { data = ctx.getImageData(0, 0, c.width, c.height).data; }
       catch (e) { return resolve({ url: dataUrl, w: img.width, h: img.height }); }
 
-      // cari kotak sempadan piksel yang bukan telus dan bukan hampir putih
+      // find the bounding box of pixels that are neither transparent nor near-white
       let x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
       for (let y = 0; y < c.height; y++) {
         for (let x = 0; x < c.width; x++) {

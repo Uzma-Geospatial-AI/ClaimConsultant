@@ -1,116 +1,259 @@
-# Sistem Consultant Claim
+<div align="center">
+
+# Consultant Claim System
+
+**Invoice Timesheet &amp; Personnel Time Sheet generator · PDF · Excel · Word**
+Fill the form once, tick the calendar, download all four documents.
 
 [![CI](https://github.com/kymy07/ConsultantClaimSystem/actions/workflows/ci.yml/badge.svg)](https://github.com/kymy07/ConsultantClaimSystem/actions/workflows/ci.yml)
+[![Build](https://img.shields.io/badge/Build-none%20required-1F3864?style=for-the-badge)]()
+[![Offline](https://img.shields.io/badge/Runs-fully%20offline-F26522?style=for-the-badge)]()
+[![Dependencies](https://img.shields.io/badge/npm%20install-not%20needed-2F5597?style=for-the-badge&logo=npm&logoColor=white)]()
 
-Sistem web untuk consultant key in details sekali, tick hari kerja dalam kalendar, dan auto-generate
-dua dokumen dalam empat format.
+<img src="assets/img/preview.png" alt="Timesheet tab with the day grid ticked" width="100%">
 
-| Dokumen | Format | Fail keluaran |
-|---|---|---|
-| 1. Invoice Timesheet | PDF + Excel | `INV-2026-08-026 - Nama.pdf` / `.xlsx` |
-| 2. Claim (Personnel Time Sheet Uzma) | PDF + Word | `Claim Aug 2026 - Nama.pdf` / `.docx` |
+</div>
 
-## Cara guna
+---
 
-Klik dua kali `index.html` — itu sahaja. Tiada pemasangan, tiada server, tiada internet diperlukan
-(semua library disimpan dalam folder `vendor/`).
+## Overview
 
-Untuk letak dalam intranet syarikat, salin seluruh folder ke mana-mana web server statik.
+A static web app for consultants who invoice monthly. Enter your details once, tick the days
+you worked on a calendar grid, and the app generates the two documents finance asks for — in
+four file formats — straight from the browser.
 
-## Aliran kerja
+No server, no build step, no `npm install`, no internet connection. Every library is vendored
+into `vendor/`, so the whole thing runs from a single folder on any machine.
 
-1. **Consultant** — nama, IC, alamat, jawatan, maklumat bank.
-2. **Bill To** — syarikat yang dibilkan (default: Geospatial AI Sdn Bhd) + project details untuk borang Claim.
-3. **Invoice** — no. invois, tarikh, period, dan kaedah kiraan amaun.
-4. **Timesheet** — pilih bulan, kemudian klik kotak hari untuk tick.
-5. **Signature** — lukis tandatangan guna tetikus/jari, atau muat naik imej.
-6. **Generate** — muat turun PDF / Excel / Word.
+---
 
-## Tick kalendar
+## Documents Generated
 
-Klik satu kotak hari untuk kitar melalui tiga keadaan:
+| # | Document | Formats | Output file name |
+|---|---|---|---|
+| 1 | **Invoice Timesheet** | PDF · Excel | `INV-2026-08-026 - Name.pdf` / `.xlsx` |
+| 2 | **Claim** — Uzma Personnel Time Sheet | PDF · Word | `Claim Aug 2026 - Name.pdf` / `.docx` |
 
-```
-kosong  →  /  (hari kerja, dikira dalam TOTAL DAYS [A])  →  PH  (cuti umum)  →  kosong
-```
+Both PDFs are laid out to match the official templates: the invoice in portrait with the navy
+header band, the time sheet in landscape with Sections A, B and C, the notes block and the
+Uzma footer.
 
-Sabtu dan Ahad ditanda `SAT` / `SUN` automatik ikut kalendar sebenar bulan itu — tak perlu tick.
-`TOTAL DAYS [A]`, `BALANCE [B-(A+C)]` dan senarai Public Holiday dikira sendiri.
+---
 
-Boleh tambah beberapa baris **Work Activity** (macam borang asal yang ada 8 baris).
+## Features
 
-## Kiraan amaun invois
-
-Tiga kaedah dalam tab **Invoice**:
-
-| Kaedah | Formula |
+| | |
 |---|---|
-| Kadar bulanan (default) | `kadar bulanan ÷ hari dalam bulan × hari kalendar dalam period` |
-| Kadar harian | `kadar harian × bilangan hari ditanda "/"` |
-| Amaun tetap | key in sendiri dalam jadual item |
+| 📅 **Tickable day grid** | Click a box to cycle `blank → / → PH`; Saturdays and Sundays are labelled from the real calendar, so you never tick a weekend by mistake |
+| 🧮 **Three ways to price a period** | Monthly rate prorated by calendar days, daily rate × days ticked, or a fixed amount you type yourself — the live formula shows its working |
+| ✍️ **Draw-or-upload signatures** | Three pads (Personnel, HOD, Verified By); blank space around the stroke is trimmed automatically before it is embedded |
+| 🗂️ **Multiple activity rows** | Eight rows like the original form, each with its own Job ID, allocated days and past claim |
+| 📊 **Totals that add up** | `TOTAL DAYS [A]`, `ALLOCATED [B]`, `PAST CLAIM [C]` and `BALANCE [B-(A+C)]` are computed per row and in aggregate |
+| 💾 **Autosave + profiles** | Everything persists to `localStorage`; save one profile per consultant and switch between them |
+| 📤 **Export / Import JSON** | Real backups you can move between machines — the only way data leaves the browser |
+| 🧨 **Reset All** | Two-step confirmation, then every stored key is wiped and the app is empty again |
+| 📱 **Responsive** | Collapses to a single column below 840px; the day grid wraps instead of scrolling |
 
-Contoh yang menepati invois sebenar: `RM 3,500.00 ÷ 31 hari (August 2026) × 8 hari (24–31 Ogos) = RM 903.23`.
+---
 
-Amaun item pertama dikunci (readonly) selagi kaedah bukan "Amaun tetap", supaya ia sentiasa
-selari dengan formula. Tukar ke "Amaun tetap" kalau nak taip sendiri.
+## Tech Stack
 
-## Simpan data
+**Frontend** — HTML5 · CSS3 (custom properties, grid, flexbox) · vanilla JavaScript (ES6+)
+**PDF** — jsPDF 2.5.1 + jsPDF-AutoTable 3.8.2
+**Excel** — ExcelJS 4.4.0
+**Word** — docx 8.5.0
+**Signatures** — signature_pad 4.1.7 · Canvas 2D
+**Downloads** — FileSaver.js 2.0.5
+**CI** — GitHub Actions (Node 20 · 22)
 
-Sistem ini **tiada database dan tiada server**. Semua data duduk dalam `localStorage` browser,
-dalam dua kunci sahaja:
+No bundler, no framework, no dependencies to audit at runtime.
 
-| Kunci | Isi |
+---
+
+## Project Structure
+
+```
+ConsultantClaimSystem/
+├── index.html                    # the whole UI — six tabs
+├── assets/
+│   ├── css/style.css             # design tokens + every component
+│   ├── img/                      # README screenshots
+│   └── js/
+│       ├── state.js              # data model, formulas, localStorage
+│       ├── timesheet.js          # the 1–31 day grid
+│       ├── signature.js          # signature pads + image trimming
+│       ├── gen-invoice.js        # Invoice → PDF (jsPDF) + Excel (ExcelJS)
+│       ├── gen-claim.js          # Claim   → PDF (jsPDF) + Word (docx)
+│       └── app.js                # UI wiring, profiles, generate buttons
+├── test/generate.test.js         # generates all four docs and checks them
+├── vendor/                       # pinned libraries, committed for offline use
+└── .github/workflows/ci.yml      # lint + tests on Node 20 & 22
+```
+
+---
+
+## Getting Started
+
+```bash
+git clone https://github.com/kymy07/ConsultantClaimSystem.git
+cd ConsultantClaimSystem
+```
+
+Then just double-click `index.html`. That is the whole setup.
+
+To serve it over HTTP instead:
+
+```bash
+python -m http.server 8000
+```
+
+Then open <http://127.0.0.1:8000/>.
+
+> **Serving over HTTP matters when more than one person shares a computer.** Opened from
+> `file://`, Chrome treats every local file as one origin, so two copies of this folder under
+> the same Windows account share the same `localStorage`. Over HTTP each URL gets its own
+> origin and the data stays separate.
+
+---
+
+## How the Amount Is Calculated
+
+Pick a method on the **Invoice** tab; the formula line updates as you type.
+
+| Method | Formula |
 |---|---|
-| `ccs.current` | borang yang sedang dibuka (autosave setiap 250ms) |
-| `ccs.profiles` | semua profil yang disimpan melalui "Simpan Profil" |
+| **Monthly rate** (default) | `monthly rate ÷ days in month × calendar days in period` |
+| **Daily rate** | `daily rate × days ticked "/"` |
+| **Fixed amount** | whatever you type in the item table |
 
-Butang di bar atas:
-
-- **Simpan Profil** — simpan beberapa consultant berlainan, pilih semula dari dropdown.
-- **Export / Import JSON** — backup sebenar, atau pindah data ke komputer lain. Ini satu-satunya
-  cara data keluar dari browser, jadi export sekali-sekala.
-- **Reset Semua** — padam kedua-dua kunci di atas dan mula semula kosong. Ada dua pengesahan,
-  dan tidak boleh dibatalkan. Dokumen yang sudah dimuat turun tidak terjejas.
-
-### Perkara yang perlu tahu
-
-- **Data tak dihantar ke mana-mana** — kekal dalam browser komputer itu sahaja.
-- **Data hilang** bila: clear browsing data, tukar browser, tukar PC, atau buka guna Incognito.
-- **Had ~5–10 MB.** Yang paling makan ruang ialah tandatangan (PNG base64). Kalau kuota penuh,
-  autosave akan tunjuk amaran merah — bila itu berlaku, terus Export JSON.
-- **Beberapa consultant guna PC yang sama:** bila dibuka terus dari fail (`file://`), Chrome anggap
-  semua fail tempatan sebagai satu origin. Jadi dua salinan folder pada Windows account yang sama
-  akan **berkongsi** `localStorage` yang sama. Untuk elak bercampur, guna salah satu daripada:
-  Windows account berasingan, browser berlainan, atau ciri "Simpan Profil" (satu profil satu orang).
-  Kalau di-host pada web server, masalah ini tak wujud — setiap URL ada origin sendiri.
-
-## Struktur fail
+Worked example, matching a real invoice:
 
 ```
-index.html                 antara muka (6 tab)
-assets/css/style.css
-assets/js/state.js         model data, formula, localStorage
-assets/js/timesheet.js     grid tick hari 1–31
-assets/js/signature.js     pad tandatangan + potong ruang kosong imej
-assets/js/gen-invoice.js   Invoice  → PDF (jsPDF) + Excel (ExcelJS)
-assets/js/gen-claim.js     Claim    → PDF (jsPDF) + Word (docx)
-assets/js/app.js           pendawaian UI, profil, butang generate
-vendor/                    library (offline)
-test/generate.test.js      ujian: jana 4 dokumen & semak isinya
-.github/workflows/ci.yml   GitHub Actions (Node 20 & 22)
+RM 3,500.00 ÷ 31 days (August 2026) × 8 calendar days (24–31 Aug) = RM 903.23
 ```
 
-## Ujian
+While the method is not *Fixed amount*, the first item's amount is read-only so it can never
+drift out of step with the formula. Switch to **Fixed amount** to type your own.
 
-```
+<img src="assets/img/preview-invoice.png" alt="Invoice tab showing the live formula and totals" width="100%">
+
+---
+
+## Data Storage
+
+There is **no database and no server**. Everything lives in two `localStorage` keys:
+
+| Key | Contents |
+|---|---|
+| `ccs.current` | the form currently open, autosaved every 250 ms |
+| `ccs.profiles` | every profile saved via **Save Profile** |
+
+Worth knowing:
+
+- Data never leaves the browser on that computer.
+- It is lost if you clear browsing data, switch browser or machine, or use a private window.
+- The quota is roughly 5–10 MB; signatures (base64 PNG) take the most room. If the quota is
+  exceeded the app raises a red warning instead of failing silently — export a JSON backup then.
+- **Export JSON** is the only real backup. Use it before anything irreversible.
+
+---
+
+## Testing & CI
+
+```bash
 node test/generate.test.js
 ```
 
-Tiada `npm install` diperlukan — ujian memuatkan kod aplikasi ke dalam Node dengan stub pelayar
-ringkas, menjana keempat-empat dokumen, dan menyemak amaun invois (RM 903.23), jumlah hari,
-label hujung minggu automatik, serta saiz dan magic bytes setiap fail. CI menjalankannya pada
-setiap push, bersama semakan sintaks dan imbasan data peribadi.
+No `npm install`. The suite loads the application code into a Node VM behind a small browser
+stub, generates all four documents, and asserts nine things — the invoice amount (RM 903.23),
+`TOTAL DAYS [A]`, `BALANCE`, the automatic SAT/SUN labels, and the size plus magic bytes of
+every generated file.
 
-## Library
+GitHub Actions runs it on every push across Node 20 and 22, alongside a JavaScript syntax
+check, a vendored-library check, and a scan that fails the build if a real IC number or bank
+account number ever lands in the repository.
 
-jsPDF 2.5.1 + AutoTable 3.8.2 · ExcelJS 4.4.0 · docx 8.5.0 · FileSaver 2.0.5 · signature_pad 4.1.7
+---
+
+## Editing Guide
+
+<details>
+<summary><b>Changing the theme</b></summary>
+
+Every colour is a CSS custom property in the `:root` block at the top of `assets/css/style.css`:
+
+```css
+--navy:#1f3864;   --orange:#f26522;   --blue:#2e5c99;
+--ink:#1b2330;    --muted:#6b7686;    --line:#dde3ec;
+```
+
+The PDF generators keep their own copies as RGB triples (`NAVY`, `BAR`, `LBL` in
+`gen-invoice.js`), because jsPDF cannot read CSS. Change both if you re-brand.
+
+</details>
+
+<details>
+<summary><b>Changing the Bill To company</b></summary>
+
+The defaults live in `defaultState()` in `assets/js/state.js`:
+
+```js
+company: {
+  name:  'Geospatial AI Sdn Bhd',
+  regNo: '200901001789 (844716-P)',
+  addr1: 'Uzma Tower, No 2, Jalan PJU 8/8A',
+  addr2: 'Damansara Perdana, 47820 Petaling Jaya, Selangor'
+}
+```
+
+Anything typed in the **Bill To** tab overrides them for the current form.
+
+</details>
+
+<details>
+<summary><b>Adding a field to the form</b></summary>
+
+Three places, in order:
+
+1. `index.html` — add the `<label><input id="..."></label>`
+2. `state.js` — add the key to `defaultState()` so it survives a reload
+3. `app.js` — add `['element_id', 'section', 'key']` to the `FIELDS` array
+
+`mergeDefaults()` backfills the new key for anyone with older saved data, so nothing breaks.
+
+</details>
+
+<details>
+<summary><b>Adjusting the Claim form layout</b></summary>
+
+`gen-claim.js` draws the time sheet with an explicit `y` cursor in millimetres on A4 landscape
+(297 × 210). The vertical budget is tight — Section A, the day table, Section C, the notes and
+the footer all have to fit on one page. If you add a row, take the height from `secH` or the
+signature row rather than pushing the footer down.
+
+</details>
+
+<details>
+<summary><b>Updating a vendored library</b></summary>
+
+Drop the new UMD build into `vendor/` under the same file name and run the tests. The CI job
+checks each expected file exists and is non-empty, so a rename will fail the build loudly
+rather than silently break a download button.
+
+</details>
+
+---
+
+## Contact
+
+[![Email](https://img.shields.io/badge/Email-adlishah0821%40gmail.com-F26522?style=flat-square&logo=gmail&logoColor=white)](mailto:adlishah0821@gmail.com)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-adlishah--hakimi-1F3864?style=flat-square&logo=linkedin)](https://www.linkedin.com/in/adlishah-hakimi-56325223a/)
+[![GitHub](https://img.shields.io/badge/GitHub-kymy07-1F3864?style=flat-square&logo=github)](https://github.com/kymy07)
+
+---
+
+<div align="center">
+
+**Adlishah Hakimi bin Sharilfuddin** · Malaysia
+
+</div>

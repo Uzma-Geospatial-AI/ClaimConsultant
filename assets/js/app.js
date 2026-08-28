@@ -1,5 +1,5 @@
 /* =======================================================================
-   app.js — pengikat UI, autosimpan, profil & butang generate
+   app.js — UI wiring, autosave, profiles and the generate buttons
    ======================================================================= */
 
 let S = Store.loadCurrent() || defaultState();
@@ -14,10 +14,10 @@ function toast (msg, bad) {
   toastTimer = setTimeout(() => { el.className = 'toast'; }, 3200);
 }
 
-/* ---------------- pengikatan medan ---------------- */
+/* ---------------- field bindings ---------------- */
 
 const FIELDS = [
-  // [id, bahagian, kunci, jenis]
+  // [element id, state section, key, type]
   ['c_name', 'consultant', 'name'], ['c_ic', 'consultant', 'ic'],
   ['c_addr1', 'consultant', 'addr1'], ['c_addr2', 'consultant', 'addr2'],
   ['c_position', 'consultant', 'position'], ['c_position2', 'consultant', 'position2'],
@@ -55,7 +55,7 @@ function writeStateToFields () {
   });
 }
 
-/* ---------------- jadual item invois ---------------- */
+/* ---------------- invoice item table ---------------- */
 
 function renderItems () {
   const tb = document.querySelector('#itemTable tbody');
@@ -70,7 +70,7 @@ function renderItems () {
       <td><input data-f="position"></td>
       <td><input data-f="period"></td>
       <td class="amt"><input data-f="amount" type="number" step="0.01"></td>
-      <td><button class="delrow" title="Padam">&times;</button></td>`;
+      <td><button class="delrow" title="Delete">&times;</button></td>`;
     tr.querySelector('[data-f="desc"]').value = it.desc || '';
     tr.querySelector('[data-f="position"]').value = it.position || '';
     tr.querySelector('[data-f="period"]').value = it.period || '';
@@ -78,7 +78,7 @@ function renderItems () {
     amtEl.value = it.amount === '' || it.amount == null ? '' : it.amount;
     if (autoManaged && i === 0) {
       amtEl.readOnly = true;
-      amtEl.title = 'Dikira automatik. Tukar "Kaedah Kiraan" ke "Amaun tetap" untuk key in sendiri.';
+      amtEl.title = 'Calculated automatically. Switch "Calculation Method" to "Fixed amount" to type your own.';
     }
 
     tr.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => {
@@ -103,7 +103,7 @@ function refreshTotals () {
   renderGenSummary();
 }
 
-/** kemas kini item pertama apabila kaedah kiraan bukan "fixed" */
+/** keep the first item in step with the formula whenever the mode is not "fixed" */
 function syncAutoAmount () {
   const calc = computeAmount(S);
   document.getElementById('calcFormula').innerHTML = calc.formula || '&nbsp;';
@@ -124,20 +124,20 @@ function syncAutoAmount () {
   refreshTotals();
 }
 
-/* ---------------- ringkasan tab Generate ---------------- */
+/* ---------------- Generate tab summary ---------------- */
 
 function renderGenSummary () {
   const T = invoiceTotals(S);
   const t = timesheetTotals(S.timesheet);
   document.getElementById('gsum_inv').innerHTML =
-    `<b>${S.invoice.no || '(tiada no. invois)'}</b> &middot; ${fmtPeriod(S.invoice.pStart, S.invoice.pEnd) || '(tiada period)'}<br>
+    `<b>${S.invoice.no || '(no invoice number)'}</b> &middot; ${fmtPeriod(S.invoice.pStart, S.invoice.pEnd) || '(no period)'}<br>
      Total Due: <b>RM ${money(T.total)}</b>`;
   document.getElementById('gsum_claim').innerHTML =
-    `${MONTHS[S.timesheet.month]} ${S.timesheet.year} &middot; ${S.consultant.name || '(tiada nama)'}<br>
+    `${MONTHS[S.timesheet.month]} ${S.timesheet.year} &middot; ${S.consultant.name || '(no name)'}<br>
      Total Days [A]: <b>${t.A}</b> &middot; Balance: <b>${t.balance}</b>`;
 }
 
-/* ---------------- persist ---------------- */
+/* ---------------- persistence ---------------- */
 
 let saveTimer = null;
 let saveWarned = false;
@@ -145,15 +145,15 @@ function persist () {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     if (Store.saveCurrent(S)) { saveWarned = false; return; }
-    if (!saveWarned) {                       // elak toast berulang setiap 250ms
+    if (!saveWarned) {                       // avoid repeating the toast every 250ms
       saveWarned = true;
-      toast('Autosave gagal — storan browser penuh. Guna "Export JSON" untuk backup.', true);
+      toast('Autosave failed — browser storage is full. Use "Export JSON" to back up.', true);
     }
   }, 250);
   renderGenSummary();
 }
 
-/* ---------------- isian lalai automatik ---------------- */
+/* ---------------- automatic defaults ---------------- */
 
 function fillDefaultsForMonth () {
   const ts = S.timesheet;
@@ -177,7 +177,7 @@ function fillDefaultsForMonth () {
   if (!S.timesheet.prepName) S.timesheet.prepName = S.consultant.name;
 }
 
-/* ---------------- muat semula seluruh UI ---------------- */
+/* ---------------- full UI refresh ---------------- */
 
 function renderAll () {
   writeStateToFields();
@@ -188,10 +188,10 @@ function renderAll () {
   renderGenSummary();
 }
 
-/* ---------------- pemasangan awal ---------------- */
+/* ---------------- start-up ---------------- */
 
 function boot () {
-  // pilihan bulan
+  // month options
   const msel = document.getElementById('ts_month');
   msel.innerHTML = '';
   MONTHS.forEach((m, i) => {
@@ -209,7 +209,7 @@ function boot () {
   syncAutoAmount();
   renderGenSummary();
 
-  /* --- tab --- */
+  /* --- tabs --- */
   document.querySelectorAll('.tab').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
@@ -221,7 +221,7 @@ function boot () {
     });
   });
 
-  /* --- medan biasa --- */
+  /* --- plain fields --- */
   FIELDS.forEach(([id, sec, key, type]) => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -244,45 +244,45 @@ function boot () {
     });
   });
 
-  /* --- butang timesheet --- */
+  /* --- timesheet buttons --- */
   document.getElementById('btnAddActivity').addEventListener('click', () => {
     S.timesheet.activities.push(newActivity(''));
     renderTimesheet(S, () => { persist(); syncAutoAmount(); });
     persist();
   });
   document.getElementById('btnResetDays').addEventListener('click', () => {
-    if (!confirm('Padam semua tanda hari untuk semua aktiviti?')) return;
+    if (!confirm('Clear every day tick on every activity row?')) return;
     S.timesheet.activities.forEach(a => { a.days = {}; });
     renderTimesheet(S, () => { persist(); syncAutoAmount(); });
     syncAutoAmount(); persist();
-    toast('Semua tanda telah dipadam.');
+    toast('All ticks cleared.');
   });
 
-  /* --- butang item invois --- */
+  /* --- invoice item button --- */
   document.getElementById('btnAddItem').addEventListener('click', () => {
     S.invoice.items.push({ desc: '', position: S.consultant.position, period: '', amount: 0 });
     renderItems(); refreshTotals(); persist();
   });
 
-  /* --- profil --- */
+  /* --- profiles --- */
   refreshProfileList();
   document.getElementById('btnSaveProfile').addEventListener('click', () => {
-    const suggested = S.consultant.name || 'Profil 1';
-    const name = prompt('Nama profil:', suggested);
+    const suggested = S.consultant.name || 'Profile 1';
+    const name = prompt('Profile name:', suggested);
     if (!name) return;
     if (Store.saveProfile(name.trim(), S)) {
       refreshProfileList();
       document.getElementById('profileSelect').value = name.trim();
-      toast(`Profil "${name.trim()}" disimpan.`);
-    } else toast('Gagal simpan profil (storan penuh?).', true);
+      toast(`Profile "${name.trim()}" saved.`);
+    } else toast('Could not save the profile (storage full?).', true);
   });
   document.getElementById('btnDeleteProfile').addEventListener('click', () => {
     const sel = document.getElementById('profileSelect').value;
-    if (!sel) { toast('Pilih profil dahulu.', true); return; }
-    if (!confirm(`Padam profil "${sel}"?`)) return;
+    if (!sel) { toast('Select a profile first.', true); return; }
+    if (!confirm(`Delete the profile "${sel}"?`)) return;
     Store.deleteProfile(sel);
     refreshProfileList();
-    toast('Profil dipadam.');
+    toast('Profile deleted.');
   });
   document.getElementById('profileSelect').addEventListener('change', e => {
     const name = e.target.value;
@@ -293,22 +293,22 @@ function boot () {
     Sig.init(S, persist);
     renderAll();
     persist();
-    toast(`Profil "${name}" dimuatkan.`);
+    toast(`Profile "${name}" loaded.`);
   });
 
-  /* --- reset semua data --- */
+  /* --- reset everything --- */
   document.getElementById('btnReset').addEventListener('click', () => {
     const n = Object.keys(Store.profiles()).length;
     if (!confirm(
-      [ 'Padam SEMUA data sistem ini?',
+      [ 'Erase ALL data stored by this app?',
         '',
-        '• borang yang sedang dibuka',
-        `• ${n} profil tersimpan`,
-        '• semua tandatangan',
+        '• the form currently open',
+        `• ${n} saved profile(s)`,
+        '• every signature',
         '',
-        'Dokumen PDF/Excel/Word yang sudah dimuat turun TIDAK terjejas.' ].join('\n')
+        'PDF/Excel/Word files you have already downloaded are NOT affected.' ].join('\n')
     )) return;
-    if (!confirm('Pasti? Tindakan ini tidak boleh dibatalkan.')) return;
+    if (!confirm('Are you sure? This cannot be undone.')) return;
 
     Store.clearAll();
     S = defaultState();
@@ -317,7 +317,7 @@ function boot () {
     Sig.init(S, persist);
     renderAll();
     Store.saveCurrent(S);
-    toast('Semua data telah dipadam — sistem kembali kosong.');
+    toast('All data erased — the app is back to empty.');
   });
 
   /* --- import / export --- */
@@ -336,8 +336,8 @@ function boot () {
         Sig.init(S, persist);
         renderAll();
         persist();
-        toast('Data berjaya diimport.');
-      } catch (err) { toast('Fail JSON tidak sah.', true); }
+        toast('Data imported successfully.');
+      } catch (err) { toast('That is not a valid JSON file.', true); }
     };
     r.readAsText(f);
     e.target.value = '';
@@ -356,25 +356,25 @@ function boot () {
       ['Claim PDF', generateClaimPDF],     ['Claim Word', generateClaimDOCX]
     ];
     for (const [label, fn] of jobs) {
-      try { await fn(S); log(`✓ ${label} dijana.`, 'ok'); }
-      catch (err) { log(`✗ ${label} gagal: ${err.message}`, 'err'); console.error(err); }
-      await new Promise(res => setTimeout(res, 350));   // elak sekatan muat turun berganda
+      try { await fn(S); log(`✓ ${label} generated.`, 'ok'); }
+      catch (err) { log(`✗ ${label} failed: ${err.message}`, 'err'); console.error(err); }
+      await new Promise(res => setTimeout(res, 350));   // avoid the multi-download block
     }
-    toast('Selesai — semak folder Downloads.');
+    toast('Done — check your Downloads folder.');
   });
 }
 
 function wire (id, fn, label) {
   document.getElementById(id).addEventListener('click', async () => {
     if (!validate()) return;
-    try { await fn(S); log(`✓ ${label} dijana.`, 'ok'); toast(`${label} dimuat turun.`); }
-    catch (err) { log(`✗ ${label} gagal: ${err.message}`, 'err'); toast(`${label} gagal dijana.`, true); console.error(err); }
+    try { await fn(S); log(`✓ ${label} generated.`, 'ok'); toast(`${label} downloaded.`); }
+    catch (err) { log(`✗ ${label} failed: ${err.message}`, 'err'); toast(`${label} could not be generated.`, true); console.error(err); }
   });
 }
 
 function validate () {
   if (!S.consultant.name.trim()) {
-    toast('Sila isi Nama Penuh consultant dahulu (tab 1).', true);
+    toast('Enter the consultant’s Full Name first (tab 1).', true);
     return false;
   }
   return true;
@@ -393,7 +393,7 @@ function log (msg, cls) {
 function refreshProfileList () {
   const sel = document.getElementById('profileSelect');
   const cur = sel.value;
-  sel.innerHTML = '<option value="">— Pilih profil —</option>';
+  sel.innerHTML = '<option value="">— Select a profile —</option>';
   Object.keys(Store.profiles()).sort().forEach(n => {
     const o = document.createElement('option');
     o.value = n; o.textContent = n;

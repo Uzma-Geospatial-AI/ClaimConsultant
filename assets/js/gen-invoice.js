@@ -1,14 +1,14 @@
 /* =======================================================================
-   gen-invoice.js — jana Invoice dalam format PDF (jsPDF) dan Excel (ExcelJS)
+   gen-invoice.js — renders the Invoice as PDF (jsPDF) and Excel (ExcelJS)
    ======================================================================= */
 
 const NAVY = [31, 56, 100];      // #1F3864
 const BAR  = [47, 85, 151];      // #2F5597
-const LBL  = [46, 92, 153];      // biru label
-const ALT  = [242, 242, 242];    // baris berselang
+const LBL  = [46, 92, 153];      // label blue
+const ALT  = [242, 242, 242];    // alternating row
 const LINE = [166, 178, 199];
 
-/** senarai item; jika kosong, bina satu item automatik dari data invois */
+/** the item list; when empty, build one item automatically from the invoice data */
 function invoiceItems (S) {
   if (S.invoice.items.length) return S.invoice.items;
   const calc = computeAmount(S);
@@ -37,13 +37,13 @@ async function generateInvoicePDF (S) {
   const items = invoiceItems(S);
   const T = invoiceTotals(S, items);
 
-  /* ---- jalur tajuk ---- */
+  /* ---- title band ---- */
   doc.setFillColor(...NAVY);
   doc.rect(L, 12, W, 28, 'F');
   doc.setTextColor(255, 255, 255).setFont('helvetica', 'bold').setFontSize(26);
   doc.text('INVOICE', R - 6, 31, { align: 'right' });
 
-  /* ---- blok butiran kiri / kanan ---- */
+  /* ---- left / right detail block ---- */
   let y = 50;
   const RH = 5.6;
   const label = (t, x, yy) => {
@@ -93,12 +93,12 @@ async function generateInvoicePDF (S) {
     });
   y += 4 * RH + 3;
 
-  /* ---- jadual item ---- */
+  /* ---- item table ---- */
   const rows = items.map((it, i) => [
     String(i + 1), it.desc || '', it.position || '', it.period || '',
     it.amount === '' || it.amount == null ? '' : money(it.amount)
   ]);
-  while (rows.length < 4) rows.push(['', '', '', '', '']);   // baris kosong seperti templat
+  while (rows.length < 4) rows.push(['', '', '', '', '']);   // blank rows, as in the template
 
   doc.autoTable({
     startY: y,
@@ -120,7 +120,7 @@ async function generateInvoicePDF (S) {
   });
   y = doc.lastAutoTable.finalY + 4;
 
-  /* ---- ringkasan jumlah ---- */
+  /* ---- totals summary ---- */
   const boxX = R - 40, boxW = 40, rowH = 6;
   const totRow = (lab, val, filled) => {
     doc.setFont('helvetica', filled ? 'bold' : 'normal').setFontSize(8.5);
@@ -140,14 +140,14 @@ async function generateInvoicePDF (S) {
   totRow('TOTAL DUE', money(T.total), true);
   y += 6;
 
-  /* ---- butiran bayaran ---- */
+  /* ---- payment details ---- */
   bar('PAYMENT DETAILS', y);
   y += 9.5;
   [['Bank:', C.bank], ['Account Name:', C.accName], ['Account No.:', C.accNo]]
     .forEach((r, i) => { label(r[0], L, y + i * RH); value(r[1], L + 30, y + i * RH); });
   y += 3 * RH + 6;
 
-  /* ---- tandatangan (opsyenal) ---- */
+  /* ---- signature (optional) ---- */
   if (IV.showSig && S.sig.personnel) {
     const sig = await normalizeSignature(S.sig.personnel);
     if (sig) {
@@ -165,7 +165,7 @@ async function generateInvoicePDF (S) {
     }
   }
 
-  /* ---- nota ---- */
+  /* ---- note ---- */
   if (IV.note) {
     doc.setFont('helvetica', 'italic').setFontSize(7.5).setTextColor(110, 110, 110);
     doc.text(doc.splitTextToSize(IV.note, W), L, Math.max(y, 262));
@@ -220,7 +220,7 @@ async function generateInvoiceXLSX (S) {
     ws.getRow(row).height = 16;
   };
 
-  /* ---- jalur tajuk ---- */
+  /* ---- title band ---- */
   ws.mergeCells('A1:G3');
   put('A1', 'INVOICE', {
     font: { bold: true, size: 26, color: { argb: 'FFFFFFFF' } },
@@ -229,7 +229,7 @@ async function generateInvoiceXLSX (S) {
   });
   ws.getRow(1).height = 22; ws.getRow(2).height = 22; ws.getRow(3).height = 22;
 
-  /* ---- butiran ---- */
+  /* ---- details ---- */
   const left = [['Consultant:', C.name], ['IC No.:', C.ic], ['Address:', C.addr1], ['', C.addr2]];
   const right = [['Invoice No.:', IV.no], ['Invoice Date:', fmtDMY(IV.date)],
                  ['Period:', fmtPeriod(IV.pStart, IV.pEnd)], ['Due Date:', fmtDMY(IV.due)]];
@@ -255,7 +255,7 @@ async function generateInvoiceXLSX (S) {
       valueCell(`B${row}`, r[1]);
     });
 
-  /* ---- jadual item ---- */
+  /* ---- item table ---- */
   const headRow = 16;
   const heads = ['#', 'Description', 'Position', 'Period', 'Amount (RM)'];
   ws.mergeCells(`B${headRow}:C${headRow}`);
@@ -292,7 +292,7 @@ async function generateInvoiceXLSX (S) {
     });
   }
 
-  /* ---- jumlah ---- */
+  /* ---- totals ---- */
   let r = headRow + bodyRows + 1;
   const totalsDef = [
     ['Subtotal', T.sub, false],
@@ -316,7 +316,7 @@ async function generateInvoiceXLSX (S) {
     r++;
   });
 
-  /* ---- butiran bayaran ---- */
+  /* ---- payment details ---- */
   r += 1;
   barRow(r, 'PAYMENT DETAILS');
   r++;
@@ -327,7 +327,7 @@ async function generateInvoiceXLSX (S) {
     r++;
   });
 
-  /* ---- tandatangan (opsyenal) ---- */
+  /* ---- signature (optional) ---- */
   if (IV.showSig && S.sig.personnel) {
     const sig = await normalizeSignature(S.sig.personnel);
     if (sig) {
@@ -342,7 +342,7 @@ async function generateInvoiceXLSX (S) {
     }
   }
 
-  /* ---- nota ---- */
+  /* ---- note ---- */
   r += 1;
   ws.mergeCells(`A${r}:G${r}`);
   put(`A${r}`, IV.note || '', {

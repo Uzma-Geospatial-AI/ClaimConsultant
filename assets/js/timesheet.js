@@ -1,12 +1,12 @@
 /* =======================================================================
-   timesheet.js — grid hari 1..31 yang boleh ditanda (tick)
+   timesheet.js — the tickable day grid for days 1..31
    ======================================================================= */
 
-const CYCLE = ['', '/', 'PH'];   // kitaran nilai bila kotak diklik
+const CYCLE = ['', '/', 'PH'];   // values a day box cycles through when clicked
 
 /**
- * Nilai yang dipapar / dieksport bagi satu hari.
- * Tanda manual ('/' atau 'PH') mengatasi label hujung minggu automatik.
+ * The value shown for one day, and the value exported to the documents.
+ * A manual tick ('/' or 'PH') overrides the automatic weekend label.
  */
 function dayValue (ts, act, d) {
   const v = act.days[d];
@@ -27,7 +27,7 @@ function renderTimesheet (S, onChange) {
     const box = document.createElement('div');
     box.className = 'actrow';
 
-    /* ---- baris atas: nama aktiviti, job id, B, C ---- */
+    /* ---- top row: activity name, job id, B, C ---- */
     const top = document.createElement('div');
     top.className = 'top';
     top.innerHTML = `
@@ -37,7 +37,7 @@ function renderTimesheet (S, onChange) {
       <label>Job ID Number<input data-f="jobId"></label>
       <label>Allocated Projected Days [B]<input type="number" step="0.5" data-f="allocated"></label>
       <label>Past Claim [C]<input type="number" step="0.5" data-f="pastClaim"></label>
-      <label>&nbsp;<button class="delrow" title="Padam baris">&times;</button></label>`;
+      <label>&nbsp;<button class="delrow" title="Delete row">&times;</button></label>`;
 
     top.querySelector('[data-f="name"]').value = act.name;
     top.querySelector('[data-f="jobId"]').value = act.jobId;
@@ -54,14 +54,14 @@ function renderTimesheet (S, onChange) {
     });
 
     top.querySelector('.delrow').addEventListener('click', () => {
-      if (ts.activities.length === 1) { toast('Sekurang-kurangnya satu baris aktiviti diperlukan.', true); return; }
+      if (ts.activities.length === 1) { toast('At least one activity row is required.', true); return; }
       ts.activities.splice(ai, 1);
       renderTimesheet(S, onChange);
       onChange();
     });
     box.appendChild(top);
 
-    /* ---- grid hari ---- */
+    /* ---- day grid ---- */
     const days = document.createElement('div');
     days.className = 'days';
     for (let d = 1; d <= dim; d++) {
@@ -82,7 +82,7 @@ function renderTimesheet (S, onChange) {
     }
     box.appendChild(days);
 
-    /* ---- statistik baris ---- */
+    /* ---- per-row totals ---- */
     const stats = document.createElement('div');
     stats.className = 'stats';
     box.appendChild(stats);
@@ -119,7 +119,7 @@ function renderSummary (S) {
   const ph = new Set();
   ts.activities.forEach(a => Object.keys(a.days).forEach(d => { if (a.days[d] === 'PH') ph.add(Number(d)); }));
   document.getElementById('tsSummary').innerHTML = `
-    <div>Bulan<b>${MONTHS[ts.month]} ${ts.year}</b></div>
+    <div>Month<b>${MONTHS[ts.month]} ${ts.year}</b></div>
     <div>Total Days [A]<b>${t.A}</b></div>
     <div>Allocated [B]<b>${t.B}</b></div>
     <div>Past Claim [C]<b>${t.C}</b></div>

@@ -1,5 +1,5 @@
 /* =======================================================================
-   state.js — model data, nilai default, helper & storage (localStorage)
+   state.js — data model, defaults, helpers and localStorage persistence
    ======================================================================= */
 
 const MONTHS = ['January','February','March','April','May','June',
@@ -51,7 +51,7 @@ function newActivity (name) {
 
 const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
 
-/** 0 = Ahad .. 6 = Sabtu */
+/** 0 = Sunday .. 6 = Saturday */
 const dowOf = (y, m, d) => new Date(y, m, d).getDay();
 
 const isWeekend = (y, m, d) => { const w = dowOf(y, m, d); return w === 0 || w === 6; };
@@ -75,7 +75,7 @@ function fmtPeriod (a, b) {
   return one(a || b);
 }
 
-/** '2026-08-24' + '2026-08-31' -> '24 - 31 Aug 2026' (ringkas utk baris item) */
+/** '2026-08-24' + '2026-08-31' -> '24 - 31 Aug 2026' (compact, for item rows) */
 function fmtPeriodShort (a, b) {
   if (!a || !b) return fmtPeriod(a, b);
   const [ay, am, ad] = a.split('-').map(Number);
@@ -85,7 +85,7 @@ function fmtPeriodShort (a, b) {
   return fmtPeriod(a, b);
 }
 
-/** bilangan hari kalendar termasuk kedua-dua hujung */
+/** number of calendar days, both ends inclusive */
 function calendarDays (a, b) {
   if (!a || !b) return 0;
   const d1 = new Date(a + 'T00:00:00'), d2 = new Date(b + 'T00:00:00');
@@ -95,17 +95,17 @@ function calendarDays (a, b) {
 const money = n => (Number(n) || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
 
-/** buang aksara yang tak sah untuk nama fail */
+/** strip characters that are not legal in a file name */
 const safeFile = s => String(s || '').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim();
 
-/* ---------------- kiraan timesheet ---------------- */
+/* ---------------- timesheet totals ---------------- */
 
-/** jumlah hari bertanda '/' bagi satu aktiviti */
+/** number of days ticked '/' for one activity */
 function activityTotal (act) {
   return Object.values(act.days || {}).filter(v => v === '/').length;
 }
 
-/** jumlah keseluruhan semua aktiviti */
+/** totals across every activity */
 function timesheetTotals (ts) {
   let a = 0, b = 0, c = 0;
   ts.activities.forEach(act => {
@@ -116,23 +116,23 @@ function timesheetTotals (ts) {
   return { A: a, B: b, C: c, balance: round2(b - (a + c)) };
 }
 
-/* ---------------- kiraan amaun invoice ---------------- */
+/* ---------------- invoice amount ---------------- */
 
 function computeAmount (S) {
   const inv = S.invoice, ts = S.timesheet;
   if (inv.mode === 'daily') {
     const days = timesheetTotals(ts).A;
     return { amount: round2((Number(inv.dailyRate) || 0) * days),
-             formula: `RM ${money(inv.dailyRate)} × ${days} hari ditanda = RM ${money((Number(inv.dailyRate) || 0) * days)}` };
+             formula: `RM ${money(inv.dailyRate)} × ${days} days ticked = RM ${money((Number(inv.dailyRate) || 0) * days)}` };
   }
   if (inv.mode === 'monthly') {
     const dim = daysInMonth(ts.year, ts.month);
     const cal = calendarDays(inv.pStart, inv.pEnd);
     const amt = round2((Number(inv.monthlyRate) || 0) / dim * cal);
     return { amount: amt,
-             formula: `RM ${money(inv.monthlyRate)} ÷ ${dim} hari (${MONTHS[ts.month]} ${ts.year}) × ${cal} hari kalendar = RM ${money(amt)}` };
+             formula: `RM ${money(inv.monthlyRate)} ÷ ${dim} days (${MONTHS[ts.month]} ${ts.year}) × ${cal} calendar days = RM ${money(amt)}` };
   }
-  return { amount: null, formula: 'Amaun tetap — key in sendiri dalam jadual item di bawah.' };
+  return { amount: null, formula: 'Fixed amount — enter it yourself in the item table below.' };
 }
 
 function invoiceTotals (S, items) {
@@ -150,9 +150,9 @@ const PROFILE_KEY = 'ccs.profiles';
 const Store = {
   saveCurrent (S) {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); return true; }
-    catch (e) { return false; }          // kuota penuh / mod peribadi
+    catch (e) { return false; }          // quota exceeded / private mode
   },
-  /** padam semua data sistem ini (borang semasa + semua profil) */
+  /** erase everything this app stores (current form + every profile) */
   clearAll () {
     try {
       localStorage.removeItem(STORE_KEY);
@@ -182,7 +182,7 @@ const Store = {
   }
 };
 
-/** gabung objek tersimpan dengan default supaya field baharu tak hilang */
+/** merge a stored object over the defaults so newly added fields are never lost */
 function mergeDefaults (saved) {
   const d = defaultState();
   const out = JSON.parse(JSON.stringify(d));
