@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sistem Consultant Claim</title>
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="mark"></span>
+    <div>
+      <h1>Sistem Consultant Claim</h1>
+      <p>Auto-generate Invoice Timesheet &amp; Borang Claim &mdash; PDF / Excel / Word</p>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <select id="profileSelect" title="Profil tersimpan"><option value="">— Pilih profil —</option></select>
+    <button class="btn ghost" id="btnSaveProfile">Simpan Profil</button>
+    <button class="btn ghost" id="btnDeleteProfile">Padam</button>
+    <button class="btn ghost" id="btnExport">Export JSON</button>
+    <button class="btn ghost" id="btnImport">Import JSON</button>
+    <button class="btn danger" id="btnReset" title="Padam semua data tersimpan dan mula semula">Reset Semua</button>
+    <input type="file" id="fileImport" accept="application/json" hidden>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button class="tab active" data-tab="consultant">1. Consultant</button>
+  <button class="tab" data-tab="company">2. Bill To</button>
+  <button class="tab" data-tab="invoice">3. Invoice</button>
+  <button class="tab" data-tab="timesheet">4. Timesheet</button>
+  <button class="tab" data-tab="signature">5. Signature</button>
+  <button class="tab" data-tab="generate">6. Generate</button>
+</nav>
+
+<main>
+
+<!-- ============ 1. CONSULTANT ============ -->
+<section class="panel active" id="p-consultant">
+  <h2>Maklumat Consultant</h2>
+  <div class="grid2">
+    <label>Nama Penuh<input id="c_name" placeholder="cth: Ahmad bin Abdullah"></label>
+    <label>No. Kad Pengenalan<input id="c_ic" placeholder="cth: 010203-04-0567"></label>
+    <label>Alamat (Baris 1)<input id="c_addr1" placeholder="cth: No 12, Jalan Contoh 1,"></label>
+    <label>Alamat (Baris 2)<input id="c_addr2" placeholder="cth: Taman Contoh, 40000 Shah Alam, Selangor"></label>
+    <label>Jawatan / Position<input id="c_position" placeholder="Full Stack Developer"></label>
+    <label>Position pada borang Claim<input id="c_position2" placeholder="FULL STACK DEVELOPER (CONSULTANT)"></label>
+    <label>Work Location<input id="c_workloc" placeholder="UZMA TOWER"></label>
+    <label>Employee / BP Code No. <span class="hint">(SAP usage only)</span><input id="c_empcode" placeholder="kosongkan jika tiada"></label>
+  </div>
+
+  <h3>Maklumat Bank <span class="hint">(dipapar dalam Invoice)</span></h3>
+  <div class="grid2">
+    <label>Nama Bank<input id="c_bank" placeholder="RHB BANK Berhad"></label>
+    <label>Account Name<input id="c_accname" placeholder="nama seperti dalam akaun bank"></label>
+    <label>Account No.<input id="c_accno" placeholder="cth: 1-23456-0001234-5"></label>
+  </div>
+</section>
+
+<!-- ============ 2. BILL TO ============ -->
+<section class="panel" id="p-company">
+  <h2>Bill To &mdash; Syarikat</h2>
+  <div class="grid2">
+    <label>Nama Syarikat<input id="co_name" placeholder="Geospatial AI Sdn Bhd"></label>
+    <label>No. Syarikat<input id="co_regno" placeholder="200901001789 (844716-P)"></label>
+    <label>Alamat (Baris 1)<input id="co_addr1" placeholder="Uzma Tower, No 2, Jalan PJU 8/8A"></label>
+    <label>Alamat (Baris 2)<input id="co_addr2" placeholder="Damansara Perdana, 47820 Petaling Jaya, Selangor"></label>
+  </div>
+
+  <h3>Project Details <span class="hint">(untuk borang Claim &mdash; boleh dikosongkan)</span></h3>
+  <div class="grid2">
+    <label>Project Name<input id="pj_name"></label>
+    <label>Client Name<input id="pj_client"></label>
+    <label>Charge to Client<input id="pj_charge" placeholder="YES / NO"></label>
+    <label>Profit Centres<input id="pj_profit"></label>
+    <label>Project Code<input id="pj_code"></label>
+    <label>Department Code<input id="pj_dept"></label>
+    <label>Invoice to Client<input id="pj_invclient"></label>
+  </div>
+</section>
+
+<!-- ============ 3. INVOICE ============ -->
+<section class="panel" id="p-invoice">
+  <h2>Butiran Invoice</h2>
+  <div class="grid3">
+    <label>Invoice No.<input id="i_no" placeholder="INV-2026-08-026"></label>
+    <label>Invoice Date<input type="date" id="i_date"></label>
+    <label>Due Date<input type="date" id="i_due"></label>
+    <label>Period Start<input type="date" id="i_pstart"></label>
+    <label>Period End<input type="date" id="i_pend"></label>
+    <label>Tax (%)<input type="number" id="i_tax" value="0" step="0.01"></label>
+  </div>
+
+  <h3>Kiraan Amaun</h3>
+  <div class="calcbox">
+    <div class="grid3">
+      <label>Kaedah Kiraan
+        <select id="i_mode">
+          <option value="monthly">Kadar bulanan &divide; hari dlm bulan &times; hari kalendar period</option>
+          <option value="daily">Kadar harian &times; hari ditanda (timesheet)</option>
+          <option value="fixed">Amaun tetap (key in sendiri)</option>
+        </select>
+      </label>
+      <label id="wrapMonthly">Kadar Bulanan (RM)<input type="number" id="i_monthly" value="3500" step="0.01"></label>
+      <label id="wrapDaily" class="hidden">Kadar Harian (RM)<input type="number" id="i_daily" value="0" step="0.01"></label>
+    </div>
+    <p class="formula" id="calcFormula">&nbsp;</p>
+  </div>
+
+  <h3>Item Invoice</h3>
+  <div class="tablescroll">
+    <table class="itemtable" id="itemTable">
+      <thead><tr><th style="width:40px">#</th><th>Description</th><th style="width:22%">Position</th><th style="width:20%">Period</th><th style="width:16%">Amount (RM)</th><th style="width:44px"></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <button class="btn ghost small" id="btnAddItem">+ Tambah Item</button>
+
+  <div class="totals">
+    <div><span>Subtotal</span><b id="t_sub">0.00</b></div>
+    <div><span>Tax</span><b id="t_tax">0.00</b></div>
+    <div class="grand"><span>TOTAL DUE (RM)</span><b id="t_total">0.00</b></div>
+  </div>
+
+  <label class="full">Nota Invoice<input id="i_note" value="Invoice submitted with original timesheet signed by Consultant as per Clause 7.1 of the Service Agreement."></label>
+  <label class="check"><input type="checkbox" id="i_showsig"> Papar tandatangan Consultant dalam PDF invoice</label>
+</section>
+
+<!-- ============ 4. TIMESHEET ============ -->
+<section class="panel" id="p-timesheet">
+  <h2>Timesheet / Claim</h2>
+  <div class="grid3">
+    <label>Bulan
+      <select id="ts_month"></select>
+    </label>
+    <label>Tahun<input type="number" id="ts_year" value="2026" min="2000" max="2100"></label>
+    <label>Assignment Period<input id="c_assignperiod" placeholder="Aug-26"></label>
+  </div>
+
+  <p class="hint">Klik kotak hari untuk tukar status: <b>kosong &rarr; &ldquo;/&rdquo; (hari kerja) &rarr; &ldquo;PH&rdquo; (cuti umum) &rarr; kosong</b>. Sabtu &amp; Ahad ditanda automatik ikut kalendar.</p>
+
+  <div id="activities"></div>
+  <div class="btnrow">
+    <button class="btn ghost small" id="btnAddActivity">+ Tambah Baris Aktiviti</button>
+    <button class="btn ghost small" id="btnResetDays">Reset semua tanda</button>
+  </div>
+
+  <div class="summary" id="tsSummary"></div>
+
+  <h3>Section C &mdash; Nama &amp; Tarikh</h3>
+  <div class="grid3">
+    <label>Prepared By (Personnel)<input id="s_prepname"></label>
+    <label>Tarikh<input id="s_prepdate" placeholder="26.8.2026"></label>
+    <label class="spacer">&nbsp;</label>
+    <label>Approved By (HOD)<input id="s_apprname" placeholder="cth: nama Ketua Jabatan"></label>
+    <label>Tarikh<input id="s_apprdate" placeholder="26.8.2026"></label>
+    <label class="spacer">&nbsp;</label>
+    <label>Verified By (Group People &amp; Finance)<input id="s_verifname"></label>
+    <label>Tarikh<input id="s_verifdate"></label>
+    <label class="spacer">&nbsp;</label>
+  </div>
+</section>
+
+<!-- ============ 5. SIGNATURE ============ -->
+<section class="panel" id="p-signature">
+  <h2>Tandatangan</h2>
+  <p class="hint">Lukis guna tetikus atau jari (skrin sentuh), atau muat naik gambar tandatangan. PNG latar belakang telus paling elok.</p>
+  <div class="sigwrap" id="sigwrap"></div>
+</section>
+
+<!-- ============ 6. GENERATE ============ -->
+<section class="panel" id="p-generate">
+  <h2>Generate Dokumen</h2>
+
+  <div class="gencards">
+    <div class="gencard">
+      <h3>1. Invoice Timesheet</h3>
+      <p id="gsum_inv" class="gsum"></p>
+      <div class="btnrow">
+        <button class="btn" id="btnInvPdf">Download PDF</button>
+        <button class="btn" id="btnInvXlsx">Download Excel</button>
+      </div>
+    </div>
+    <div class="gencard">
+      <h3>2. Claim &mdash; Personnel Time Sheet</h3>
+      <p id="gsum_claim" class="gsum"></p>
+      <div class="btnrow">
+        <button class="btn" id="btnClaimPdf">Download PDF</button>
+        <button class="btn" id="btnClaimDocx">Download Word</button>
+      </div>
+    </div>
+    <div class="gencard wide">
+      <h3>Semua sekali</h3>
+      <p class="gsum">Generate keempat-empat fail sekali gus (2 PDF + 1 Excel + 1 Word).</p>
+      <div class="btnrow"><button class="btn primary" id="btnAll">Generate Semua (4 fail)</button></div>
+    </div>
+  </div>
+
+  <div id="genlog" class="genlog"></div>
+</section>
+
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="vendor/jspdf.plugin.autotable.min.js"></script>
+<script src="vendor/exceljs.min.js"></script>
+<script src="vendor/FileSaver.min.js"></script>
+<script src="vendor/signature_pad.umd.min.js"></script>
+<script src="vendor/docx.umd.js"></script>
+<script src="assets/js/state.js"></script>
+<script src="assets/js/timesheet.js"></script>
+<script src="assets/js/signature.js"></script>
+<script src="assets/js/gen-invoice.js"></script>
+<script src="assets/js/gen-claim.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>

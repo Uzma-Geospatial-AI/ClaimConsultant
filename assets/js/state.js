@@ -1,0 +1,199 @@
+/* =======================================================================
+   state.js — model data, nilai default, helper & storage (localStorage)
+   ======================================================================= */
+
+const MONTHS = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
+const MON3 = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function defaultState () {
+  const now = new Date();
+  return {
+    consultant: {
+      name: '', ic: '', addr1: '', addr2: '',
+      position: '', position2: '', workLoc: 'UZMA TOWER', empCode: '',
+      assignPeriod: '',
+      bank: '', accName: '', accNo: ''
+    },
+    company: {
+      name: 'Geospatial AI Sdn Bhd',
+      regNo: '200901001789 (844716-P)',
+      addr1: 'Uzma Tower, No 2, Jalan PJU 8/8A',
+      addr2: 'Damansara Perdana, 47820 Petaling Jaya, Selangor'
+    },
+    project: {
+      name: '', client: '', charge: '', profit: '', code: '', dept: '', invClient: ''
+    },
+    invoice: {
+      no: '', date: '', due: '', pStart: '', pEnd: '',
+      taxPct: 0, mode: 'monthly', monthlyRate: 3500, dailyRate: 0,
+      items: [],
+      note: 'Invoice submitted with original timesheet signed by Consultant as per Clause 7.1 of the Service Agreement.',
+      showSig: false
+    },
+    timesheet: {
+      month: now.getMonth(),           // 0-11
+      year: now.getFullYear(),
+      activities: [ newActivity('') ],
+      prepName: '', prepDate: '',
+      apprName: '', apprDate: '',
+      verifName: '', verifDate: ''
+    },
+    sig: { personnel: '', hod: '', verified: '' }
+  };
+}
+
+function newActivity (name) {
+  return { name: name || '', jobId: '', days: {}, allocated: 0, pastClaim: 0 };
+}
+
+/* ---------------- date & number helpers ---------------- */
+
+const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
+
+/** 0 = Ahad .. 6 = Sabtu */
+const dowOf = (y, m, d) => new Date(y, m, d).getDay();
+
+const isWeekend = (y, m, d) => { const w = dowOf(y, m, d); return w === 0 || w === 6; };
+
+/** '2026-08-26' -> '26-Aug-26' */
+function fmtDMY (iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y) return iso;
+  return `${String(d).padStart(2, '0')}-${MON3[m - 1]}-${String(y).slice(2)}`;
+}
+
+/** '2026-08-24' + '2026-08-31' -> '24 Aug 2026 – 31 Aug 2026' */
+function fmtPeriod (a, b) {
+  if (!a && !b) return '';
+  const one = iso => {
+    const [y, m, d] = iso.split('-').map(Number);
+    return `${d} ${MON3[m - 1]} ${y}`;
+  };
+  if (a && b) return `${one(a)} – ${one(b)}`;
+  return one(a || b);
+}
+
+/** '2026-08-24' + '2026-08-31' -> '24 - 31 Aug 2026' (ringkas utk baris item) */
+function fmtPeriodShort (a, b) {
+  if (!a || !b) return fmtPeriod(a, b);
+  const [ay, am, ad] = a.split('-').map(Number);
+  const [by, bm, bd] = b.split('-').map(Number);
+  if (ay === by && am === bm) return `${ad} - ${bd} ${MON3[am - 1]} ${ay}`;
+  if (ay === by) return `${ad} ${MON3[am - 1]} - ${bd} ${MON3[bm - 1]} ${ay}`;
+  return fmtPeriod(a, b);
+}
+
+/** bilangan hari kalendar termasuk kedua-dua hujung */
+function calendarDays (a, b) {
+  if (!a || !b) return 0;
+  const d1 = new Date(a + 'T00:00:00'), d2 = new Date(b + 'T00:00:00');
+  return Math.max(0, Math.round((d2 - d1) / 86400000) + 1);
+}
+
+const money = n => (Number(n) || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
+
+/** buang aksara yang tak sah untuk nama fail */
+const safeFile = s => String(s || '').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim();
+
+/* ---------------- kiraan timesheet ---------------- */
+
+/** jumlah hari bertanda '/' bagi satu aktiviti */
+function activityTotal (act) {
+  return Object.values(act.days || {}).filter(v => v === '/').length;
+}
+
+/** jumlah keseluruhan semua aktiviti */
+function timesheetTotals (ts) {
+  let a = 0, b = 0, c = 0;
+  ts.activities.forEach(act => {
+    a += activityTotal(act);
+    b += Number(act.allocated) || 0;
+    c += Number(act.pastClaim) || 0;
+  });
+  return { A: a, B: b, C: c, balance: round2(b - (a + c)) };
+}
+
+/* ---------------- kiraan amaun invoice ---------------- */
+
+function computeAmount (S) {
+  const inv = S.invoice, ts = S.timesheet;
+  if (inv.mode === 'daily') {
+    const days = timesheetTotals(ts).A;
+    return { amount: round2((Number(inv.dailyRate) || 0) * days),
+             formula: `RM ${money(inv.dailyRate)} × ${days} hari ditanda = RM ${money((Number(inv.dailyRate) || 0) * days)}` };
+  }
+  if (inv.mode === 'monthly') {
+    const dim = daysInMonth(ts.year, ts.month);
+    const cal = calendarDays(inv.pStart, inv.pEnd);
+    const amt = round2((Number(inv.monthlyRate) || 0) / dim * cal);
+    return { amount: amt,
+             formula: `RM ${money(inv.monthlyRate)} ÷ ${dim} hari (${MONTHS[ts.month]} ${ts.year}) × ${cal} hari kalendar = RM ${money(amt)}` };
+  }
+  return { amount: null, formula: 'Amaun tetap — key in sendiri dalam jadual item di bawah.' };
+}
+
+function invoiceTotals (S, items) {
+  const list = items || S.invoice.items;
+  const sub = round2(list.reduce((t, it) => t + (Number(it.amount) || 0), 0));
+  const tax = round2(sub * (Number(S.invoice.taxPct) || 0) / 100);
+  return { sub, tax, total: round2(sub + tax) };
+}
+
+/* ---------------- storage ---------------- */
+
+const STORE_KEY   = 'ccs.current';
+const PROFILE_KEY = 'ccs.profiles';
+
+const Store = {
+  saveCurrent (S) {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); return true; }
+    catch (e) { return false; }          // kuota penuh / mod peribadi
+  },
+  /** padam semua data sistem ini (borang semasa + semua profil) */
+  clearAll () {
+    try {
+      localStorage.removeItem(STORE_KEY);
+      localStorage.removeItem(PROFILE_KEY);
+      return true;
+    } catch (e) { return false; }
+  },
+  loadCurrent () {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return null;
+      return mergeDefaults(JSON.parse(raw));
+    } catch (e) { return null; }
+  },
+  profiles () {
+    try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || '{}'); } catch (e) { return {}; }
+  },
+  saveProfile (name, S) {
+    const p = Store.profiles();
+    p[name] = JSON.parse(JSON.stringify(S));
+    try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); return true; } catch (e) { return false; }
+  },
+  deleteProfile (name) {
+    const p = Store.profiles();
+    delete p[name];
+    try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch (e) { /* ignore */ }
+  }
+};
+
+/** gabung objek tersimpan dengan default supaya field baharu tak hilang */
+function mergeDefaults (saved) {
+  const d = defaultState();
+  const out = JSON.parse(JSON.stringify(d));
+  Object.keys(d).forEach(k => {
+    if (saved && typeof saved[k] === 'object' && saved[k] !== null) {
+      Object.assign(out[k], saved[k]);
+    }
+  });
+  if (!Array.isArray(out.invoice.items)) out.invoice.items = [];
+  if (!Array.isArray(out.timesheet.activities) || !out.timesheet.activities.length) {
+    out.timesheet.activities = [ newActivity('') ];
+  }
+  return out;
+}

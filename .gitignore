@@ -1,0 +1,21 @@
+# dependency / build
+node_modules/
+
+# fail sementara sistem
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+
+# editor
+.vscode/
+.idea/
+
+# dokumen yang dijana semasa menguji (patutnya masuk folder Downloads)
+/*.pdf
+/*.xlsx
+/*.docx
+
+# backup data peribadi — JANGAN commit ke repo awam
+*.backup.json
+consultant-claim*.json

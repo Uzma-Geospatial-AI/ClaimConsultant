@@ -1,0 +1,5 @@
+# Normalkan penghujung baris kepada LF dalam repo (elak diff bising Windows/Linux)
+* text=auto eol=lf
+
+# Library pihak ketiga - jangan diubah, kecualikan dari statistik bahasa
+vendor/** linguist-vendored
