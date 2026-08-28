@@ -10,7 +10,7 @@ Fill the form once, tick the calendar, download all four documents.
 [![Offline](https://img.shields.io/badge/Runs-fully%20offline-F26522?style=for-the-badge)]()
 [![Dependencies](https://img.shields.io/badge/npm%20install-not%20needed-2F5597?style=for-the-badge&logo=npm&logoColor=white)]()
 
-<img src="assets/img/preview.png" alt="Step 2 — choosing which document to produce" width="100%">
+<img src="assets/img/preview.png" alt="The invoice step — a fillable copy of the invoice itself" width="100%">
 
 </div>
 
@@ -43,29 +43,35 @@ Uzma footer.
 ## The Flow
 
 ```
-Step 1  Your details ──▶ Step 2  Pick a document ──┬─▶ A  Bill To → Invoice ─────────────┐
-                                                   │                                     │
-                                                   ├─▶ B  Project → Timesheet ───────────┤─▶ Signature ─▶ Generate
-                                                   │                                     │
-                                                   └─▶ A+B  Bill To → Project →          │
-                                                            Invoice → Timesheet ─────────┘
+Step 1  Your details ──▶ Step 2  Pick a document ──┬─▶ A    Invoice ───────────────┐
+                                                   ├─▶ B    Claim Form ────────────┤──▶ Generate
+                                                   └─▶ A+B  Invoice + Claim Form ──┘
 ```
 
 | Choice | Steps you see | You get |
 |---|---|---|
-| **A** Invoice Timesheet | Bill To · Invoice · Signature · Generate | PDF + Excel |
-| **B** Claim Form | Project · Timesheet · Signature · Generate | PDF + Word |
-| **A + B** Both | all of the above, on one shared set of details | PDF + Excel + Word |
+| **A** Invoice Timesheet | Invoice · Generate | PDF + Excel |
+| **B** Claim Form | Claim Form · Generate | PDF + Word |
+| **A + B** Both | Invoice · Claim Form · Generate | PDF + Excel + Word |
 
-You cannot leave step 1 without a name, or step 2 without a choice; everything after that is
-optional. The stepper at the top is clickable, so you can jump back and change your mind at
-any point — picking a different document simply re-shapes the remaining steps.
+Step 3 onwards is not a form *about* the document — it **is** the document. The invoice step
+draws the invoice with its navy band, BILL TO bar, item table and totals; the Claim step draws
+the Uzma time sheet with Section A, the 31-column Section B grid and the Section C approval
+block. Every entry sits exactly where it will print, and every empty box carries a hint of what
+belongs in it, so nobody has to guess what goes where.
+
+<img src="assets/img/preview-choose.png" alt="Step 2 — choosing which document to produce" width="100%">
+
+Your details from step 1 appear inside both documents and stay in sync: edit the name on the
+invoice and step 1 updates too. You cannot leave step 1 without a name or step 2 without a
+choice; everything after that is optional, and the stepper stays clickable so you can change
+your mind at any time.
 
 Because the invoice period decides its own month, choosing **A** alone never asks you to touch
 the timesheet. Choose **A + B** and setting the period pulls the timesheet to the same month —
-unless you have already ticked days, in which case your ticks are left alone.
+unless you have already ticked days, in which case your ticks win.
 
-<img src="assets/img/preview-timesheet.png" alt="Timesheet step with the day grid ticked" width="100%">
+<img src="assets/img/preview-claim.png" alt="The Claim step — the Uzma Personnel Time Sheet, fillable" width="100%">
 
 ---
 
@@ -73,10 +79,12 @@ unless you have already ticked days, in which case your ticks are left alone.
 
 | | |
 |---|---|
-| 🧭 **Guided, branching flow** | Fill your details once, then pick **A** (Invoice), **B** (Claim) or **both** — the remaining steps rearrange so you only ever see the fields that document needs |
-| 📅 **Tickable day grid** | Click a box to cycle `blank → / → PH`; Saturdays and Sundays are labelled from the real calendar, so you never tick a weekend by mistake |
+| 🧭 **Guided, branching flow** | Fill your details once, then pick **A** (Invoice), **B** (Claim) or **both** — the remaining steps rearrange so you only ever see the document you asked for |
+| 📄 **You fill the real document** | Steps 3 and 4 are pixel-shaped copies of the invoice and the Uzma time sheet, so every value is typed exactly where it prints |
+| 💡 **A hint in every box** | Each blank carries an example of what belongs in it, and optional fields say so outright |
+| 📅 **Tickable day grid** | Section B is the real 31-column table — click a cell to cycle `blank → / → PH`; Saturdays and Sundays label themselves from the calendar |
 | 🧮 **Three ways to price a period** | Monthly rate prorated by calendar days, daily rate × days ticked, or a fixed amount you type yourself — the live formula shows its working |
-| ✍️ **Draw-or-upload signatures** | Three pads (Personnel, HOD, Verified By); blank space around the stroke is trimmed automatically before it is embedded |
+| ✍️ **Sign in the signature box** | The three pads (Personnel, HOD, Verified By) sit inside Section C where the pen would go; blank space around the stroke is trimmed before it is embedded |
 | 🗂️ **Multiple activity rows** | Eight rows like the original form, each with its own Job ID, allocated days and past claim |
 | 📊 **Totals that add up** | `TOTAL DAYS [A]`, `ALLOCATED [B]`, `PAST CLAIM [C]` and `BALANCE [B-(A+C)]` are computed per row and in aggregate |
 | 💾 **Autosave + profiles** | Everything persists to `localStorage`; save one profile per consultant and switch between them |
@@ -104,15 +112,15 @@ No bundler, no framework, no dependencies to audit at runtime.
 
 ```
 ConsultantClaimSystem/
-├── index.html                    # the whole UI — eight wizard steps
+├── index.html                    # the whole UI — the document replicas live here
 ├── assets/
 │   ├── css/style.css             # design tokens + every component
 │   ├── img/                      # brand artwork + README screenshots
 │   └── js/
 │       ├── state.js              # data model, formulas, localStorage
 │       ├── logo.js               # brand artwork loading + vector fallbacks
-│       ├── timesheet.js          # the 1–31 day grid
-│       ├── signature.js          # signature pads + image trimming
+│       ├── timesheet.js          # Section B — the 31-column day grid
+│       ├── signature.js          # in-form signature pads + image trimming
 │       ├── gen-invoice.js        # Invoice → PDF (jsPDF) + Excel (ExcelJS)
 │       ├── gen-claim.js          # Claim   → PDF (jsPDF) + Word (docx)
 │       └── app.js                # step flow, profiles, generate buttons
@@ -166,7 +174,8 @@ RM 3,500.00 ÷ 31 days (August 2026) × 8 calendar days (24–31 Aug) = RM 903.2
 While the method is not *Fixed amount*, the first item's amount is read-only so it can never
 drift out of step with the formula. Switch to **Fixed amount** to type your own.
 
-<img src="assets/img/preview-invoice.png" alt="Invoice step showing the live formula and totals" width="100%">
+Long values wrap rather than collide: an address wider than its column continues on the next
+line and pushes the block down, instead of running into the Period column beside it.
 
 ---
 

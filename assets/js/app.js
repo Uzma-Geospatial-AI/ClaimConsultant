@@ -1,5 +1,6 @@
 /* =======================================================================
-   app.js — the guided step flow, autosave, profiles and the generate buttons
+   app.js — the guided step flow, two-way field binding, autosave,
+            profiles and the generate buttons
    ======================================================================= */
 
 let S = Store.loadCurrent() || defaultState();
@@ -15,35 +16,24 @@ function toast (msg, bad) {
 }
 
 /* =======================================================================
-   Step flow
-   Steps without a `modes` list are shown whatever the user picked in step 2.
+   Step flow — steps without a `modes` list always apply
    ======================================================================= */
 
 const STEPS = [
   { id: 'consultant', label: 'Your Details' },
   { id: 'choose',     label: 'Document' },
-  { id: 'company',    label: 'Bill To',   modes: ['invoice', 'both'] },
-  { id: 'project',    label: 'Project',   modes: ['claim', 'both'] },
-  { id: 'invoice',    label: 'Invoice',   modes: ['invoice', 'both'] },
-  { id: 'timesheet',  label: 'Timesheet', modes: ['claim', 'both'] },
-  { id: 'signature',  label: 'Signature' },
+  { id: 'invoice',    label: 'Invoice',    modes: ['invoice', 'both'] },
+  { id: 'claim',      label: 'Claim Form', modes: ['claim', 'both'] },
   { id: 'generate',   label: 'Generate' }
 ];
 
 let stepIndex = 0;
 
-/** the steps that apply to the current choice; before a choice only the first two */
 function activeSteps () {
   if (!S.mode) return STEPS.filter(s => s.id === 'consultant' || s.id === 'choose');
   return STEPS.filter(s => !s.modes || s.modes.includes(S.mode));
 }
 
-function currentStep () {
-  const list = activeSteps();
-  return list[Math.min(stepIndex, list.length - 1)];
-}
-
-/** guard that runs before leaving a step forward */
 function canLeave (id) {
   if (id === 'consultant' && !S.consultant.name.trim()) {
     toast('Enter your Full Name before continuing.', true);
@@ -61,7 +51,6 @@ function goToStep (i, skipGuard) {
   const list = activeSteps();
   const target = Math.max(0, Math.min(i, list.length - 1));
   if (!skipGuard && target > stepIndex) {
-    // validate every step being passed over
     for (let k = stepIndex; k < target; k++) if (!canLeave(list[k].id)) return;
   }
   stepIndex = target;
@@ -77,7 +66,8 @@ function showStep () {
 
   renderStepper();
   renderNavRows();
-  if (step.id === 'signature') setTimeout(() => Sig.resizeAll(), 30);
+  // canvases can only be measured once their panel is visible
+  if (step.id === 'claim' || step.id === 'invoice') setTimeout(() => Sig.resizeAll(), 30);
   if (step.id === 'generate') renderGenSummary();
   if (step.id === 'choose') paintChoices();
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -97,7 +87,6 @@ function renderStepper () {
   });
 }
 
-/** put a Back / Next row at the bottom of the panel currently shown */
 function renderNavRows () {
   const list = activeSteps();
   const step = list[Math.min(stepIndex, list.length - 1)];
@@ -120,9 +109,7 @@ function renderNavRows () {
   note.textContent = `Step ${stepIndex + 1} of ${list.length}`;
   row.appendChild(note);
 
-  const spacer = document.createElement('span');
-  spacer.className = 'spacerflex';
-  row.appendChild(spacer);
+  row.appendChild(Object.assign(document.createElement('span'), { className: 'spacerflex' }));
 
   if (stepIndex < list.length - 1) {
     const next = document.createElement('button');
@@ -148,52 +135,90 @@ function chooseMode (mode) {
   paintChoices();
   persist();
   syncAutoAmount();
-  if (changed) toast(`${mode === 'both' ? 'Both documents' : mode === 'invoice' ? 'Invoice Timesheet' : 'Claim form'} selected.`);
+  if (changed) {
+    toast(mode === 'both' ? 'Both documents selected.'
+        : mode === 'invoice' ? 'Invoice Timesheet selected.' : 'Claim form selected.');
+  }
   goToStep(stepIndex + 1, true);
 }
 
-/* ---------------- field bindings ---------------- */
+/* =======================================================================
+   Two-way binding via data-bind="section.key"
+   Several elements may share one path; editing any of them updates the rest.
+   ======================================================================= */
 
-const FIELDS = [
-  // [element id, state section, key, type]
-  ['c_name', 'consultant', 'name'], ['c_ic', 'consultant', 'ic'],
-  ['c_addr1', 'consultant', 'addr1'], ['c_addr2', 'consultant', 'addr2'],
-  ['c_position', 'consultant', 'position'], ['c_position2', 'consultant', 'position2'],
-  ['c_workloc', 'consultant', 'workLoc'], ['c_empcode', 'consultant', 'empCode'],
-  ['c_assignperiod', 'consultant', 'assignPeriod'],
-  ['c_bank', 'consultant', 'bank'], ['c_accname', 'consultant', 'accName'],
-  ['c_accno', 'consultant', 'accNo'],
+const getPath = (o, p) => p.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
+function setPath (o, p, v) {
+  const ks = p.split('.');
+  const last = ks.pop();
+  const host = ks.reduce((a, k) => a[k], o);
+  host[last] = v;
+}
 
-  ['co_name', 'company', 'name'], ['co_regno', 'company', 'regNo'],
-  ['co_addr1', 'company', 'addr1'], ['co_addr2', 'company', 'addr2'],
+function elValue (el) {
+  if (el.dataset.type === 'bool') return el.checked;
+  if (el.dataset.type === 'num') return Number(el.value) || 0;
+  return el.value;
+}
 
-  ['pj_name', 'project', 'name'], ['pj_client', 'project', 'client'],
-  ['pj_charge', 'project', 'charge'], ['pj_profit', 'project', 'profit'],
-  ['pj_code', 'project', 'code'], ['pj_dept', 'project', 'dept'],
-  ['pj_invclient', 'project', 'invClient'],
+function applyToEl (el, v) {
+  if (el.dataset.type === 'bool') el.checked = !!v;
+  else el.value = v == null ? '' : v;
+}
 
-  ['i_no', 'invoice', 'no'], ['i_date', 'invoice', 'date'], ['i_due', 'invoice', 'due'],
-  ['i_pstart', 'invoice', 'pStart'], ['i_pend', 'invoice', 'pEnd'],
-  ['i_tax', 'invoice', 'taxPct', 'num'], ['i_mode', 'invoice', 'mode'],
-  ['i_monthly', 'invoice', 'monthlyRate', 'num'], ['i_daily', 'invoice', 'dailyRate', 'num'],
-  ['i_note', 'invoice', 'note'], ['i_showsig', 'invoice', 'showSig', 'bool'],
+/** push the whole state out to every bound element */
+function writeBindings () {
+  document.querySelectorAll('[data-bind]').forEach(el => applyToEl(el, getPath(S, el.dataset.bind)));
+}
 
-  ['ts_year', 'timesheet', 'year', 'num'], ['ts_month', 'timesheet', 'month', 'num'],
-  ['s_prepname', 'timesheet', 'prepName'], ['s_prepdate', 'timesheet', 'prepDate'],
-  ['s_apprname', 'timesheet', 'apprName'], ['s_apprdate', 'timesheet', 'apprDate'],
-  ['s_verifname', 'timesheet', 'verifName'], ['s_verifdate', 'timesheet', 'verifDate']
-];
-
-function writeStateToFields () {
-  FIELDS.forEach(([id, sec, key, type]) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    if (type === 'bool') el.checked = !!S[sec][key];
-    else el.value = S[sec][key] == null ? '' : S[sec][key];
+/** mirror one path to every other element bound to it */
+function mirror (path, source) {
+  const v = getPath(S, path);
+  document.querySelectorAll(`[data-bind="${path}"]`).forEach(el => {
+    if (el !== source) applyToEl(el, v);
   });
 }
 
-/* ---------------- invoice item table ---------------- */
+function bindInputs () {
+  document.querySelectorAll('[data-bind]').forEach(el => {
+    const path = el.dataset.bind;
+    const ev = (el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'date') ? 'change' : 'input';
+    el.addEventListener(ev, () => {
+      setPath(S, path, elValue(el));
+      mirror(path, el);
+
+      if (path === 'consultant.name') {
+        if (!S.timesheet.prepName.trim() || S.timesheet.prepName === lastName) {
+          S.timesheet.prepName = el.value;
+          mirror('timesheet.prepName');
+        }
+        lastName = el.value;
+        updateInvSigName();
+      }
+      // move the timesheet to the invoice period, but never over existing ticks
+      if (path === 'invoice.pStart' && timesheetUntouched()) {
+        const ref = periodMonth(el.value);
+        if (ref && (ref.y !== S.timesheet.year || ref.m !== S.timesheet.month)) {
+          S.timesheet.year = ref.y;
+          S.timesheet.month = ref.m;
+          mirror('timesheet.year'); mirror('timesheet.month');
+          renderTimesheet(S, afterTimesheetChange);
+        }
+      }
+      if (path === 'timesheet.month' || path === 'timesheet.year') {
+        renderTimesheet(S, afterTimesheetChange);
+      }
+      if (path === 'invoice.mode') renderItems();
+      syncAutoAmount();
+      persist();
+    });
+  });
+}
+
+let lastName = '';
+const afterTimesheetChange = () => { persist(); syncAutoAmount(); };
+
+/* ---------------- invoice item rows ---------------- */
 
 function renderItems () {
   const tb = document.querySelector('#itemTable tbody');
@@ -204,11 +229,11 @@ function renderItems () {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="idx">${i + 1}</td>
-      <td><input data-f="desc"></td>
-      <td><input data-f="position"></td>
-      <td><input data-f="period"></td>
-      <td class="amt"><input data-f="amount" type="number" step="0.01"></td>
-      <td><button class="delrow" title="Delete">&times;</button></td>`;
+      <td><input class="dinput" data-f="desc" placeholder="e.g. Consultancy Service Fee"></td>
+      <td><input class="dinput ta-c" data-f="position" placeholder="e.g. Full Stack Developer"></td>
+      <td><input class="dinput" data-f="period" placeholder="e.g. 1 - 31 Aug 2026"></td>
+      <td><input class="dinput ta-r" data-f="amount" type="number" step="0.01" placeholder="0.00"></td>
+      <td><button class="rowdel" title="Delete this item">&times;</button></td>`;
     tr.querySelector('[data-f="desc"]').value = it.desc || '';
     tr.querySelector('[data-f="position"]').value = it.position || '';
     tr.querySelector('[data-f="period"]').value = it.period || '';
@@ -216,7 +241,7 @@ function renderItems () {
     amtEl.value = it.amount === '' || it.amount == null ? '' : it.amount;
     if (autoManaged && i === 0) {
       amtEl.readOnly = true;
-      amtEl.title = 'Calculated automatically. Switch "Calculation Method" to "Fixed amount" to type your own.';
+      amtEl.title = 'Worked out automatically — switch the method to "Fixed amount" to type your own.';
     }
 
     tr.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => {
@@ -225,12 +250,19 @@ function renderItems () {
       refreshTotals();
       persist();
     }));
-    tr.querySelector('.delrow').addEventListener('click', () => {
+    tr.querySelector('.rowdel').addEventListener('click', () => {
       S.invoice.items.splice(i, 1);
       renderItems(); refreshTotals(); persist();
     });
     tb.appendChild(tr);
   });
+
+  // keep four rows on screen, exactly like the printed template
+  for (let i = S.invoice.items.length; i < 4; i++) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td class="idx"></td><td></td><td></td><td></td><td></td><td></td>';
+    tb.appendChild(tr);
+  }
 }
 
 function refreshTotals () {
@@ -241,14 +273,11 @@ function refreshTotals () {
   renderGenSummary();
 }
 
-/** keep the first item in step with the formula whenever the mode is not "fixed" */
 function syncAutoAmount () {
   const calc = computeAmount(S);
   document.getElementById('calcFormula').innerHTML = calc.formula || '&nbsp;';
   document.getElementById('wrapMonthly').classList.toggle('hidden', S.invoice.mode !== 'monthly');
   document.getElementById('wrapDaily').classList.toggle('hidden', S.invoice.mode !== 'daily');
-
-  // the daily rate counts ticks, which only exist when the Claim form is in play
   document.getElementById('dailyWarn')
     .classList.toggle('hidden', !(S.invoice.mode === 'daily' && S.mode === 'invoice'));
 
@@ -299,7 +328,7 @@ function persist () {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     if (Store.saveCurrent(S)) { saveWarned = false; return; }
-    if (!saveWarned) {                       // avoid repeating the toast every 250ms
+    if (!saveWarned) {
       saveWarned = true;
       toast('Autosave failed — browser storage is full. Use "Export JSON" to back up.', true);
     }
@@ -312,11 +341,9 @@ function fillDefaultsForMonth () {
   const ts = S.timesheet;
   const dim = daysInMonth(ts.year, ts.month);
   const pad = n => String(n).padStart(2, '0');
-  const first = `${ts.year}-${pad(ts.month + 1)}-01`;
-  const last  = `${ts.year}-${pad(ts.month + 1)}-${pad(dim)}`;
 
-  if (!S.invoice.pStart) S.invoice.pStart = first;
-  if (!S.invoice.pEnd)   S.invoice.pEnd   = last;
+  if (!S.invoice.pStart) S.invoice.pStart = `${ts.year}-${pad(ts.month + 1)}-01`;
+  if (!S.invoice.pEnd)   S.invoice.pEnd   = `${ts.year}-${pad(ts.month + 1)}-${pad(dim)}`;
   if (!S.invoice.due)    S.invoice.due    = S.invoice.pEnd;
   if (!S.invoice.date) {
     const now = new Date();
@@ -324,25 +351,41 @@ function fillDefaultsForMonth () {
   }
   if (!S.invoice.no) S.invoice.no = `INV-${ts.year}-${pad(ts.month + 1)}-001`;
   if (!S.consultant.assignPeriod) S.consultant.assignPeriod = monthLabel(ts);
-  if (!S.timesheet.activities[0].name) {
-    S.timesheet.activities[0].name = `Developing Platform (${MONTHS[ts.month]} ${ts.year})`;
-  }
   if (!S.timesheet.prepName) S.timesheet.prepName = S.consultant.name;
+  lastName = S.consultant.name;
 }
 
-/** true when nothing has been ticked yet, so the month can still move freely */
 function timesheetUntouched () {
   return S.timesheet.activities.every(a => Object.keys(a.days || {}).length === 0);
+}
+
+/* ---------------- signatures inside the form ---------------- */
+
+function mountSignatures () {
+  Sig.reset(S, persist);
+
+  document.querySelectorAll('[data-sig]').forEach(td => Sig.mount(td, td.dataset.sig));
+
+  const slot = document.getElementById('invSigSlot');
+  if (slot) {
+    slot.innerHTML = '<div class="sigslot-host"></div><div class="signame"></div>';
+    Sig.mount(slot.querySelector('.sigslot-host'), 'personnel');
+    updateInvSigName();
+  }
+}
+
+function updateInvSigName () {
+  const el = document.querySelector('#invSigSlot .signame');
+  if (el) el.innerHTML = `${S.consultant.name || '&nbsp;'}<small>Consultant</small>`;
 }
 
 /* ---------------- full UI refresh ---------------- */
 
 function renderAll () {
-  writeStateToFields();
-  document.getElementById('ts_month').value = S.timesheet.month;
-  renderTimesheet(S, () => { persist(); syncAutoAmount(); });
+  writeBindings();
+  renderTimesheet(S, afterTimesheetChange);
+  mountSignatures();
   syncAutoAmount();
-  Sig.refresh();
   paintChoices();
   showStep();
 }
@@ -352,6 +395,7 @@ function renderAll () {
 function boot () {
   mountBrandLogo();
   mountFootLogo();
+  mountClaimLogo();
 
   const msel = document.getElementById('ts_month');
   msel.innerHTML = '';
@@ -362,69 +406,33 @@ function boot () {
   });
 
   fillDefaultsForMonth();
-  writeStateToFields();
-  msel.value = S.timesheet.month;
+  writeBindings();
+  bindInputs();
 
-  Sig.init(S, persist);
-  renderTimesheet(S, () => { persist(); syncAutoAmount(); });
+  renderTimesheet(S, afterTimesheetChange);
+  mountSignatures();
   syncAutoAmount();
   paintChoices();
   showStep();
 
-  /* --- choice cards --- */
   document.querySelectorAll('.choice').forEach(c => {
     c.addEventListener('click', () => chooseMode(c.dataset.mode));
-  });
-
-  /* --- plain fields --- */
-  FIELDS.forEach(([id, sec, key, type]) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const ev = (el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'date') ? 'change' : 'input';
-    el.addEventListener(ev, () => {
-      if (type === 'bool') S[sec][key] = el.checked;
-      else if (type === 'num') S[sec][key] = Number(el.value) || 0;
-      else S[sec][key] = el.value;
-
-      if (id === 'c_name' && !S.timesheet.prepName.trim()) {
-        S.timesheet.prepName = el.value;
-        document.getElementById('s_prepname').value = el.value;
-      }
-      // move the timesheet to match the invoice period, but never over existing ticks
-      if (id === 'i_pstart' && timesheetUntouched()) {
-        const ref = periodMonth(el.value);
-        if (ref && (ref.y !== S.timesheet.year || ref.m !== S.timesheet.month)) {
-          S.timesheet.year = ref.y;
-          S.timesheet.month = ref.m;
-          document.getElementById('ts_year').value = ref.y;
-          document.getElementById('ts_month').value = ref.m;
-          renderTimesheet(S, () => { persist(); syncAutoAmount(); });
-        }
-      }
-      if (id === 'ts_month' || id === 'ts_year') {
-        renderTimesheet(S, () => { persist(); syncAutoAmount(); });
-      }
-      if (id === 'i_mode') renderItems();
-      syncAutoAmount();
-      persist();
-    });
   });
 
   /* --- timesheet buttons --- */
   document.getElementById('btnAddActivity').addEventListener('click', () => {
     S.timesheet.activities.push(newActivity(''));
-    renderTimesheet(S, () => { persist(); syncAutoAmount(); });
+    renderTimesheet(S, afterTimesheetChange);
     persist();
   });
   document.getElementById('btnResetDays').addEventListener('click', () => {
     if (!confirm('Clear every day tick on every activity row?')) return;
     S.timesheet.activities.forEach(a => { a.days = {}; });
-    renderTimesheet(S, () => { persist(); syncAutoAmount(); });
+    renderTimesheet(S, afterTimesheetChange);
     syncAutoAmount(); persist();
     toast('All ticks cleared.');
   });
 
-  /* --- invoice item button --- */
   document.getElementById('btnAddItem').addEventListener('click', () => {
     S.invoice.items.push({ desc: '', position: S.consultant.position, period: '', amount: 0 });
     renderItems(); refreshTotals(); persist();
@@ -433,8 +441,7 @@ function boot () {
   /* --- profiles --- */
   refreshProfileList();
   document.getElementById('btnSaveProfile').addEventListener('click', () => {
-    const suggested = S.consultant.name || 'Profile 1';
-    const name = prompt('Profile name:', suggested);
+    const name = prompt('Profile name:', S.consultant.name || 'Profile 1');
     if (!name) return;
     if (Store.saveProfile(name.trim(), S)) {
       refreshProfileList();
@@ -457,7 +464,6 @@ function boot () {
     if (!p) return;
     S = mergeDefaults(p);
     stepIndex = 0;
-    Sig.init(S, persist);
     renderAll();
     persist();
     toast(`Profile "${name}" loaded.`);
@@ -482,7 +488,6 @@ function boot () {
     fillDefaultsForMonth();
     stepIndex = 0;
     refreshProfileList();
-    Sig.init(S, persist);
     renderAll();
     Store.saveCurrent(S);
     toast('All data erased — the app is back to empty.');
@@ -502,7 +507,6 @@ function boot () {
       try {
         S = mergeDefaults(JSON.parse(r.result));
         stepIndex = 0;
-        Sig.init(S, persist);
         renderAll();
         persist();
         toast('Data imported successfully.');
@@ -530,7 +534,7 @@ function boot () {
     for (const [label, fn] of jobs) {
       try { await fn(S); log(`✓ ${label} generated.`, 'ok'); }
       catch (err) { log(`✗ ${label} failed: ${err.message}`, 'err'); console.error(err); }
-      await new Promise(res => setTimeout(res, 350));   // avoid the multi-download block
+      await new Promise(res => setTimeout(res, 350));
     }
     toast('Done — check your Downloads folder.');
   });
@@ -540,9 +544,14 @@ function mountFootLogo () {
   const host = document.getElementById('footLogo');
   if (!host) return;
   host.innerHTML = geospatialFallbackMarkup();
-  loadLogo('geospatial').then(logo => {
-    if (logo) host.innerHTML = `<img src="${logo.src}" alt="Geospatial AI" class="brand-img">`;
-  });
+  loadLogo('geospatial').then(l => { if (l) host.innerHTML = `<img src="${l.src}" alt="Geospatial AI" class="brand-img">`; });
+}
+
+function mountClaimLogo () {
+  const host = document.getElementById('claimLogo');
+  if (!host) return;
+  host.innerHTML = '<span class="uz-fallback">UZM<i>A</i></span>';
+  loadLogo('uzma').then(l => { if (l) host.innerHTML = `<img src="${l.src}" alt="UZMA">`; });
 }
 
 function wire (id, fn, label) {

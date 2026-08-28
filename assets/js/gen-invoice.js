@@ -55,27 +55,44 @@ async function generateInvoicePDF (S) {
     doc.text(String(t || ''), x, yy, align ? { align } : undefined);
   };
 
-  const leftRows = [
+  /**
+   * Draw label/value rows, wrapping any value that is wider than `maxW`
+   * onto further lines instead of letting it run into the next column.
+   * Returns the y just past the block.
+   */
+  const LH = 4;                                     // wrapped-line spacing
+  const drawRows = (rows, labelX, valueX, maxW, startY, align) => {
+    let yy = startY;
+    rows.forEach(r => {
+      if (r[0]) label(r[0], labelX, yy);
+      doc.setFont('helvetica', 'normal').setFontSize(8.5);
+      const lines = doc.splitTextToSize(String(r[1] || ''), maxW);
+      lines.forEach((ln, k) => value(ln, valueX, yy + k * LH, align));
+      yy += RH + Math.max(0, lines.length - 1) * LH;
+    });
+    return yy;
+  };
+
+  const VAL_X = L + 30;                             // where values start
+  const RIGHT_LBL_X = L + 100;                      // where the right column starts
+  const LEFT_W = RIGHT_LBL_X - VAL_X - 4;           // 66 mm before it would collide
+  const RIGHT_W = R - RIGHT_LBL_X - 24;
+
+  const leftEnd = drawRows([
     ['Consultant:', C.name],
     ['IC No.:', C.ic],
     ['Address:', C.addr1],
     ['', C.addr2]
-  ];
-  const rightRows = [
+  ], L, VAL_X, LEFT_W, y);
+
+  const rightEnd = drawRows([
     ['Invoice No.:', IV.no],
     ['Invoice Date:', fmtDMY(IV.date)],
     ['Period:', fmtPeriod(IV.pStart, IV.pEnd)],
     ['Due Date:', fmtDMY(IV.due)]
-  ];
-  leftRows.forEach((r, i) => {
-    if (r[0]) label(r[0], L, y + i * RH);
-    value(r[1], L + 30, y + i * RH);
-  });
-  rightRows.forEach((r, i) => {
-    label(r[0], L + 100, y + i * RH);
-    value(r[1], R, y + i * RH, 'right');
-  });
-  y += leftRows.length * RH + 3;
+  ], RIGHT_LBL_X, R, RIGHT_W, y, 'right');
+
+  y = Math.max(leftEnd, rightEnd) + 3;
 
   /* ---- BILL TO ---- */
   const bar = (text, yy) => {
@@ -86,12 +103,10 @@ async function generateInvoicePDF (S) {
   };
   bar('BILL TO', y);
   y += 9.5;
-  [['Company:', CO.name], ['Company No.:', CO.regNo], ['Address:', CO.addr1], ['', CO.addr2]]
-    .forEach((r, i) => {
-      if (r[0]) label(r[0], L, y + i * RH);
-      value(r[1], L + 30, y + i * RH);
-    });
-  y += 4 * RH + 3;
+  y = drawRows([
+    ['Company:', CO.name], ['Company No.:', CO.regNo],
+    ['Address:', CO.addr1], ['', CO.addr2]
+  ], L, VAL_X, R - VAL_X, y) + 3;
 
   /* ---- item table ---- */
   const rows = items.map((it, i) => [
@@ -107,7 +122,8 @@ async function generateInvoicePDF (S) {
     theme: 'grid',
     margin: { left: L, right: 210 - R },
     tableWidth: W,
-    styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 1.8, lineColor: LINE, lineWidth: 0.2, textColor: [30, 30, 30] },
+    styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 1.8, lineColor: LINE, lineWidth: 0.2,
+              textColor: [30, 30, 30], overflow: 'linebreak', valign: 'middle', minCellHeight: 7 },
     headStyles: { fillColor: BAR, textColor: 255, fontStyle: 'bold', halign: 'center', fontSize: 8.5 },
     alternateRowStyles: { fillColor: ALT },
     columnStyles: {
@@ -143,9 +159,9 @@ async function generateInvoicePDF (S) {
   /* ---- payment details ---- */
   bar('PAYMENT DETAILS', y);
   y += 9.5;
-  [['Bank:', C.bank], ['Account Name:', C.accName], ['Account No.:', C.accNo]]
-    .forEach((r, i) => { label(r[0], L, y + i * RH); value(r[1], L + 30, y + i * RH); });
-  y += 3 * RH + 6;
+  y = drawRows([
+    ['Bank:', C.bank], ['Account Name:', C.accName], ['Account No.:', C.accNo]
+  ], L, VAL_X, R - VAL_X, y) + 6;
 
   /* ---- signature (optional) ---- */
   if (IV.showSig && S.sig.personnel) {
@@ -208,7 +224,8 @@ async function generateInvoiceXLSX (S) {
     font: { bold: true, size: 9, color: { argb: ARGB.lbl } }, alignment: { vertical: 'middle' }
   });
   const valueCell = (addr, text, align) => put(addr, text == null ? '' : text, {
-    font: { size: 9 }, alignment: { vertical: 'middle', horizontal: align || 'left' }
+    font: { size: 9 },
+    alignment: { vertical: 'middle', horizontal: align || 'left', wrapText: true }
   });
   const barRow = (row, text) => {
     ws.mergeCells(`A${row}:G${row}`);

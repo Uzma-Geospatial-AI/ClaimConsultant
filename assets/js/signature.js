@@ -1,106 +1,110 @@
 /* =======================================================================
-   signature.js — drawable signature pads with image upload
+   signature.js — signature pads that live inside the form itself.
+
+   A pad is mounted into whatever container asks for it, so the same
+   signature can appear in Section C of the Claim and on the Invoice at
+   the same time; drawing in one updates the other.
    ======================================================================= */
 
-const SIG_DEFS = [
-  { key: 'personnel', title: 'PREPARED BY — Personnel', sub: 'The consultant themselves (used on both the Claim and the Invoice)' },
-  { key: 'hod',       title: 'APPROVED BY — HOD',        sub: 'Head of department (optional)' },
-  { key: 'verified',  title: 'VERIFIED BY — Group People &amp; Finance', sub: 'Optional' }
-];
+const SIG_HINTS = {
+  personnel: 'Draw here, or upload an image',
+  hod:       'Optional — leave blank for the HOD to sign',
+  verified:  'Optional — leave blank for Finance'
+};
 
 const Sig = (() => {
-  const pads = {};
+  const pads = {};                    // key -> [ {pad, canvas, root} ]
   let S = null, onChange = () => {};
   let resizeBound = false;
 
-  function init (state, changeCb) {
-    S = state; onChange = changeCb;
-    const host = document.getElementById('sigwrap');
-    host.innerHTML = '';
+  function reset (state, changeCb) {
+    S = state;
+    onChange = changeCb || onChange;
+    Object.keys(pads).forEach(k => delete pads[k]);
+  }
 
-    SIG_DEFS.forEach(def => {
-      const card = document.createElement('div');
-      card.className = 'sigcard';
-      card.innerHTML = `
-        <h4>${def.title}</h4>
-        <p class="sub">${def.sub}</p>
+  /** build one pad inside `container`, bound to `key` */
+  function mount (container, key) {
+    if (!container) return;
+    container.innerHTML = `
+      <div class="sigslot">
         <canvas></canvas>
-        <div class="btnrow">
-          <button class="btn ghost small" data-a="clear">Clear</button>
-          <button class="btn ghost small" data-a="upload">Upload Image</button>
+        <div class="sigbtns">
+          <button type="button" data-a="clear">Clear</button>
+          <button type="button" data-a="upload">Upload</button>
           <input type="file" accept="image/*" hidden>
         </div>
-        <p class="status">No signature yet.</p>`;
-      host.appendChild(card);
+        <span class="sighint">${SIG_HINTS[key] || 'Draw here'}</span>
+      </div>`;
 
-      const canvas = card.querySelector('canvas');
-      const pad = new SignaturePad(canvas, {
-        backgroundColor: 'rgba(255,255,255,0)',
-        penColor: '#0b1f4b',
-        minWidth: 0.7,
-        maxWidth: 2.2
-      });
-      pads[def.key] = { pad, canvas, card };
-
-      pad.addEventListener('endStroke', () => {
-        S.sig[def.key] = pad.toDataURL('image/png');
-        setStatus(def.key, true);
-        onChange();
-      });
-
-      card.querySelector('[data-a="clear"]').addEventListener('click', () => {
-        pad.clear();
-        S.sig[def.key] = '';
-        setStatus(def.key, false);
-        onChange();
-      });
-
-      const file = card.querySelector('input[type=file]');
-      card.querySelector('[data-a="upload"]').addEventListener('click', () => file.click());
-      file.addEventListener('change', () => {
-        const f = file.files && file.files[0];
-        if (!f) return;
-        const r = new FileReader();
-        r.onload = () => {
-          S.sig[def.key] = r.result;
-          drawInto(def.key, r.result);
-          setStatus(def.key, true);
-          onChange();
-        };
-        r.readAsDataURL(f);
-        file.value = '';
-      });
+    const canvas = container.querySelector('canvas');
+    const pad = new SignaturePad(canvas, {
+      backgroundColor: 'rgba(255,255,255,0)',
+      penColor: '#0b1f4b',
+      minWidth: 0.6,
+      maxWidth: 1.9
     });
 
-    resizeAll();
-    if (!resizeBound) {                       // bind once, even if init runs again
+    const entry = { pad, canvas, root: container };
+    (pads[key] = pads[key] || []).push(entry);
+
+    pad.addEventListener('endStroke', () => {
+      S.sig[key] = pad.toDataURL('image/png');
+      syncKey(key, entry);
+      onChange();
+    });
+
+    container.querySelector('[data-a="clear"]').addEventListener('click', () => {
+      S.sig[key] = '';
+      syncKey(key);
+      onChange();
+    });
+
+    const file = container.querySelector('input[type=file]');
+    container.querySelector('[data-a="upload"]').addEventListener('click', () => file.click());
+    file.addEventListener('change', () => {
+      const f = file.files && file.files[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = () => { S.sig[key] = r.result; syncKey(key); onChange(); };
+      r.readAsDataURL(f);
+      file.value = '';
+    });
+
+    sizeCanvas(entry);
+    paint(entry, S.sig[key]);
+    setHint(entry, key, !!S.sig[key]);
+
+    if (!resizeBound) {
       window.addEventListener('resize', () => resizeAll());
       resizeBound = true;
     }
   }
 
-  /** resize each canvas for the display DPI, then restore the existing signature */
-  function resizeAll () {
-    Object.keys(pads).forEach(key => {
-      const { pad, canvas } = pads[key];
-      const rect = canvas.getBoundingClientRect();
-      if (!rect.width) return;                       // panel still hidden
-      const ratio = Math.max(window.devicePixelRatio || 1, 1);
-      canvas.width = rect.width * ratio;
-      canvas.height = rect.height * ratio;
-      canvas.getContext('2d').scale(ratio, ratio);
-      pad.clear();
-      if (S && S.sig[key]) drawInto(key, S.sig[key]);
-      setStatus(key, !!(S && S.sig[key]));
+  /** redraw every pad bound to `key`, optionally skipping the one being drawn in */
+  function syncKey (key, skip) {
+    (pads[key] || []).forEach(e => {
+      if (e !== skip) { e.pad.clear(); paint(e, S.sig[key]); }
+      setHint(e, key, !!S.sig[key]);
     });
   }
 
-  /** draw a data URL into the canvas, scaled to fit and centred */
-  function drawInto (key, dataUrl) {
-    const { canvas } = pads[key];
-    const ctx = canvas.getContext('2d');
+  function sizeCanvas (e) {
+    const rect = e.canvas.getBoundingClientRect();
+    if (!rect.width) return false;                 // still hidden
     const ratio = Math.max(window.devicePixelRatio || 1, 1);
-    const w = canvas.width / ratio, h = canvas.height / ratio;
+    e.canvas.width = rect.width * ratio;
+    e.canvas.height = rect.height * ratio;
+    e.canvas.getContext('2d').scale(ratio, ratio);
+    e.pad.clear();
+    return true;
+  }
+
+  function paint (e, dataUrl) {
+    if (!dataUrl) return;
+    const ctx = e.canvas.getContext('2d');
+    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+    const w = e.canvas.width / ratio, h = e.canvas.height / ratio;
     const img = new Image();
     img.onload = () => {
       ctx.clearRect(0, 0, w, h);
@@ -111,22 +115,28 @@ const Sig = (() => {
     img.src = dataUrl;
   }
 
-  function setStatus (key, on) {
-    const el = pads[key].card.querySelector('.status');
-    el.textContent = on ? '✓ Signature ready — it will be embedded in the documents.' : 'No signature yet.';
-    el.className = 'status' + (on ? ' on' : '');
+  function setHint (e, key, on) {
+    const el = e.root.querySelector('.sighint');
+    if (el) {
+      el.textContent = on ? '✓ Signed — this will be printed' : (SIG_HINTS[key] || 'Draw here');
+      el.style.color = on ? 'var(--ok)' : '';
+    }
   }
 
-  function refresh () {
+  /** re-measure every canvas (needed when a hidden step becomes visible) */
+  function resizeAll () {
     Object.keys(pads).forEach(key => {
-      const { pad } = pads[key];
-      pad.clear();
-      if (S.sig[key]) drawInto(key, S.sig[key]);
-      setStatus(key, !!S.sig[key]);
+      (pads[key] || []).forEach(e => {
+        if (sizeCanvas(e)) { paint(e, S && S.sig[key]); setHint(e, key, !!(S && S.sig[key])); }
+      });
     });
   }
 
-  return { init, resizeAll, refresh };
+  function refresh () {
+    Object.keys(pads).forEach(key => syncKey(key));
+  }
+
+  return { reset, mount, resizeAll, refresh };
 })();
 
 /* ---- image helpers shared with the document generators ---- */
@@ -138,16 +148,6 @@ function dataUrlToBytes (dataUrl) {
   const arr = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
   return arr;
-}
-
-/** natural size of an image given as a data URL */
-function imageSize (dataUrl) {
-  return new Promise(resolve => {
-    const img = new Image();
-    img.onload = () => resolve({ w: img.width, h: img.height });
-    img.onerror = () => resolve({ w: 300, h: 120 });
-    img.src = dataUrl;
-  });
 }
 
 /**
@@ -167,7 +167,7 @@ function normalizeSignature (dataUrl) {
       try { data = ctx.getImageData(0, 0, c.width, c.height).data; }
       catch (e) { return resolve({ url: dataUrl, w: img.width, h: img.height }); }
 
-      // find the bounding box of pixels that are neither transparent nor near-white
+      // bounding box of pixels that are neither transparent nor near-white
       let x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
       for (let y = 0; y < c.height; y++) {
         for (let x = 0; x < c.width; x++) {

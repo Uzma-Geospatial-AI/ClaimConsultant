@@ -1,8 +1,10 @@
 /* =======================================================================
-   timesheet.js — the tickable day grid for days 1..31
+   timesheet.js — Section (B) of the Personnel Time Sheet, rendered as the
+   same table that gets printed: activity, job id, days 1..31, A, B, C and
+   the balance. Day cells are clickable.
    ======================================================================= */
 
-const CYCLE = ['', '/', 'PH'];   // values a day box cycles through when clicked
+const CYCLE = ['', '/', 'PH'];   // values a day cell cycles through when clicked
 
 /**
  * The value shown for one day, and the value exported to the documents.
@@ -17,99 +19,158 @@ function dayValue (ts, act, d) {
   return '';
 }
 
+const B_HEADS = [
+  'TOTAL DAYS<br>(current month claim)<br>[A]',
+  'ALLOCATED<br>PROJECTED DAYS<br>[B]',
+  'PAST CLAIM<br>(excluding current month)<br>[C]',
+  'BALANCE<br><br>[B-(A+C)]'
+];
+
 function renderTimesheet (S, onChange) {
   const host = document.getElementById('activities');
   const ts = S.timesheet;
   const dim = daysInMonth(ts.year, ts.month);
-  host.innerHTML = '';
 
+  const table = document.createElement('table');
+  table.className = 'uz-grid';
+
+  /* ---- header ---- */
+  let days = '';
+  for (let d = 1; d <= 31; d++) days += `<th class="c-day">${d}</th>`;
+  table.innerHTML = `
+    <thead><tr>
+      <th class="c-act">WORK ACTIVITY &amp; DATE</th>
+      <th class="c-job">JOB ID<br>NUMBER</th>
+      ${days}
+      ${B_HEADS.map(h => `<th class="c-tot">${h}</th>`).join('')}
+      <th class="c-del"></th>
+    </tr></thead>
+    <tbody></tbody>`;
+  const tbody = table.querySelector('tbody');
+
+  /* ---- one row per activity ---- */
   ts.activities.forEach((act, ai) => {
-    const box = document.createElement('div');
-    box.className = 'actrow';
+    const tr = document.createElement('tr');
 
-    /* ---- top row: activity name, job id, B, C ---- */
-    const top = document.createElement('div');
-    top.className = 'top';
-    top.innerHTML = `
-      <label>Work Activity &amp; Date
-        <input data-f="name" placeholder="Developing Platform (${MONTHS[ts.month]} ${ts.year})">
-      </label>
-      <label>Job ID Number<input data-f="jobId"></label>
-      <label>Allocated Projected Days [B]<input type="number" step="0.5" data-f="allocated"></label>
-      <label>Past Claim [C]<input type="number" step="0.5" data-f="pastClaim"></label>
-      <label>&nbsp;<button class="delrow" title="Delete row">&times;</button></label>`;
+    const tdAct = document.createElement('td');
+    tdAct.className = 'c-act';
+    tdAct.innerHTML = `<input class="dinput" placeholder="e.g. Developing Platform (${MONTHS[ts.month]} ${ts.year})">`;
+    tdAct.querySelector('input').value = act.name;
+    tdAct.querySelector('input').addEventListener('input', e => { act.name = e.target.value; onChange(); });
+    tr.appendChild(tdAct);
 
-    top.querySelector('[data-f="name"]').value = act.name;
-    top.querySelector('[data-f="jobId"]').value = act.jobId;
-    top.querySelector('[data-f="allocated"]').value = act.allocated;
-    top.querySelector('[data-f="pastClaim"]').value = act.pastClaim;
+    const tdJob = document.createElement('td');
+    tdJob.className = 'c-job';
+    tdJob.innerHTML = '<input class="dinput" placeholder="if any">';
+    tdJob.querySelector('input').value = act.jobId;
+    tdJob.querySelector('input').addEventListener('input', e => { act.jobId = e.target.value; onChange(); });
+    tr.appendChild(tdJob);
 
-    top.querySelectorAll('input').forEach(inp => {
-      inp.addEventListener('input', () => {
-        const f = inp.dataset.f;
-        act[f] = (f === 'allocated' || f === 'pastClaim') ? (Number(inp.value) || 0) : inp.value;
-        updateStats(box, S, act);
-        onChange();
-      });
+    for (let d = 1; d <= 31; d++) {
+      const td = document.createElement('td');
+      td.className = 'c-day dcell';
+      if (d > dim) {
+        td.className = 'c-day';
+        td.style.background = '#f0f2f4';
+        td.title = `${MONTHS[ts.month]} ${ts.year} has only ${dim} days`;
+      } else {
+        td.addEventListener('click', () => {
+          const cur = act.days[d] || '';
+          const nextVal = CYCLE[(CYCLE.indexOf(cur) + 1) % CYCLE.length];
+          if (nextVal) act.days[d] = nextVal; else delete act.days[d];
+          paintDay(td, ts, act, d);
+          updateRow(tr, S, act);
+          onChange();
+        });
+        paintDay(td, ts, act, d);
+      }
+      tr.appendChild(td);
+    }
+
+    const tdA = document.createElement('td');
+    tdA.className = 'c-tot cellA';
+    tr.appendChild(tdA);
+
+    const tdB = document.createElement('td');
+    tdB.className = 'c-tot';
+    tdB.innerHTML = '<input class="dinput" type="number" step="0.5" placeholder="0">';
+    tdB.querySelector('input').value = act.allocated || '';
+    tdB.querySelector('input').addEventListener('input', e => {
+      act.allocated = Number(e.target.value) || 0; updateRow(tr, S, act); onChange();
     });
+    tr.appendChild(tdB);
 
-    top.querySelector('.delrow').addEventListener('click', () => {
+    const tdC = document.createElement('td');
+    tdC.className = 'c-tot';
+    tdC.innerHTML = '<input class="dinput" type="number" step="0.5" placeholder="0">';
+    tdC.querySelector('input').value = act.pastClaim || '';
+    tdC.querySelector('input').addEventListener('input', e => {
+      act.pastClaim = Number(e.target.value) || 0; updateRow(tr, S, act); onChange();
+    });
+    tr.appendChild(tdC);
+
+    const tdBal = document.createElement('td');
+    tdBal.className = 'c-tot cellBal';
+    tr.appendChild(tdBal);
+
+    const tdDel = document.createElement('td');
+    tdDel.className = 'c-del';
+    tdDel.innerHTML = '<button class="rowdel" title="Delete this row">&times;</button>';
+    tdDel.querySelector('button').addEventListener('click', () => {
       if (ts.activities.length === 1) { toast('At least one activity row is required.', true); return; }
       ts.activities.splice(ai, 1);
       renderTimesheet(S, onChange);
       onChange();
     });
-    box.appendChild(top);
+    tr.appendChild(tdDel);
 
-    /* ---- day grid ---- */
-    const days = document.createElement('div');
-    days.className = 'days';
-    for (let d = 1; d <= dim; d++) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'day';
-      b.innerHTML = `<span class="n">${d}</span><span class="v"></span>`;
-      b.addEventListener('click', () => {
-        const cur = act.days[d] || '';
-        const next = CYCLE[(CYCLE.indexOf(cur) + 1) % CYCLE.length];
-        if (next) act.days[d] = next; else delete act.days[d];
-        paintDay(b, ts, act, d);
-        updateStats(box, S, act);
-        onChange();
-      });
-      paintDay(b, ts, act, d);
-      days.appendChild(b);
-    }
-    box.appendChild(days);
-
-    /* ---- per-row totals ---- */
-    const stats = document.createElement('div');
-    stats.className = 'stats';
-    box.appendChild(stats);
-    updateStats(box, S, act);
-
-    host.appendChild(box);
+    updateRow(tr, S, act);
+    tbody.appendChild(tr);
   });
 
+  /* ---- TOTAL row ---- */
+  const t = timesheetTotals(ts);
+  const total = document.createElement('tr');
+  total.className = 'totalrow';
+  total.innerHTML =
+    `<td class="c-act" style="text-align:left;padding-left:4px">TOTAL</td><td class="c-job"></td>` +
+    Array(31).fill('<td class="c-day"></td>').join('') +
+    `<td class="c-tot">${t.A}</td><td class="c-tot">${t.B}</td>` +
+    `<td class="c-tot">${t.C}</td><td class="c-tot">${t.balance}</td><td class="c-del"></td>`;
+  tbody.appendChild(total);
+
+  host.innerHTML = '';
+  host.appendChild(table);
   renderSummary(S);
 }
 
-function paintDay (el, ts, act, d) {
+function paintDay (td, ts, act, d) {
   const manual = act.days[d] || '';
   const shown = dayValue(ts, act, d);
-  el.className = 'day';
-  if (manual === '/') el.classList.add('work');
-  else if (manual === 'PH') el.classList.add('ph');
-  else if (shown === 'SAT' || shown === 'SUN') el.classList.add('we');
-  el.querySelector('.v').textContent = manual ? manual : (shown || '');
-  el.title = `${d} ${MONTHS[ts.month]} ${ts.year}` + (shown ? ` — ${shown}` : '');
+  td.className = 'c-day dcell';
+  if (manual === '/') td.classList.add('work');
+  else if (manual === 'PH') td.classList.add('ph');
+  else if (shown === 'SAT' || shown === 'SUN') td.classList.add('we');
+  td.textContent = manual || shown || '';
+  td.title = `${d} ${MONTHS[ts.month]} ${ts.year}` + (shown ? ` — ${shown}` : '') + '  (click to change)';
 }
 
-function updateStats (box, S, act) {
+function updateRow (tr, S, act) {
   const a = activityTotal(act);
   const bal = round2((Number(act.allocated) || 0) - (a + (Number(act.pastClaim) || 0)));
-  box.querySelector('.stats').innerHTML =
-    `Total Days [A]: <b>${a}</b> &nbsp;·&nbsp; Balance [B-(A+C)]: <b>${bal}</b>`;
+  tr.querySelector('.cellA').textContent = a;
+  tr.querySelector('.cellBal').textContent = bal;
+
+  // keep the printed TOTAL row and the summary bar in step
+  const totalRow = tr.parentNode && tr.parentNode.querySelector('.totalrow');
+  if (totalRow) {
+    const t = timesheetTotals(S.timesheet);
+    const cells = totalRow.querySelectorAll('.c-tot');
+    if (cells.length === 4) {
+      cells[0].textContent = t.A; cells[1].textContent = t.B;
+      cells[2].textContent = t.C; cells[3].textContent = t.balance;
+    }
+  }
   renderSummary(S);
 }
 

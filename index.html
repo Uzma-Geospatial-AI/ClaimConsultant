@@ -32,44 +32,39 @@
 
 <main>
 
-<!-- ============ STEP: CONSULTANT ============ -->
+<!-- ============ STEP 1: DETAILS ============ -->
 <section class="panel active" id="p-consultant" data-step="consultant">
   <h2>Step 1 &mdash; Your Details</h2>
-  <p class="lead">Fill this in once. It is reused on every document and saved for next month.</p>
+  <p class="lead">Fill this in once. It flows into every document and is saved for next month.</p>
   <div class="grid2">
-    <label>Full Name <span class="req">required</span><input id="c_name" placeholder="e.g. Ahmad bin Abdullah"></label>
-    <label>IC No.<input id="c_ic" placeholder="e.g. 010203-04-0567"></label>
-    <label>Address (Line 1)<input id="c_addr1" placeholder="e.g. No 12, Jalan Contoh 1,"></label>
-    <label>Address (Line 2)<input id="c_addr2" placeholder="e.g. Taman Contoh, 40000 Shah Alam, Selangor"></label>
-    <label>Position<input id="c_position" placeholder="Full Stack Developer"></label>
-    <label>Position on the Claim form<input id="c_position2" placeholder="FULL STACK DEVELOPER (CONSULTANT)"></label>
-    <label>Work Location<input id="c_workloc" placeholder="UZMA TOWER"></label>
-    <label>Employee / BP Code No. <span class="hint">(SAP usage only)</span><input id="c_empcode" placeholder="leave blank if none"></label>
+    <label>Full Name <span class="req">required</span><input id="c_name" data-bind="consultant.name" placeholder="e.g. Ahmad bin Abdullah"></label>
+    <label>IC No.<input data-bind="consultant.ic" placeholder="e.g. 010203-04-0567"></label>
+    <label>Address (Line 1)<input data-bind="consultant.addr1" placeholder="e.g. No 12, Jalan Contoh 1,"></label>
+    <label>Address (Line 2)<input data-bind="consultant.addr2" placeholder="e.g. Taman Contoh, 40000 Shah Alam, Selangor"></label>
+    <label>Position <span class="hint">(as on the invoice)</span><input data-bind="consultant.position" placeholder="Full Stack Developer"></label>
+    <label>Position <span class="hint">(as on the Claim form)</span><input data-bind="consultant.position2" placeholder="FULL STACK DEVELOPER (CONSULTANT)"></label>
+    <label>Work Location<input data-bind="consultant.workLoc" placeholder="UZMA TOWER"></label>
+    <label>Employee / BP Code No. <span class="hint">(SAP usage only)</span><input data-bind="consultant.empCode" placeholder="leave blank if none"></label>
   </div>
 
-  <h3>Bank Details <span class="hint">(shown on the Invoice)</span></h3>
+  <h3>Bank Details <span class="hint">(printed on the Invoice)</span></h3>
   <div class="grid2">
-    <label>Bank Name<input id="c_bank" placeholder="RHB BANK Berhad"></label>
-    <label>Account Name<input id="c_accname" placeholder="name as it appears on the account"></label>
-    <label>Account No.<input id="c_accno" placeholder="e.g. 1-23456-0001234-5"></label>
+    <label>Bank Name<input data-bind="consultant.bank" placeholder="RHB BANK Berhad"></label>
+    <label>Account Name<input data-bind="consultant.accName" placeholder="name as it appears on the account"></label>
+    <label>Account No.<input data-bind="consultant.accNo" placeholder="e.g. 1-23456-0001234-5"></label>
   </div>
 </section>
 
-<!-- ============ STEP: CHOOSE ============ -->
+<!-- ============ STEP 2: CHOOSE ============ -->
 <section class="panel" id="p-choose" data-step="choose">
   <h2>Step 2 &mdash; What do you need?</h2>
-  <p class="lead">Pick one and the rest of the form adapts — you only fill in what that document needs.</p>
+  <p class="lead">Pick one. The next step becomes a fillable copy of that exact document, so you can see where every entry lands.</p>
 
   <div class="choices" id="choices">
     <button type="button" class="choice" data-mode="invoice">
       <span class="choice-tag">A</span>
       <h3>Invoice Timesheet</h3>
       <p>Your invoice to the company, with the bank details and the amount for the period.</p>
-      <ul>
-        <li>Bill To company</li>
-        <li>Invoice number, dates &amp; period</li>
-        <li>Amount calculation</li>
-      </ul>
       <span class="choice-out">PDF + Excel</span>
     </button>
 
@@ -77,147 +72,218 @@
       <span class="choice-tag">B</span>
       <h3>Claim Form</h3>
       <p>The Uzma Personnel Time Sheet, with the day grid ticked and the approval block.</p>
-      <ul>
-        <li>Project details</li>
-        <li>Day-by-day timesheet</li>
-        <li>Section C names &amp; dates</li>
-      </ul>
       <span class="choice-out">PDF + Word</span>
     </button>
 
     <button type="button" class="choice" data-mode="both">
       <span class="choice-tag">A + B</span>
       <h3>Both</h3>
-      <p>The usual monthly submission — invoice plus the signed timesheet that backs it.</p>
-      <ul>
-        <li>Everything above</li>
-        <li>One shared set of details</li>
-        <li>Generate all four at once</li>
-      </ul>
+      <p>The usual monthly submission &mdash; invoice plus the signed timesheet that backs it.</p>
       <span class="choice-out">PDF + Excel + Word</span>
     </button>
   </div>
 </section>
 
-<!-- ============ STEP: BILL TO ============ -->
-<section class="panel" id="p-company" data-step="company">
-  <h2>Bill To &mdash; Company</h2>
-  <p class="lead">The company that receives your invoice.</p>
-  <div class="grid2">
-    <label>Company Name<input id="co_name" placeholder="Geospatial AI Sdn Bhd"></label>
-    <label>Company No.<input id="co_regno" placeholder="200901001789 (844716-P)"></label>
-    <label>Address (Line 1)<input id="co_addr1" placeholder="Uzma Tower, No 2, Jalan PJU 8/8A"></label>
-    <label>Address (Line 2)<input id="co_addr2" placeholder="Damansara Perdana, 47820 Petaling Jaya, Selangor"></label>
-  </div>
-</section>
-
-<!-- ============ STEP: PROJECT ============ -->
-<section class="panel" id="p-project" data-step="project">
-  <h2>Project Details</h2>
-  <p class="lead">Fills the top-right block of the Claim form. Every field here is optional — leave blank what does not apply.</p>
-  <div class="grid2">
-    <label>Project Name<input id="pj_name"></label>
-    <label>Client Name<input id="pj_client"></label>
-    <label>Charge to Client<input id="pj_charge" placeholder="YES / NO"></label>
-    <label>Profit Centres<input id="pj_profit"></label>
-    <label>Project Code<input id="pj_code"></label>
-    <label>Department Code<input id="pj_dept"></label>
-    <label>Invoice to Client<input id="pj_invclient"></label>
-  </div>
-</section>
-
-<!-- ============ STEP: INVOICE ============ -->
+<!-- ============ STEP 3: INVOICE (document replica) ============ -->
 <section class="panel" id="p-invoice" data-step="invoice">
-  <h2>Invoice Details</h2>
-  <div class="grid3">
-    <label>Invoice No.<input id="i_no" placeholder="INV-2026-08-026"></label>
-    <label>Invoice Date<input type="date" id="i_date"></label>
-    <label>Due Date<input type="date" id="i_due"></label>
-    <label>Period Start<input type="date" id="i_pstart"></label>
-    <label>Period End<input type="date" id="i_pend"></label>
-    <label>Tax (%)<input type="number" id="i_tax" value="0" step="0.01"></label>
-  </div>
+  <h2>Invoice</h2>
+  <p class="lead">This is the invoice itself. Type straight into it &mdash; what you see is what the PDF and Excel will contain.</p>
 
-  <h3>Amount Calculation</h3>
-  <div class="calcbox">
-    <div class="grid3">
-      <label>Calculation Method
-        <select id="i_mode">
-          <option value="monthly">Monthly rate &divide; days in month &times; calendar days in period</option>
-          <option value="daily">Daily rate &times; days ticked on the timesheet</option>
-          <option value="fixed">Fixed amount (enter it yourself)</option>
-        </select>
-      </label>
-      <label id="wrapMonthly">Monthly Rate (RM)<input type="number" id="i_monthly" value="3500" step="0.01"></label>
-      <label id="wrapDaily" class="hidden">Daily Rate (RM)<input type="number" id="i_daily" value="0" step="0.01"></label>
+  <div class="sheetwrap">
+  <div class="doc doc-invoice">
+
+    <div class="doc-band"><span>INVOICE</span></div>
+
+    <div class="doc-head">
+      <div class="doc-col">
+        <div class="drow"><span class="dlabel">Consultant:</span><input class="dinput" data-bind="consultant.name" placeholder="your full name"></div>
+        <div class="drow"><span class="dlabel">IC No.:</span><input class="dinput" data-bind="consultant.ic" placeholder="e.g. 010203-04-0567"></div>
+        <div class="drow"><span class="dlabel">Address:</span><input class="dinput" data-bind="consultant.addr1" placeholder="address line 1"></div>
+        <div class="drow"><span class="dlabel"></span><input class="dinput" data-bind="consultant.addr2" placeholder="address line 2"></div>
+      </div>
+      <div class="doc-col">
+        <div class="drow"><span class="dlabel">Invoice No.:</span><input class="dinput ta-r" data-bind="invoice.no" placeholder="INV-2026-08-026"></div>
+        <div class="drow"><span class="dlabel">Invoice Date:</span><input class="dinput ta-r" type="date" data-bind="invoice.date"></div>
+        <div class="drow"><span class="dlabel">Period:</span>
+          <span class="dpair">
+            <input class="dinput" type="date" data-bind="invoice.pStart" id="i_pstart">
+            <b>&ndash;</b>
+            <input class="dinput" type="date" data-bind="invoice.pEnd">
+          </span>
+        </div>
+        <div class="drow"><span class="dlabel">Due Date:</span><input class="dinput ta-r" type="date" data-bind="invoice.due"></div>
+      </div>
     </div>
-    <p class="formula" id="calcFormula">&nbsp;</p>
-    <p class="warn hidden" id="dailyWarn">The daily rate multiplies the days you tick on the timesheet — add the Claim form in step 2, or switch to another method.</p>
-  </div>
 
-  <h3>Invoice Items</h3>
-  <div class="tablescroll">
-    <table class="itemtable" id="itemTable">
-      <thead><tr><th style="width:40px">#</th><th>Description</th><th style="width:22%">Position</th><th style="width:20%">Period</th><th style="width:16%">Amount (RM)</th><th style="width:44px"></th></tr></thead>
+    <div class="doc-bar">BILL TO</div>
+    <div class="doc-head one">
+      <div class="doc-col">
+        <div class="drow"><span class="dlabel">Company:</span><input class="dinput" data-bind="company.name" placeholder="Geospatial AI Sdn Bhd"></div>
+        <div class="drow"><span class="dlabel">Company No.:</span><input class="dinput" data-bind="company.regNo" placeholder="200901001789 (844716-P)"></div>
+        <div class="drow"><span class="dlabel">Address:</span><input class="dinput" data-bind="company.addr1" placeholder="Uzma Tower, No 2, Jalan PJU 8/8A"></div>
+        <div class="drow"><span class="dlabel"></span><input class="dinput" data-bind="company.addr2" placeholder="Damansara Perdana, 47820 Petaling Jaya, Selangor"></div>
+      </div>
+    </div>
+
+    <table class="doc-table" id="itemTable">
+      <thead><tr>
+        <th style="width:40px">#</th><th>Description</th>
+        <th style="width:20%">Position</th><th style="width:19%">Period</th>
+        <th style="width:16%">Amount (RM)</th><th style="width:34px"></th>
+      </tr></thead>
       <tbody></tbody>
     </table>
+    <div class="doc-underbar">
+      <button class="btn ghost small" id="btnAddItem">+ Add item</button>
+    </div>
+
+    <div class="doc-totals">
+      <div><span>Subtotal</span><b id="t_sub">0.00</b></div>
+      <div><span>Tax (<input class="dinput mini" type="number" data-bind="invoice.taxPct" data-type="num" step="0.01">%)</span><b id="t_tax">0.00</b></div>
+      <div class="grand"><span>TOTAL DUE</span><b id="t_total">0.00</b></div>
+    </div>
+
+    <div class="doc-bar">PAYMENT DETAILS</div>
+    <div class="doc-head one">
+      <div class="doc-col">
+        <div class="drow"><span class="dlabel">Bank:</span><input class="dinput" data-bind="consultant.bank" placeholder="RHB BANK Berhad"></div>
+        <div class="drow"><span class="dlabel">Account Name:</span><input class="dinput" data-bind="consultant.accName" placeholder="name on the account"></div>
+        <div class="drow"><span class="dlabel">Account No.:</span><input class="dinput" data-bind="consultant.accNo" placeholder="e.g. 1-23456-0001234-5"></div>
+      </div>
+    </div>
+
+    <div class="doc-sigline" id="invSigSlot"></div>
+
+    <div class="doc-note">
+      <input class="dinput note" data-bind="invoice.note" placeholder="e.g. Invoice submitted with original timesheet signed by Consultant as per Clause 7.1 of the Service Agreement.">
+    </div>
   </div>
-  <button class="btn ghost small" id="btnAddItem">+ Add Item</button>
-
-  <div class="totals">
-    <div><span>Subtotal</span><b id="t_sub">0.00</b></div>
-    <div><span>Tax</span><b id="t_tax">0.00</b></div>
-    <div class="grand"><span>TOTAL DUE (RM)</span><b id="t_total">0.00</b></div>
-  </div>
-
-  <label class="full">Invoice Note<input id="i_note" value="Invoice submitted with original timesheet signed by Consultant as per Clause 7.1 of the Service Agreement."></label>
-  <label class="check"><input type="checkbox" id="i_showsig"> Show the Consultant signature on the invoice PDF</label>
-</section>
-
-<!-- ============ STEP: TIMESHEET ============ -->
-<section class="panel" id="p-timesheet" data-step="timesheet">
-  <h2>Timesheet</h2>
-  <div class="grid3">
-    <label>Month
-      <select id="ts_month"></select>
-    </label>
-    <label>Year<input type="number" id="ts_year" value="2026" min="2000" max="2100"></label>
-    <label>Assignment Period<input id="c_assignperiod" placeholder="Aug-26"></label>
-  </div>
-
-  <p class="hint">Click a day box to cycle its status: <b>blank &rarr; &ldquo;/&rdquo; (working day) &rarr; &ldquo;PH&rdquo; (public holiday) &rarr; blank</b>. Saturdays and Sundays are labelled automatically from the calendar.</p>
-
-  <div id="activities"></div>
-  <div class="btnrow">
-    <button class="btn ghost small" id="btnAddActivity">+ Add Activity Row</button>
-    <button class="btn ghost small" id="btnResetDays">Clear all ticks</button>
   </div>
 
-  <div class="summary" id="tsSummary"></div>
-
-  <h3>Section C &mdash; Names &amp; Dates</h3>
-  <div class="grid3">
-    <label>Prepared By (Personnel)<input id="s_prepname"></label>
-    <label>Date<input id="s_prepdate" placeholder="26.8.2026"></label>
-    <label class="spacer">&nbsp;</label>
-    <label>Approved By (HOD)<input id="s_apprname" placeholder="e.g. head of department name"></label>
-    <label>Date<input id="s_apprdate" placeholder="26.8.2026"></label>
-    <label class="spacer">&nbsp;</label>
-    <label>Verified By (Group People &amp; Finance)<input id="s_verifname"></label>
-    <label>Date<input id="s_verifdate"></label>
-    <label class="spacer">&nbsp;</label>
+  <div class="sidenote">
+    <h3>How the amount is worked out</h3>
+    <div class="grid3">
+      <label>Calculation Method
+        <select id="i_mode" data-bind="invoice.mode">
+          <option value="monthly">Monthly rate &divide; days in month &times; calendar days in period</option>
+          <option value="daily">Daily rate &times; days ticked on the timesheet</option>
+          <option value="fixed">Fixed amount (type it in the table)</option>
+        </select>
+      </label>
+      <label id="wrapMonthly">Monthly Rate (RM)<input type="number" data-bind="invoice.monthlyRate" data-type="num" step="0.01"></label>
+      <label id="wrapDaily" class="hidden">Daily Rate (RM)<input type="number" data-bind="invoice.dailyRate" data-type="num" step="0.01"></label>
+    </div>
+    <p class="formula" id="calcFormula">&nbsp;</p>
+    <p class="warn hidden" id="dailyWarn">The daily rate multiplies the days you tick on the Claim form — add the Claim in step 2, or pick another method.</p>
+    <label class="check"><input type="checkbox" id="i_showsig" data-bind="invoice.showSig" data-type="bool"> Print my signature on the invoice</label>
   </div>
 </section>
 
-<!-- ============ STEP: SIGNATURE ============ -->
-<section class="panel" id="p-signature" data-step="signature">
-  <h2>Signature</h2>
-  <p class="lead">Optional &mdash; you can skip this and sign the printed copy by hand instead.</p>
-  <p class="hint">Draw with a mouse or your finger on a touch screen, or upload an image of your signature. A PNG with a transparent background works best.</p>
-  <div class="sigwrap" id="sigwrap"></div>
+<!-- ============ STEP 4: CLAIM (document replica) ============ -->
+<section class="panel" id="p-claim" data-step="claim">
+  <h2>Claim Form</h2>
+  <p class="lead">A fillable copy of the Uzma Personnel Time Sheet. Every box sits where it sits on the printed form.</p>
+
+  <div class="sheetwrap">
+  <div class="doc doc-claim">
+
+    <div class="uz-top">
+      <div class="uz-title">
+        <span class="uz-tri"></span>
+        <div>
+          <h4>PERSONNEL TIME SHEET</h4>
+          <p>PEOPLE DIVISION</p>
+        </div>
+      </div>
+      <span id="claimLogo" class="uz-logo"></span>
+    </div>
+
+    <div class="uz-sections">
+      <div class="uz-box">
+        <div class="uz-boxhead">A. PERSONNEL DETAILS</div>
+        <div class="uz-fields">
+          <div class="ufield"><span>Employee or BP Code No. <i>(SAP usage only)</i></span><b>:</b><input class="dinput" data-bind="consultant.empCode" placeholder="leave blank if you have none"></div>
+          <div class="ufield"><span>Name of Personnel</span><b>:</b><input class="dinput up" data-bind="consultant.name" placeholder="your full name"></div>
+          <div class="ufield"><span>Position</span><b>:</b><input class="dinput up" data-bind="consultant.position2" placeholder="FULL STACK DEVELOPER (CONSULTANT)"></div>
+          <div class="ufield"><span>Work Location</span><b>:</b><input class="dinput up" data-bind="consultant.workLoc" placeholder="UZMA TOWER"></div>
+          <div class="ufield"><span>Assignment Period</span><b>:</b><input class="dinput" data-bind="consultant.assignPeriod" placeholder="Aug-26"></div>
+          <div class="ufield"><span>Month / Year</span><b>:</b>
+            <span class="dpair">
+              <select id="ts_month" data-bind="timesheet.month" data-type="num" class="dinput"></select>
+              <input class="dinput" type="number" id="ts_year" data-bind="timesheet.year" data-type="num" min="2000" max="2100">
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="uz-box">
+        <div class="uz-boxhead">PROJECT DETAILS (IF APPLICABLE)</div>
+        <div class="uz-fields">
+          <div class="ufield"><span>Project Name</span><b>:</b><input class="dinput" data-bind="project.name" placeholder="e.g. Uzma Digital Earth Platform"></div>
+          <div class="ufield"><span>Client Name</span><b>:</b><input class="dinput" data-bind="project.client" placeholder="e.g. Petronas Carigali Sdn Bhd"></div>
+          <div class="ufield"><span>Charge to Client</span><b>:</b><input class="dinput" data-bind="project.charge" placeholder="YES / NO"></div>
+          <div class="ufield indent"><span>If YES, please provide the Profit Centres</span><b>:</b><input class="dinput" data-bind="project.profit" placeholder="if YES — e.g. PC-1001"></div>
+          <div class="ufield indent"><span>Project Code</span><b>:</b><input class="dinput" data-bind="project.code" placeholder="if YES — e.g. PRJ-2026-014"></div>
+          <div class="ufield indent"><span>If NO, please provide the Department Code</span><b>:</b><input class="dinput" data-bind="project.dept" placeholder="if NO — e.g. DEPT-GEO"></div>
+          <div class="ufield"><span>INVOICE TO CLIENT</span><b>:</b><input class="dinput" data-bind="project.invClient" placeholder="e.g. invoice reference to the client"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="uz-blabel">(B)</div>
+    <p class="uz-tip">Click a day cell to cycle it: <b>blank &rarr; &ldquo;/&rdquo; worked &rarr; &ldquo;PH&rdquo; public holiday &rarr; blank</b>. SAT and SUN fill themselves in from the calendar.</p>
+    <div class="uz-gridwrap" id="activities"></div>
+    <div class="doc-underbar">
+      <button class="btn ghost small" id="btnAddActivity">+ Add activity row</button>
+      <button class="btn ghost small" id="btnResetDays">Clear all ticks</button>
+    </div>
+    <div class="summary" id="tsSummary"></div>
+
+    <div class="uz-blabel">(C)</div>
+    <table class="uz-sign">
+      <thead>
+        <tr><th class="rl"></th><th>PREPARED BY</th><th>APPROVED BY</th><th>VERIFIED BY</th></tr>
+        <tr class="sub"><th class="rl"></th><th>PERSONNEL</th><th>HOD</th><th>GROUP PEOPLE &amp; GROUP FINANCE DIVISIONS</th></tr>
+      </thead>
+      <tbody>
+        <tr class="sigrow">
+          <td class="rl">Signature</td>
+          <td data-sig="personnel"></td>
+          <td data-sig="hod"></td>
+          <td data-sig="verified"></td>
+        </tr>
+        <tr>
+          <td class="rl">Name</td>
+          <td><input class="dinput ta-c" data-bind="timesheet.prepName" placeholder="your name"></td>
+          <td><input class="dinput ta-c" data-bind="timesheet.apprName" placeholder="head of department"></td>
+          <td><input class="dinput ta-c" data-bind="timesheet.verifName" placeholder="leave blank for Finance"></td>
+        </tr>
+        <tr>
+          <td class="rl">Date</td>
+          <td><input class="dinput ta-c" data-bind="timesheet.prepDate" placeholder="26.8.2026"></td>
+          <td><input class="dinput ta-c" data-bind="timesheet.apprDate" placeholder="26.8.2026"></td>
+          <td><input class="dinput ta-c" data-bind="timesheet.verifDate" placeholder="leave blank for Finance"></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="uz-notes">
+      <b>NOTES:</b>
+      <p>1. PERSONNEL TO COMPLETE DETAILS IN SECTION A AND SIGN IN SECTION C.</p>
+      <p>2. PERSONNEL TO COMPLETE TIME SHEET BY PROVIDING A TICK (/) IN SECTION B AND SIGN IN SECTION C. INCLUDE KEY ACTIVITIES WHEN PERFORMING SERVICE IN AREAS OTHER THAN THE POINT OF ASSIGNMENT.</p>
+    </div>
+
+    <div class="uz-foot">
+      <span><b>UZMA BERHAD</b><br>2007010186 (769866-V)</span>
+      <span>Uzma Tower,<br>No. 2, Jalan PJU 8/8A, Damansara Perdana,<br>47820 Petaling Jaya, Selangor, MALAYSIA</span>
+      <span>Tel : +603 7611 4000<br>Fax : +603 7611 4100</span>
+      <span>www.uzmagroup.com</span>
+    </div>
+  </div>
+  </div>
 </section>
 
-<!-- ============ STEP: GENERATE ============ -->
+<!-- ============ STEP 5: GENERATE ============ -->
 <section class="panel" id="p-generate" data-step="generate">
   <h2>Generate Documents</h2>
 
