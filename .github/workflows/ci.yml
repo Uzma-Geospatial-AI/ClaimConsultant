@@ -9,7 +9,7 @@ on:
 
 jobs:
   test:
-    name: Semak & uji penjanaan dokumen
+    name: Lint & document generation tests
     runs-on: ubuntu-latest
 
     strategy:
@@ -21,45 +21,45 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Pasang Node ${{ matrix.node }}
+      - name: Set up Node ${{ matrix.node }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
 
-      - name: Semakan sintaks JavaScript
+      - name: Check JavaScript syntax
         run: |
           for f in assets/js/*.js test/*.js; do
             node --check "$f"
             echo "ok  $f"
           done
 
-      - name: Pastikan semua library vendor ada
+      - name: Verify vendored libraries are present
         run: |
           missing=0
           for f in jspdf.umd.min.js jspdf.plugin.autotable.min.js exceljs.min.js \
                    FileSaver.min.js signature_pad.umd.min.js docx.umd.js; do
             if [ -s "vendor/$f" ]; then
-              echo "ok  vendor/$f ($(wc -c < "vendor/$f") bait)"
+              echo "ok  vendor/$f ($(wc -c < "vendor/$f") bytes)"
             else
-              echo "HILANG  vendor/$f"; missing=1
+              echo "MISSING  vendor/$f"; missing=1
             fi
           done
           exit $missing
 
-      - name: Pastikan tiada data peribadi dalam kod
+      - name: Scan for personal data
         run: |
-          # Repo ini awam. No. IC Malaysia (xxxxxx-xx-xxxx) dan nombor akaun bank
-          # tidak boleh di-hardcode — hanya contoh generik dibenarkan.
-          # vendor/ dikecualikan kerana ia library pihak ketiga.
+          # This repository is public. Malaysian IC numbers (xxxxxx-xx-xxxx) and bank
+          # account numbers must never be hard-coded here — only generic examples.
+          # vendor/ is excluded because it holds third-party libraries.
           hits=$(grep -rnE '[0-9]{6}-[0-9]{2}-[0-9]{4}|[0-9]-[0-9]{5}-[0-9]{7}-[0-9]' \
                    index.html assets test README.md \
                  | grep -vE '010203-04-0567|1-23456-0001234-5' || true)
           if [ -n "$hits" ]; then
-            echo "Dijumpai data peribadi yang berkemungkinan sebenar:"
+            echo "Found what looks like real personal data:"
             echo "$hits"
             exit 1
           fi
-          echo "ok  tiada data peribadi dikesan"
+          echo "ok  no personal data detected"
 
-      - name: Uji penjanaan dokumen (PDF / Excel / Word)
+      - name: Test document generation (PDF / Excel / Word)
         run: node test/generate.test.js

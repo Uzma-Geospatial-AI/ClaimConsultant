@@ -1,5 +1,7 @@
 # Sistem Consultant Claim
 
+[![CI](https://github.com/kymy07/ConsultantClaimSystem/actions/workflows/ci.yml/badge.svg)](https://github.com/kymy07/ConsultantClaimSystem/actions/workflows/ci.yml)
+
 Sistem web untuk consultant key in details sekali, tick hari kerja dalam kalendar, dan auto-generate
 dua dokumen dalam empat format.
 
