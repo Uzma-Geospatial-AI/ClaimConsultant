@@ -209,9 +209,11 @@ label.check input{width:auto}
 .uz-tri{width:0;height:0;border-left:9px solid var(--orange);border-top:6px solid transparent;border-bottom:6px solid transparent;margin-top:3px}
 .uz-title h4{margin:0;font-size:13px;letter-spacing:.3px}
 .uz-title p{margin:2px 0 0;font-size:9px;color:#6b7680;letter-spacing:.5px}
-.uz-logo{display:inline-flex;align-items:center;min-height:26px}
-.uz-logo img{height:26px}
-.uz-fallback{font-size:22px;font-weight:800;color:#58595b;letter-spacing:-.5px}
+/* 93px is 8.583% of the 1080px content width of .doc-claim — the same share
+   of the sheet the wordmark takes on the printed form. */
+.uz-logo{display:inline-flex;align-items:center;min-height:17px;margin-top:1px}
+.uz-logo img{width:93px;height:auto;display:block}
+.uz-fallback{font-size:15px;font-weight:800;color:#58595b;letter-spacing:-.5px}
 .uz-fallback i{color:var(--orange);font-style:normal}
 
 /* --- claim: section A/B boxes --- */

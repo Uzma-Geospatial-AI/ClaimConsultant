@@ -19,9 +19,54 @@ const LOGO_SOURCES = {
 const logoCache = {};
 
 /**
+ * Crop the fully-transparent margin off a rasterised logo.
+ *
+ * Supplied artwork is usually exported with breathing room baked in — the
+ * Uzma PNG is 270x92 for a wordmark that is only 228x41. Sizing that box to
+ * the height the printed form uses would render the mark at half scale and
+ * sitting off-centre, because the padding is not symmetric. Trimming first
+ * means every caller measures the mark itself.
+ *
+ * Returns the original canvas when the source is opaque, when reading the
+ * pixels is not allowed, or when nothing would be gained.
+ */
+function trimTransparent (canvas) {
+  const w = canvas.width, h = canvas.height;
+  let data;
+  try {
+    data = canvas.getContext('2d').getImageData(0, 0, w, h).data;
+  } catch (e) {
+    return canvas;                              // tainted — leave it alone
+  }
+
+  const ALPHA = 12;                             // ignore near-invisible pixels
+  let minX = w, minY = h, maxX = -1, maxY = -1;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (data[(y * w + x) * 4 + 3] > ALPHA) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < 0) return canvas;                  // fully transparent
+  if (minX === 0 && minY === 0 && maxX === w - 1 && maxY === h - 1) return canvas;
+
+  const out = document.createElement('canvas');
+  out.width = maxX - minX + 1;
+  out.height = maxY - minY + 1;
+  out.getContext('2d').drawImage(canvas, minX, minY, out.width, out.height,
+                                 0, 0, out.width, out.height);
+  return out;
+}
+
+/**
  * Resolve a logo to a PNG data URL usable by both <img> and jsPDF.
  * Returns null when no file is present — callers then draw their fallback.
  * Vector sources are rasterised at 4x so they stay crisp in print.
+ * `w`/`h` describe the trimmed mark, so they are safe to size against.
  */
 function loadLogo (key) {
   if (logoCache[key] !== undefined) return Promise.resolve(logoCache[key]);
@@ -36,10 +81,11 @@ function loadLogo (key) {
       const w = (img.naturalWidth || img.width || 300) * scale;
       const h = (img.naturalHeight || img.height || 100) * scale;
       try {
-        const c = document.createElement('canvas');
+        let c = document.createElement('canvas');
         c.width = w; c.height = h;
         c.getContext('2d').drawImage(img, 0, 0, w, h);
-        resolve({ url: c.toDataURL('image/png'), w, h, src });
+        c = trimTransparent(c);
+        resolve({ url: c.toDataURL('image/png'), w: c.width, h: c.height, src });
       } catch (e) {
         resolve({ url: src, w, h, src });        // tainted canvas — hand back the path
       }
@@ -92,6 +138,6 @@ function mountBrandLogo () {
   host.innerHTML = geospatialFallbackMarkup();
   loadLogo('geospatial').then(logo => {
     if (!logo) return;
-    host.innerHTML = `<img src="${logo.src}" alt="Geospatial AI" class="brand-img">`;
+    host.innerHTML = `<img src="${logo.url}" alt="Geospatial AI" class="brand-img">`;
   });
 }

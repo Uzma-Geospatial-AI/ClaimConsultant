@@ -3,3 +3,7 @@
 
 # Library pihak ketiga - jangan diubah, kecualikan dari statistik bahasa
 vendor/** linguist-vendored
+
+# Imej binari - jangan normalkan penghujung baris
+*.png binary
+*.jpg binary

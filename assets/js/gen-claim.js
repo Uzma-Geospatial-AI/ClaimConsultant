@@ -73,11 +73,18 @@ async function generateClaimPDF (S) {
   doc.setFontSize(6).setTextColor(90, 90, 90);
   doc.text('PEOPLE DIVISION', L + 5.5, 19);
 
+  /* The wordmark is placed off the printed form's own geometry. Measured
+     from the reference sheet (Letter landscape, 682.32pt content width):
+     the mark is 58.57pt wide — 8.583% of the content width — its right edge
+     sits 0.725% of that width inside the right margin, and its centre line
+     falls a touch below the centre of the orange arrow. Expressing it as a
+     fraction of W keeps the header identical on our A4 sheet. */
   const uzma = await loadLogo('uzma');
   if (uzma) {
-    const lh = 8.5;                                   // mm tall, as on the printed form
-    const lw = Math.min((uzma.w / uzma.h) * lh, 46);
-    doc.addImage(uzma.url, 'PNG', R - lw, 11, lw, lh);
+    const lw = W * 0.08583;
+    const lh = lw / (uzma.w / uzma.h);
+    const triCentre = 14.2;                           // the orange arrow's centre line
+    doc.addImage(uzma.url, 'PNG', R - W * 0.00725 - lw, triCentre + W * 0.00298 - lh / 2, lw, lh);
   } else {
     drawUzmaFallback(doc, R, 11.5, 7);
   }
@@ -274,9 +281,14 @@ async function generateClaimDOCX (S) {
   const C = S.consultant, P = S.project, ts = S.timesheet;
   const { body } = claimMatrix(S);
 
+  const TOTAL_DXA = 15680;                                     // full content width, twips
+
+  /* Same 8.583%-of-content-width rule the PDF header uses. The section (B)
+     table spans TOTAL_DXA twips, and Word measures images in px at 96 dpi. */
   const uzmaLogo = await loadLogo('uzma');
-  const uzmaLogoH = 30;                                        // px in the Word header
-  const uzmaLogoW = uzmaLogo ? Math.round(Math.min((uzmaLogo.w / uzmaLogo.h) * uzmaLogoH, 160)) : 0;
+  const contentPx = (TOTAL_DXA / 1440) * 96;
+  const uzmaLogoW = Math.round(contentPx * 0.08583);
+  const uzmaLogoH = uzmaLogo ? Math.round(uzmaLogoW / (uzmaLogo.w / uzmaLogo.h)) : 0;
 
   const NONE = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
   const THIN = { style: BorderStyle.SINGLE, size: 4, color: '555555' };
@@ -305,7 +317,6 @@ async function generateClaimDOCX (S) {
   });
 
   /* ---------- section (B) column widths ---------- */
-  const TOTAL_DXA = 15680;
   const wAct = 2500, wJob = 620, wA = 800, wB = 900, wC = 800, wBal = 760;
   const wDay = Math.floor((TOTAL_DXA - (wAct + wJob + wA + wB + wC + wBal)) / 31);
   const colWidths = [wAct, wJob, ...Array(31).fill(wDay), wA, wB, wC, wBal];

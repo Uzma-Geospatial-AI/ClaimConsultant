@@ -5,6 +5,22 @@
 
 let S = Store.loadCurrent() || defaultState();
 
+/* -----------------------------------------------------------------------
+   Section (C) starting values. These are only defaults — every one of them
+   is an ordinary field on the Claim page, so change the approver, blank a
+   name out or hand the sheet to somebody else and the documents follow.
+   ----------------------------------------------------------------------- */
+const SIGN_DEFAULTS = {
+  hod: 'Gs. Mohammad Fadhli Jamaluddin',    // approver; edit on the Claim page
+  verified: ''                              // Group People & Finance sign on paper
+};
+
+/** today as the form writes it: 26.8.2026 */
+function todayDotted () {
+  const n = new Date();
+  return `${n.getDate()}.${n.getMonth() + 1}.${n.getFullYear()}`;
+}
+
 /* ---------------- toast ---------------- */
 let toastTimer = null;
 function toast (msg, bad) {
@@ -352,6 +368,10 @@ function fillDefaultsForMonth () {
   if (!S.invoice.no) S.invoice.no = `INV-${ts.year}-${pad(ts.month + 1)}-001`;
   if (!S.consultant.assignPeriod) S.consultant.assignPeriod = monthLabel(ts);
   if (!S.timesheet.prepName) S.timesheet.prepName = S.consultant.name;
+  if (!S.timesheet.apprName)  S.timesheet.apprName  = SIGN_DEFAULTS.hod;
+  if (!S.timesheet.verifName) S.timesheet.verifName = SIGN_DEFAULTS.verified;
+  if (!S.timesheet.prepDate)  S.timesheet.prepDate  = todayDotted();
+  if (!S.timesheet.apprDate)  S.timesheet.apprDate  = S.timesheet.prepDate;
   lastName = S.consultant.name;
 }
 
@@ -544,14 +564,14 @@ function mountFootLogo () {
   const host = document.getElementById('footLogo');
   if (!host) return;
   host.innerHTML = geospatialFallbackMarkup();
-  loadLogo('geospatial').then(l => { if (l) host.innerHTML = `<img src="${l.src}" alt="Geospatial AI" class="brand-img">`; });
+  loadLogo('geospatial').then(l => { if (l) host.innerHTML = `<img src="${l.url}" alt="Geospatial AI" class="brand-img">`; });
 }
 
 function mountClaimLogo () {
   const host = document.getElementById('claimLogo');
   if (!host) return;
   host.innerHTML = '<span class="uz-fallback">UZM<i>A</i></span>';
-  loadLogo('uzma').then(l => { if (l) host.innerHTML = `<img src="${l.src}" alt="UZMA">`; });
+  loadLogo('uzma').then(l => { if (l) host.innerHTML = `<img src="${l.url}" alt="UZMA">`; });
 }
 
 function wire (id, fn, label) {

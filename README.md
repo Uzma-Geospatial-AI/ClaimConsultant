@@ -85,6 +85,8 @@ unless you have already ticked days, in which case your ticks win.
 | 📅 **Tickable day grid** | Section B is the real 31-column table — click a cell to cycle `blank → / → PH`; Saturdays and Sundays label themselves from the calendar |
 | 🧮 **Three ways to price a period** | Monthly rate prorated by calendar days, daily rate × days ticked, or a fixed amount you type yourself — the live formula shows its working |
 | ✍️ **Sign in the signature box** | The three pads (Personnel, HOD, Verified By) sit inside Section C where the pen would go; blank space around the stroke is trimmed before it is embedded |
+| 🖋️ **Approval block starts filled** | Section C opens with the usual names and today's date already in place — every one is a normal field, so type over it when somebody else signs |
+| 🏷️ **Official artwork, placed to the millimetre** | The Uzma wordmark ships with the app and is positioned from proportions measured off the printed form, not eyeballed |
 | 🗂️ **Multiple activity rows** | Eight rows like the original form, each with its own Job ID, allocated days and past claim |
 | 📊 **Totals that add up** | `TOTAL DAYS [A]`, `ALLOCATED [B]`, `PAST CLAIM [C]` and `BALANCE [B-(A+C)]` are computed per row and in aggregate |
 | 💾 **Autosave + profiles** | Everything persists to `localStorage`; save one profile per consultant and switch between them |
@@ -115,7 +117,7 @@ ConsultantClaimSystem/
 ├── index.html                    # the whole UI — the document replicas live here
 ├── assets/
 │   ├── css/style.css             # design tokens + every component
-│   ├── img/                      # brand artwork + README screenshots
+│   ├── img/                      # logo-uzma.png + README screenshots
 │   └── js/
 │       ├── state.js              # data model, formulas, localStorage
 │       ├── logo.js               # brand artwork loading + vector fallbacks
@@ -183,14 +185,34 @@ line and pushes the block down, instead of running into the Period column beside
 
 The site header, the footer and the Claim PDF all read their artwork from `assets/img/`:
 
-| File | Used by |
-|---|---|
-| `logo-geospatial.png` (or `.jpg` / `.svg`) | site header + footer |
-| `logo-uzma.png` (or `.jpg` / `.svg`) | top-right of the Claim PDF and Word file |
+| File | Used by | Status |
+|---|---|---|
+| `logo-uzma.png` (or `.jpg` / `.svg`) | top-right of the Claim page, PDF and Word file | **ships with the app** |
+| `logo-geospatial.png` (or `.jpg` / `.svg`) | site header + footer | drop yours in |
 
-Drop either file in and it is picked up on the next reload — no code change. Until then the app
-falls back to a **typographic recreation** of each wordmark, so nothing renders blank. The
+Drop a file in and it is picked up on the next reload — no code change. Where one is missing the
+app falls back to a **typographic recreation** of that wordmark, so nothing renders blank. The
 fallbacks are approximations; use the official artwork for anything you actually submit.
+
+### Placing the Uzma mark
+
+Supplied artwork carries its own padding — the Uzma PNG is a 270 × 92 canvas around a wordmark
+that is only 228 × 41, and the margin is not symmetric. Sized by that canvas, the mark prints at
+roughly half scale and sits off-centre. So `loadLogo()` crops the transparent margin before
+handing the image on, and every caller measures the mark itself.
+
+The header then places it from proportions taken off the printed time sheet rather than from
+guesswork:
+
+| | Reference form (Letter landscape) | This app (A4 landscape) |
+|---|---|---|
+| Mark width | 58.57 pt — **8.583 %** of the content width | 8.583 % |
+| Right edge | **0.725 %** of that width inside the margin | 0.725 % |
+| Vertical | a shade below the centre of the orange arrow | same |
+
+Because both are fractions of the content width, the header lands in the same place on A4 as it
+does on the original Letter-size form, and the PDF, the Word file and the on-screen Claim page
+all size the mark identically.
 
 Site colours come from the Geospatial AI wordmark and live as CSS custom properties in
 `assets/css/style.css`:
@@ -285,6 +307,25 @@ Three places, in order:
 3. `app.js` — add `['element_id', 'section', 'key']` to the `FIELDS` array
 
 `mergeDefaults()` backfills the new key for anyone with older saved data, so nothing breaks.
+
+</details>
+
+<details>
+<summary><b>Changing who approves Section C</b></summary>
+
+Section C opens pre-filled so the common case needs no typing. The starting values live in
+`SIGN_DEFAULTS` at the top of `assets/js/app.js`, and `fillDefaultsForMonth()` applies them
+**only to fields that are still empty** — so nothing you have already typed is ever overwritten:
+
+```js
+const SIGN_DEFAULTS = {
+  hod:      '…',   // the approver whose name appears under APPROVED BY
+  verified: ''     // Group People & Finance sign on paper, so this stays blank
+};
+```
+
+`PREPARED BY` follows your name from step 1, and both dates default to today. All six are
+ordinary fields on the Claim page: type over any of them when a different person signs.
 
 </details>
 

@@ -240,6 +240,7 @@
     <div class="summary" id="tsSummary"></div>
 
     <div class="uz-blabel">(C)</div>
+    <p class="uz-tip">Names and dates are pre-filled with the usual approvers &mdash; type over any of them if somebody else signs this month.</p>
     <table class="uz-sign">
       <thead>
         <tr><th class="rl"></th><th>PREPARED BY</th><th>APPROVED BY</th><th>VERIFIED BY</th></tr>
@@ -256,13 +257,13 @@
           <td class="rl">Name</td>
           <td><input class="dinput ta-c" data-bind="timesheet.prepName" placeholder="your name"></td>
           <td><input class="dinput ta-c" data-bind="timesheet.apprName" placeholder="head of department"></td>
-          <td><input class="dinput ta-c" data-bind="timesheet.verifName" placeholder="leave blank for Finance"></td>
+          <td><input class="dinput ta-c" data-bind="timesheet.verifName" placeholder="leave blank &mdash; Finance fills this in"></td>
         </tr>
         <tr>
           <td class="rl">Date</td>
           <td><input class="dinput ta-c" data-bind="timesheet.prepDate" placeholder="26.8.2026"></td>
           <td><input class="dinput ta-c" data-bind="timesheet.apprDate" placeholder="26.8.2026"></td>
-          <td><input class="dinput ta-c" data-bind="timesheet.verifDate" placeholder="leave blank for Finance"></td>
+          <td><input class="dinput ta-c" data-bind="timesheet.verifDate" placeholder="leave blank &mdash; Finance fills this in"></td>
         </tr>
       </tbody>
     </table>
