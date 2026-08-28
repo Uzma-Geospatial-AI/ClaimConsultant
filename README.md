@@ -10,7 +10,7 @@ Fill the form once, tick the calendar, download all four documents.
 [![Offline](https://img.shields.io/badge/Runs-fully%20offline-F26522?style=for-the-badge)]()
 [![Dependencies](https://img.shields.io/badge/npm%20install-not%20needed-2F5597?style=for-the-badge&logo=npm&logoColor=white)]()
 
-<img src="assets/img/preview.png" alt="Timesheet tab with the day grid ticked" width="100%">
+<img src="assets/img/preview.png" alt="Step 2 — choosing which document to produce" width="100%">
 
 </div>
 
@@ -40,10 +40,40 @@ Uzma footer.
 
 ---
 
+## The Flow
+
+```
+Step 1  Your details ──▶ Step 2  Pick a document ──┬─▶ A  Bill To → Invoice ─────────────┐
+                                                   │                                     │
+                                                   ├─▶ B  Project → Timesheet ───────────┤─▶ Signature ─▶ Generate
+                                                   │                                     │
+                                                   └─▶ A+B  Bill To → Project →          │
+                                                            Invoice → Timesheet ─────────┘
+```
+
+| Choice | Steps you see | You get |
+|---|---|---|
+| **A** Invoice Timesheet | Bill To · Invoice · Signature · Generate | PDF + Excel |
+| **B** Claim Form | Project · Timesheet · Signature · Generate | PDF + Word |
+| **A + B** Both | all of the above, on one shared set of details | PDF + Excel + Word |
+
+You cannot leave step 1 without a name, or step 2 without a choice; everything after that is
+optional. The stepper at the top is clickable, so you can jump back and change your mind at
+any point — picking a different document simply re-shapes the remaining steps.
+
+Because the invoice period decides its own month, choosing **A** alone never asks you to touch
+the timesheet. Choose **A + B** and setting the period pulls the timesheet to the same month —
+unless you have already ticked days, in which case your ticks are left alone.
+
+<img src="assets/img/preview-timesheet.png" alt="Timesheet step with the day grid ticked" width="100%">
+
+---
+
 ## Features
 
 | | |
 |---|---|
+| 🧭 **Guided, branching flow** | Fill your details once, then pick **A** (Invoice), **B** (Claim) or **both** — the remaining steps rearrange so you only ever see the fields that document needs |
 | 📅 **Tickable day grid** | Click a box to cycle `blank → / → PH`; Saturdays and Sundays are labelled from the real calendar, so you never tick a weekend by mistake |
 | 🧮 **Three ways to price a period** | Monthly rate prorated by calendar days, daily rate × days ticked, or a fixed amount you type yourself — the live formula shows its working |
 | ✍️ **Draw-or-upload signatures** | Three pads (Personnel, HOD, Verified By); blank space around the stroke is trimmed automatically before it is embedded |
@@ -74,17 +104,18 @@ No bundler, no framework, no dependencies to audit at runtime.
 
 ```
 ConsultantClaimSystem/
-├── index.html                    # the whole UI — six tabs
+├── index.html                    # the whole UI — eight wizard steps
 ├── assets/
 │   ├── css/style.css             # design tokens + every component
-│   ├── img/                      # README screenshots
+│   ├── img/                      # brand artwork + README screenshots
 │   └── js/
 │       ├── state.js              # data model, formulas, localStorage
+│       ├── logo.js               # brand artwork loading + vector fallbacks
 │       ├── timesheet.js          # the 1–31 day grid
 │       ├── signature.js          # signature pads + image trimming
 │       ├── gen-invoice.js        # Invoice → PDF (jsPDF) + Excel (ExcelJS)
 │       ├── gen-claim.js          # Claim   → PDF (jsPDF) + Word (docx)
-│       └── app.js                # UI wiring, profiles, generate buttons
+│       └── app.js                # step flow, profiles, generate buttons
 ├── test/generate.test.js         # generates all four docs and checks them
 ├── vendor/                       # pinned libraries, committed for offline use
 └── .github/workflows/ci.yml      # lint + tests on Node 20 & 22
@@ -118,7 +149,7 @@ Then open <http://127.0.0.1:8000/>.
 
 ## How the Amount Is Calculated
 
-Pick a method on the **Invoice** tab; the formula line updates as you type.
+Pick a method on the **Invoice** step; the formula line updates as you type.
 
 | Method | Formula |
 |---|---|
@@ -135,7 +166,32 @@ RM 3,500.00 ÷ 31 days (August 2026) × 8 calendar days (24–31 Aug) = RM 903.2
 While the method is not *Fixed amount*, the first item's amount is read-only so it can never
 drift out of step with the formula. Switch to **Fixed amount** to type your own.
 
-<img src="assets/img/preview-invoice.png" alt="Invoice tab showing the live formula and totals" width="100%">
+<img src="assets/img/preview-invoice.png" alt="Invoice step showing the live formula and totals" width="100%">
+
+---
+
+## Branding & Logos
+
+The site header, the footer and the Claim PDF all read their artwork from `assets/img/`:
+
+| File | Used by |
+|---|---|
+| `logo-geospatial.png` (or `.jpg` / `.svg`) | site header + footer |
+| `logo-uzma.png` (or `.jpg` / `.svg`) | top-right of the Claim PDF and Word file |
+
+Drop either file in and it is picked up on the next reload — no code change. Until then the app
+falls back to a **typographic recreation** of each wordmark, so nothing renders blank. The
+fallbacks are approximations; use the official artwork for anything you actually submit.
+
+Site colours come from the Geospatial AI wordmark and live as CSS custom properties in
+`assets/css/style.css`:
+
+```css
+--navy:#2c3e50;   --navy-deep:#223140;   --orange:#f1662a;
+```
+
+The generated documents keep the colours of the official templates instead, so re-theming the
+site never changes what finance receives.
 
 ---
 

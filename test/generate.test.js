@@ -85,7 +85,8 @@ vm.createContext(ctx);
 const load = f => vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
 
 [ 'vendor/jspdf.umd.min.js', 'vendor/jspdf.plugin.autotable.min.js', 'vendor/exceljs.min.js',
-  'vendor/docx.umd.js', 'assets/js/state.js', 'assets/js/timesheet.js' ].forEach(load);
+  'vendor/docx.umd.js', 'assets/js/state.js', 'assets/js/logo.js',
+  'assets/js/timesheet.js' ].forEach(load);
 
 // signature.js and app.js need a real DOM — substitute the few helpers they export
 vm.runInContext(`

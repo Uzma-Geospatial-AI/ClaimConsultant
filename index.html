@@ -10,10 +10,11 @@
 
 <header class="topbar">
   <div class="brand">
-    <span class="mark"></span>
-    <div>
+    <span id="brandLogo" class="brand-logo"></span>
+    <span class="brand-rule"></span>
+    <div class="brand-text">
       <h1>Consultant Claim System</h1>
-      <p>Auto-generate the Invoice Timesheet &amp; Claim form &mdash; PDF / Excel / Word</p>
+      <p>Invoice Timesheet &amp; Claim form &mdash; PDF / Excel / Word</p>
     </div>
   </div>
   <div class="topbar-actions">
@@ -27,22 +28,16 @@
   </div>
 </header>
 
-<nav class="tabs" id="tabs">
-  <button class="tab active" data-tab="consultant">1. Consultant</button>
-  <button class="tab" data-tab="company">2. Bill To</button>
-  <button class="tab" data-tab="invoice">3. Invoice</button>
-  <button class="tab" data-tab="timesheet">4. Timesheet</button>
-  <button class="tab" data-tab="signature">5. Signature</button>
-  <button class="tab" data-tab="generate">6. Generate</button>
-</nav>
+<nav class="stepper" id="stepper"></nav>
 
 <main>
 
-<!-- ============ 1. CONSULTANT ============ -->
-<section class="panel active" id="p-consultant">
-  <h2>Consultant Details</h2>
+<!-- ============ STEP: CONSULTANT ============ -->
+<section class="panel active" id="p-consultant" data-step="consultant">
+  <h2>Step 1 &mdash; Your Details</h2>
+  <p class="lead">Fill this in once. It is reused on every document and saved for next month.</p>
   <div class="grid2">
-    <label>Full Name<input id="c_name" placeholder="e.g. Ahmad bin Abdullah"></label>
+    <label>Full Name <span class="req">required</span><input id="c_name" placeholder="e.g. Ahmad bin Abdullah"></label>
     <label>IC No.<input id="c_ic" placeholder="e.g. 010203-04-0567"></label>
     <label>Address (Line 1)<input id="c_addr1" placeholder="e.g. No 12, Jalan Contoh 1,"></label>
     <label>Address (Line 2)<input id="c_addr2" placeholder="e.g. Taman Contoh, 40000 Shah Alam, Selangor"></label>
@@ -60,17 +55,66 @@
   </div>
 </section>
 
-<!-- ============ 2. BILL TO ============ -->
-<section class="panel" id="p-company">
+<!-- ============ STEP: CHOOSE ============ -->
+<section class="panel" id="p-choose" data-step="choose">
+  <h2>Step 2 &mdash; What do you need?</h2>
+  <p class="lead">Pick one and the rest of the form adapts — you only fill in what that document needs.</p>
+
+  <div class="choices" id="choices">
+    <button type="button" class="choice" data-mode="invoice">
+      <span class="choice-tag">A</span>
+      <h3>Invoice Timesheet</h3>
+      <p>Your invoice to the company, with the bank details and the amount for the period.</p>
+      <ul>
+        <li>Bill To company</li>
+        <li>Invoice number, dates &amp; period</li>
+        <li>Amount calculation</li>
+      </ul>
+      <span class="choice-out">PDF + Excel</span>
+    </button>
+
+    <button type="button" class="choice" data-mode="claim">
+      <span class="choice-tag">B</span>
+      <h3>Claim Form</h3>
+      <p>The Uzma Personnel Time Sheet, with the day grid ticked and the approval block.</p>
+      <ul>
+        <li>Project details</li>
+        <li>Day-by-day timesheet</li>
+        <li>Section C names &amp; dates</li>
+      </ul>
+      <span class="choice-out">PDF + Word</span>
+    </button>
+
+    <button type="button" class="choice" data-mode="both">
+      <span class="choice-tag">A + B</span>
+      <h3>Both</h3>
+      <p>The usual monthly submission — invoice plus the signed timesheet that backs it.</p>
+      <ul>
+        <li>Everything above</li>
+        <li>One shared set of details</li>
+        <li>Generate all four at once</li>
+      </ul>
+      <span class="choice-out">PDF + Excel + Word</span>
+    </button>
+  </div>
+</section>
+
+<!-- ============ STEP: BILL TO ============ -->
+<section class="panel" id="p-company" data-step="company">
   <h2>Bill To &mdash; Company</h2>
+  <p class="lead">The company that receives your invoice.</p>
   <div class="grid2">
     <label>Company Name<input id="co_name" placeholder="Geospatial AI Sdn Bhd"></label>
     <label>Company No.<input id="co_regno" placeholder="200901001789 (844716-P)"></label>
     <label>Address (Line 1)<input id="co_addr1" placeholder="Uzma Tower, No 2, Jalan PJU 8/8A"></label>
     <label>Address (Line 2)<input id="co_addr2" placeholder="Damansara Perdana, 47820 Petaling Jaya, Selangor"></label>
   </div>
+</section>
 
-  <h3>Project Details <span class="hint">(for the Claim form &mdash; may be left blank)</span></h3>
+<!-- ============ STEP: PROJECT ============ -->
+<section class="panel" id="p-project" data-step="project">
+  <h2>Project Details</h2>
+  <p class="lead">Fills the top-right block of the Claim form. Every field here is optional — leave blank what does not apply.</p>
   <div class="grid2">
     <label>Project Name<input id="pj_name"></label>
     <label>Client Name<input id="pj_client"></label>
@@ -82,8 +126,8 @@
   </div>
 </section>
 
-<!-- ============ 3. INVOICE ============ -->
-<section class="panel" id="p-invoice">
+<!-- ============ STEP: INVOICE ============ -->
+<section class="panel" id="p-invoice" data-step="invoice">
   <h2>Invoice Details</h2>
   <div class="grid3">
     <label>Invoice No.<input id="i_no" placeholder="INV-2026-08-026"></label>
@@ -108,6 +152,7 @@
       <label id="wrapDaily" class="hidden">Daily Rate (RM)<input type="number" id="i_daily" value="0" step="0.01"></label>
     </div>
     <p class="formula" id="calcFormula">&nbsp;</p>
+    <p class="warn hidden" id="dailyWarn">The daily rate multiplies the days you tick on the timesheet — add the Claim form in step 2, or switch to another method.</p>
   </div>
 
   <h3>Invoice Items</h3>
@@ -129,9 +174,9 @@
   <label class="check"><input type="checkbox" id="i_showsig"> Show the Consultant signature on the invoice PDF</label>
 </section>
 
-<!-- ============ 4. TIMESHEET ============ -->
-<section class="panel" id="p-timesheet">
-  <h2>Timesheet / Claim</h2>
+<!-- ============ STEP: TIMESHEET ============ -->
+<section class="panel" id="p-timesheet" data-step="timesheet">
+  <h2>Timesheet</h2>
   <div class="grid3">
     <label>Month
       <select id="ts_month"></select>
@@ -164,38 +209,39 @@
   </div>
 </section>
 
-<!-- ============ 5. SIGNATURE ============ -->
-<section class="panel" id="p-signature">
+<!-- ============ STEP: SIGNATURE ============ -->
+<section class="panel" id="p-signature" data-step="signature">
   <h2>Signature</h2>
+  <p class="lead">Optional &mdash; you can skip this and sign the printed copy by hand instead.</p>
   <p class="hint">Draw with a mouse or your finger on a touch screen, or upload an image of your signature. A PNG with a transparent background works best.</p>
   <div class="sigwrap" id="sigwrap"></div>
 </section>
 
-<!-- ============ 6. GENERATE ============ -->
-<section class="panel" id="p-generate">
+<!-- ============ STEP: GENERATE ============ -->
+<section class="panel" id="p-generate" data-step="generate">
   <h2>Generate Documents</h2>
 
   <div class="gencards">
-    <div class="gencard">
-      <h3>1. Invoice Timesheet</h3>
+    <div class="gencard" id="card_inv">
+      <h3>A &mdash; Invoice Timesheet</h3>
       <p id="gsum_inv" class="gsum"></p>
       <div class="btnrow">
         <button class="btn" id="btnInvPdf">Download PDF</button>
         <button class="btn" id="btnInvXlsx">Download Excel</button>
       </div>
     </div>
-    <div class="gencard">
-      <h3>2. Claim &mdash; Personnel Time Sheet</h3>
+    <div class="gencard" id="card_claim">
+      <h3>B &mdash; Claim / Personnel Time Sheet</h3>
       <p id="gsum_claim" class="gsum"></p>
       <div class="btnrow">
         <button class="btn" id="btnClaimPdf">Download PDF</button>
         <button class="btn" id="btnClaimDocx">Download Word</button>
       </div>
     </div>
-    <div class="gencard wide">
+    <div class="gencard wide" id="card_all">
       <h3>Everything at once</h3>
-      <p class="gsum">Generate all four files in one go (2 PDF + 1 Excel + 1 Word).</p>
-      <div class="btnrow"><button class="btn primary" id="btnAll">Generate All (4 files)</button></div>
+      <p class="gsum" id="gsum_all"></p>
+      <div class="btnrow"><button class="btn primary" id="btnAll">Generate All</button></div>
     </div>
   </div>
 
@@ -203,6 +249,15 @@
 </section>
 
 </main>
+
+<footer class="sitefoot">
+  <div class="foot-inner">
+    <span id="footLogo" class="foot-logo"></span>
+    <p class="foot-copy">
+      &copy; 2026 <b>Geospatial AI Sdn Bhd</b> &middot; An Uzma Company. All rights reserved.
+    </p>
+  </div>
+</footer>
 
 <div id="toast" class="toast"></div>
 
@@ -213,6 +268,7 @@
 <script src="vendor/signature_pad.umd.min.js"></script>
 <script src="vendor/docx.umd.js"></script>
 <script src="assets/js/state.js"></script>
+<script src="assets/js/logo.js"></script>
 <script src="assets/js/timesheet.js"></script>
 <script src="assets/js/signature.js"></script>
 <script src="assets/js/gen-invoice.js"></script>

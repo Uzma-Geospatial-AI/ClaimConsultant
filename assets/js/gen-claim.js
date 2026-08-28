@@ -73,10 +73,14 @@ async function generateClaimPDF (S) {
   doc.setFontSize(6).setTextColor(90, 90, 90);
   doc.text('PEOPLE DIVISION', L + 5.5, 19);
 
-  doc.setFont('helvetica', 'bold').setFontSize(19).setTextColor(...DARK);
-  doc.text('UZMA', R, 18, { align: 'right' });
-  doc.setFillColor(...ORANGE);
-  doc.triangle(R - 6.2, 11.6, R - 6.2, 18.2, R - 1.2, 11.6, 'F');
+  const uzma = await loadLogo('uzma');
+  if (uzma) {
+    const lh = 8.5;                                   // mm tall, as on the printed form
+    const lw = Math.min((uzma.w / uzma.h) * lh, 46);
+    doc.addImage(uzma.url, 'PNG', R - lw, 11, lw, lh);
+  } else {
+    drawUzmaFallback(doc, R, 11.5, 7);
+  }
 
   /* ---------- Section A ---------- */
   const secTop = 25, secH = 38;
@@ -270,6 +274,10 @@ async function generateClaimDOCX (S) {
   const C = S.consultant, P = S.project, ts = S.timesheet;
   const { body } = claimMatrix(S);
 
+  const uzmaLogo = await loadLogo('uzma');
+  const uzmaLogoH = 30;                                        // px in the Word header
+  const uzmaLogoW = uzmaLogo ? Math.round(Math.min((uzmaLogo.w / uzmaLogo.h) * uzmaLogoH, 160)) : 0;
+
   const NONE = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
   const THIN = { style: BorderStyle.SINGLE, size: 4, color: '555555' };
   const noBorders = { top: NONE, bottom: NONE, left: NONE, right: NONE };
@@ -442,7 +450,10 @@ async function generateClaimDOCX (S) {
       children: [
         para([ txt('PERSONNEL TIME SHEET', { bold: true, size: 20 }),
                txt('                                                                                             '),
-               txt('UZMA', { bold: true, size: 26, color: 'F26522' }) ]),
+               ...(uzmaLogo
+                   ? [ new ImageRun({ data: dataUrlToBytes(uzmaLogo.url),
+                                      transformation: { width: uzmaLogoW, height: uzmaLogoH } }) ]
+                   : [ txt('UZMA', { bold: true, size: 26, color: 'F26522' }) ]) ]),
         para(txt('PEOPLE DIVISION', { bold: true, size: 11, color: '666666' }), { after: 160 }),
         sectionA,
         para(txt('(B)', { bold: true, size: 12 }), { before: 200, after: 60 }),

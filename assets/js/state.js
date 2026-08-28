@@ -9,6 +9,7 @@ const MON3 = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov',
 function defaultState () {
   const now = new Date();
   return {
+    mode: '',                          // '' | 'invoice' | 'claim' | 'both'
     consultant: {
       name: '', ic: '', addr1: '', addr2: '',
       position: '', position2: '', workLoc: 'UZMA TOWER', empCode: '',
@@ -85,6 +86,13 @@ function fmtPeriodShort (a, b) {
   return fmtPeriod(a, b);
 }
 
+/** '2026-08-24' -> { y: 2026, m: 7 }; null when the date is missing */
+function periodMonth (iso) {
+  if (!iso) return null;
+  const [y, m] = iso.split('-').map(Number);
+  return (y && m) ? { y, m: m - 1 } : null;
+}
+
 /** number of calendar days, both ends inclusive */
 function calendarDays (a, b) {
   if (!a || !b) return 0;
@@ -126,11 +134,13 @@ function computeAmount (S) {
              formula: `RM ${money(inv.dailyRate)} × ${days} days ticked = RM ${money((Number(inv.dailyRate) || 0) * days)}` };
   }
   if (inv.mode === 'monthly') {
-    const dim = daysInMonth(ts.year, ts.month);
+    // the period itself decides the month, so an invoice-only run never needs the timesheet tab
+    const ref = periodMonth(inv.pStart) || { y: ts.year, m: ts.month };
+    const dim = daysInMonth(ref.y, ref.m);
     const cal = calendarDays(inv.pStart, inv.pEnd);
     const amt = round2((Number(inv.monthlyRate) || 0) / dim * cal);
     return { amount: amt,
-             formula: `RM ${money(inv.monthlyRate)} ÷ ${dim} days (${MONTHS[ts.month]} ${ts.year}) × ${cal} calendar days = RM ${money(amt)}` };
+             formula: `RM ${money(inv.monthlyRate)} ÷ ${dim} days (${MONTHS[ref.m]} ${ref.y}) × ${cal} calendar days = RM ${money(amt)}` };
   }
   return { amount: null, formula: 'Fixed amount — enter it yourself in the item table below.' };
 }
@@ -187,8 +197,11 @@ function mergeDefaults (saved) {
   const d = defaultState();
   const out = JSON.parse(JSON.stringify(d));
   Object.keys(d).forEach(k => {
-    if (saved && typeof saved[k] === 'object' && saved[k] !== null) {
-      Object.assign(out[k], saved[k]);
+    if (!saved || saved[k] === undefined) return;
+    if (typeof d[k] === 'object' && d[k] !== null) {
+      if (typeof saved[k] === 'object' && saved[k] !== null) Object.assign(out[k], saved[k]);
+    } else {
+      out[k] = saved[k];                      // scalars, e.g. mode
     }
   });
   if (!Array.isArray(out.invoice.items)) out.invoice.items = [];

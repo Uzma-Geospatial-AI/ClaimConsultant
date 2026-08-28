@@ -1,5 +1,5 @@
 /* =======================================================================
-   app.js — UI wiring, autosave, profiles and the generate buttons
+   app.js — the guided step flow, autosave, profiles and the generate buttons
    ======================================================================= */
 
 let S = Store.loadCurrent() || defaultState();
@@ -12,6 +12,144 @@ function toast (msg, bad) {
   el.className = 'toast show' + (bad ? ' bad' : '');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.className = 'toast'; }, 3200);
+}
+
+/* =======================================================================
+   Step flow
+   Steps without a `modes` list are shown whatever the user picked in step 2.
+   ======================================================================= */
+
+const STEPS = [
+  { id: 'consultant', label: 'Your Details' },
+  { id: 'choose',     label: 'Document' },
+  { id: 'company',    label: 'Bill To',   modes: ['invoice', 'both'] },
+  { id: 'project',    label: 'Project',   modes: ['claim', 'both'] },
+  { id: 'invoice',    label: 'Invoice',   modes: ['invoice', 'both'] },
+  { id: 'timesheet',  label: 'Timesheet', modes: ['claim', 'both'] },
+  { id: 'signature',  label: 'Signature' },
+  { id: 'generate',   label: 'Generate' }
+];
+
+let stepIndex = 0;
+
+/** the steps that apply to the current choice; before a choice only the first two */
+function activeSteps () {
+  if (!S.mode) return STEPS.filter(s => s.id === 'consultant' || s.id === 'choose');
+  return STEPS.filter(s => !s.modes || s.modes.includes(S.mode));
+}
+
+function currentStep () {
+  const list = activeSteps();
+  return list[Math.min(stepIndex, list.length - 1)];
+}
+
+/** guard that runs before leaving a step forward */
+function canLeave (id) {
+  if (id === 'consultant' && !S.consultant.name.trim()) {
+    toast('Enter your Full Name before continuing.', true);
+    document.getElementById('c_name').focus();
+    return false;
+  }
+  if (id === 'choose' && !S.mode) {
+    toast('Pick which document you need.', true);
+    return false;
+  }
+  return true;
+}
+
+function goToStep (i, skipGuard) {
+  const list = activeSteps();
+  const target = Math.max(0, Math.min(i, list.length - 1));
+  if (!skipGuard && target > stepIndex) {
+    // validate every step being passed over
+    for (let k = stepIndex; k < target; k++) if (!canLeave(list[k].id)) return;
+  }
+  stepIndex = target;
+  showStep();
+}
+
+function showStep () {
+  const list = activeSteps();
+  const step = list[Math.min(stepIndex, list.length - 1)];
+
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('p-' + step.id).classList.add('active');
+
+  renderStepper();
+  renderNavRows();
+  if (step.id === 'signature') setTimeout(() => Sig.resizeAll(), 30);
+  if (step.id === 'generate') renderGenSummary();
+  if (step.id === 'choose') paintChoices();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function renderStepper () {
+  const list = activeSteps();
+  const host = document.getElementById('stepper');
+  host.innerHTML = '';
+  list.forEach((s, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'step' + (i === stepIndex ? ' active' : (i < stepIndex ? ' done' : ''));
+    b.innerHTML = `<span class="step-num">${i + 1}</span><span>${s.label}</span>`;
+    b.addEventListener('click', () => goToStep(i));
+    host.appendChild(b);
+  });
+}
+
+/** put a Back / Next row at the bottom of the panel currently shown */
+function renderNavRows () {
+  const list = activeSteps();
+  const step = list[Math.min(stepIndex, list.length - 1)];
+  const panel = document.getElementById('p-' + step.id);
+
+  document.querySelectorAll('.navrow').forEach(n => n.remove());
+
+  const row = document.createElement('div');
+  row.className = 'navrow';
+
+  const back = document.createElement('button');
+  back.className = 'btn ghost';
+  back.textContent = '← Back';
+  back.disabled = stepIndex === 0;
+  back.addEventListener('click', () => goToStep(stepIndex - 1, true));
+  row.appendChild(back);
+
+  const note = document.createElement('span');
+  note.className = 'stepnote';
+  note.textContent = `Step ${stepIndex + 1} of ${list.length}`;
+  row.appendChild(note);
+
+  const spacer = document.createElement('span');
+  spacer.className = 'spacerflex';
+  row.appendChild(spacer);
+
+  if (stepIndex < list.length - 1) {
+    const next = document.createElement('button');
+    next.className = 'btn';
+    next.textContent = 'Next →';
+    next.addEventListener('click', () => goToStep(stepIndex + 1));
+    row.appendChild(next);
+  }
+  panel.appendChild(row);
+}
+
+/* ---------------- step 2: the choice cards ---------------- */
+
+function paintChoices () {
+  document.querySelectorAll('.choice').forEach(c => {
+    c.classList.toggle('selected', c.dataset.mode === S.mode);
+  });
+}
+
+function chooseMode (mode) {
+  const changed = S.mode !== mode;
+  S.mode = mode;
+  paintChoices();
+  persist();
+  syncAutoAmount();
+  if (changed) toast(`${mode === 'both' ? 'Both documents' : mode === 'invoice' ? 'Invoice Timesheet' : 'Claim form'} selected.`);
+  goToStep(stepIndex + 1, true);
 }
 
 /* ---------------- field bindings ---------------- */
@@ -110,6 +248,10 @@ function syncAutoAmount () {
   document.getElementById('wrapMonthly').classList.toggle('hidden', S.invoice.mode !== 'monthly');
   document.getElementById('wrapDaily').classList.toggle('hidden', S.invoice.mode !== 'daily');
 
+  // the daily rate counts ticks, which only exist when the Claim form is in play
+  document.getElementById('dailyWarn')
+    .classList.toggle('hidden', !(S.invoice.mode === 'daily' && S.mode === 'invoice'));
+
   if (!S.invoice.items.length) {
     S.invoice.items.push({ desc: 'Consultancy Service Fee', position: S.consultant.position, period: '', amount: 0 });
   }
@@ -124,9 +266,19 @@ function syncAutoAmount () {
   refreshTotals();
 }
 
-/* ---------------- Generate tab summary ---------------- */
+/* ---------------- Generate step ---------------- */
 
 function renderGenSummary () {
+  const wantInv   = S.mode === 'invoice' || S.mode === 'both';
+  const wantClaim = S.mode === 'claim'   || S.mode === 'both';
+
+  const cInv = document.getElementById('card_inv');
+  const cClm = document.getElementById('card_claim');
+  const cAll = document.getElementById('card_all');
+  if (cInv) cInv.classList.toggle('hidden', !wantInv);
+  if (cClm) cClm.classList.toggle('hidden', !wantClaim);
+  if (cAll) cAll.classList.toggle('hidden', S.mode !== 'both');
+
   const T = invoiceTotals(S);
   const t = timesheetTotals(S.timesheet);
   document.getElementById('gsum_inv').innerHTML =
@@ -135,6 +287,8 @@ function renderGenSummary () {
   document.getElementById('gsum_claim').innerHTML =
     `${MONTHS[S.timesheet.month]} ${S.timesheet.year} &middot; ${S.consultant.name || '(no name)'}<br>
      Total Days [A]: <b>${t.A}</b> &middot; Balance: <b>${t.balance}</b>`;
+  const all = document.getElementById('gsum_all');
+  if (all) all.textContent = 'Generate all four files in one go (2 PDF + 1 Excel + 1 Word).';
 }
 
 /* ---------------- persistence ---------------- */
@@ -150,7 +304,6 @@ function persist () {
       toast('Autosave failed — browser storage is full. Use "Export JSON" to back up.', true);
     }
   }, 250);
-  renderGenSummary();
 }
 
 /* ---------------- automatic defaults ---------------- */
@@ -177,6 +330,11 @@ function fillDefaultsForMonth () {
   if (!S.timesheet.prepName) S.timesheet.prepName = S.consultant.name;
 }
 
+/** true when nothing has been ticked yet, so the month can still move freely */
+function timesheetUntouched () {
+  return S.timesheet.activities.every(a => Object.keys(a.days || {}).length === 0);
+}
+
 /* ---------------- full UI refresh ---------------- */
 
 function renderAll () {
@@ -185,13 +343,16 @@ function renderAll () {
   renderTimesheet(S, () => { persist(); syncAutoAmount(); });
   syncAutoAmount();
   Sig.refresh();
-  renderGenSummary();
+  paintChoices();
+  showStep();
 }
 
 /* ---------------- start-up ---------------- */
 
 function boot () {
-  // month options
+  mountBrandLogo();
+  mountFootLogo();
+
   const msel = document.getElementById('ts_month');
   msel.innerHTML = '';
   MONTHS.forEach((m, i) => {
@@ -207,18 +368,12 @@ function boot () {
   Sig.init(S, persist);
   renderTimesheet(S, () => { persist(); syncAutoAmount(); });
   syncAutoAmount();
-  renderGenSummary();
+  paintChoices();
+  showStep();
 
-  /* --- tabs --- */
-  document.querySelectorAll('.tab').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById('p-' + btn.dataset.tab).classList.add('active');
-      if (btn.dataset.tab === 'signature') setTimeout(() => Sig.resizeAll(), 30);
-      if (btn.dataset.tab === 'generate') renderGenSummary();
-    });
+  /* --- choice cards --- */
+  document.querySelectorAll('.choice').forEach(c => {
+    c.addEventListener('click', () => chooseMode(c.dataset.mode));
   });
 
   /* --- plain fields --- */
@@ -234,6 +389,17 @@ function boot () {
       if (id === 'c_name' && !S.timesheet.prepName.trim()) {
         S.timesheet.prepName = el.value;
         document.getElementById('s_prepname').value = el.value;
+      }
+      // move the timesheet to match the invoice period, but never over existing ticks
+      if (id === 'i_pstart' && timesheetUntouched()) {
+        const ref = periodMonth(el.value);
+        if (ref && (ref.y !== S.timesheet.year || ref.m !== S.timesheet.month)) {
+          S.timesheet.year = ref.y;
+          S.timesheet.month = ref.m;
+          document.getElementById('ts_year').value = ref.y;
+          document.getElementById('ts_month').value = ref.m;
+          renderTimesheet(S, () => { persist(); syncAutoAmount(); });
+        }
       }
       if (id === 'ts_month' || id === 'ts_year') {
         renderTimesheet(S, () => { persist(); syncAutoAmount(); });
@@ -290,6 +456,7 @@ function boot () {
     const p = Store.profiles()[name];
     if (!p) return;
     S = mergeDefaults(p);
+    stepIndex = 0;
     Sig.init(S, persist);
     renderAll();
     persist();
@@ -313,6 +480,7 @@ function boot () {
     Store.clearAll();
     S = defaultState();
     fillDefaultsForMonth();
+    stepIndex = 0;
     refreshProfileList();
     Sig.init(S, persist);
     renderAll();
@@ -333,6 +501,7 @@ function boot () {
     r.onload = () => {
       try {
         S = mergeDefaults(JSON.parse(r.result));
+        stepIndex = 0;
         Sig.init(S, persist);
         renderAll();
         persist();
@@ -351,16 +520,28 @@ function boot () {
 
   document.getElementById('btnAll').addEventListener('click', async () => {
     if (!validate()) return;
-    const jobs = [
-      ['Invoice PDF', generateInvoicePDF], ['Invoice Excel', generateInvoiceXLSX],
-      ['Claim PDF', generateClaimPDF],     ['Claim Word', generateClaimDOCX]
-    ];
+    const jobs = [];
+    if (S.mode === 'invoice' || S.mode === 'both') {
+      jobs.push(['Invoice PDF', generateInvoicePDF], ['Invoice Excel', generateInvoiceXLSX]);
+    }
+    if (S.mode === 'claim' || S.mode === 'both') {
+      jobs.push(['Claim PDF', generateClaimPDF], ['Claim Word', generateClaimDOCX]);
+    }
     for (const [label, fn] of jobs) {
       try { await fn(S); log(`✓ ${label} generated.`, 'ok'); }
       catch (err) { log(`✗ ${label} failed: ${err.message}`, 'err'); console.error(err); }
       await new Promise(res => setTimeout(res, 350));   // avoid the multi-download block
     }
     toast('Done — check your Downloads folder.');
+  });
+}
+
+function mountFootLogo () {
+  const host = document.getElementById('footLogo');
+  if (!host) return;
+  host.innerHTML = geospatialFallbackMarkup();
+  loadLogo('geospatial').then(logo => {
+    if (logo) host.innerHTML = `<img src="${logo.src}" alt="Geospatial AI" class="brand-img">`;
   });
 }
 
@@ -374,7 +555,7 @@ function wire (id, fn, label) {
 
 function validate () {
   if (!S.consultant.name.trim()) {
-    toast('Enter the consultant’s Full Name first (tab 1).', true);
+    toast('Enter your Full Name first (step 1).', true);
     return false;
   }
   return true;
