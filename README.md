@@ -96,7 +96,20 @@ assets/js/gen-invoice.js   Invoice  → PDF (jsPDF) + Excel (ExcelJS)
 assets/js/gen-claim.js     Claim    → PDF (jsPDF) + Word (docx)
 assets/js/app.js           pendawaian UI, profil, butang generate
 vendor/                    library (offline)
+test/generate.test.js      ujian: jana 4 dokumen & semak isinya
+.github/workflows/ci.yml   GitHub Actions (Node 20 & 22)
 ```
+
+## Ujian
+
+```
+node test/generate.test.js
+```
+
+Tiada `npm install` diperlukan — ujian memuatkan kod aplikasi ke dalam Node dengan stub pelayar
+ringkas, menjana keempat-empat dokumen, dan menyemak amaun invois (RM 903.23), jumlah hari,
+label hujung minggu automatik, serta saiz dan magic bytes setiap fail. CI menjalankannya pada
+setiap push, bersama semakan sintaks dan imbasan data peribadi.
 
 ## Library
 
