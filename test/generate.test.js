@@ -84,7 +84,8 @@ vm.createContext(ctx);
 
 const load = f => vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
 
-[ 'vendor/jspdf.umd.min.js', 'vendor/jspdf.plugin.autotable.min.js', 'vendor/exceljs.min.js',
+[ 'vendor/jspdf.umd.min.js', 'vendor/jspdf.plugin.autotable.min.js', 'vendor/carlito.js',
+  'vendor/exceljs.min.js',
   'vendor/docx.umd.js', 'assets/js/state.js', 'assets/js/logo.js',
   'assets/js/timesheet.js' ].forEach(load);
 
@@ -159,11 +160,31 @@ vm.runInContext(`
     }
   }
 
+  /* -----------------------------------------------------------------------
+     Fidelity to the printed Uzma sheet. These are not taste: every value is
+     lifted out of the reference PDF's own font table and drawing operators,
+     so a change here means the generated form has stopped matching the one
+     finance receives.
+     ----------------------------------------------------------------------- */
+  console.log('\nMatching the printed form');
+  const claimSrc = fs.readFileSync(path.join(ROOT, 'assets/js/gen-claim.js'), 'utf8');
+  check('the sheet is set in Calibri metrics', /const FONT = 'Carlito'/.test(claimSrc), true);
+  check('the fills are the template grey',     /GREY = \[242, 242, 242\]/.test(claimSrc), true);
+  check('the orange is the template orange',   /ORANGE = \[237, 125, 49\]/.test(claimSrc), true);
+  check('no Helvetica is left in the sheet',   /helvetica/i.test(claimSrc), false);
+
   const inv = 'INV-2026-08-026 - Ahmad bin Abdullah';
   const clm = 'Claim Aug 2026 - Ahmad bin Abdullah';
   checkFile(`${inv}.pdf`,  8000,  '%PDF');   // PDF
   checkFile(`${inv}.xlsx`, 5000,  'PK');     // OOXML = zip archive
   checkFile(`${clm}.pdf`,  20000, '%PDF');
+  // The font has to actually reach the file, not merely be asked for —
+  // and only that file: the invoice is not set in Calibri and should not be
+  // paying for a face it never draws with.
+  check('the Claim PDF embeds the font',
+    fs.readFileSync(path.join(OUT, `${clm}.pdf`)).includes('Carlito'), true);
+  check('the Invoice PDF does not',
+    fs.readFileSync(path.join(OUT, `${inv}.pdf`)).includes('Carlito'), false);
   checkFile(`${clm}.docx`, 8000,  'PK');
 
   fs.rmSync(OUT, { recursive: true, force: true });

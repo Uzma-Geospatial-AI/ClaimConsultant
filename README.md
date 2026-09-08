@@ -143,6 +143,7 @@ unless you have already ticked days, in which case your ticks win.
 **PDF** — jsPDF 2.5.1 + jsPDF-AutoTable 3.8.2
 **Excel** — ExcelJS 4.4.0
 **Word** — docx 8.5.0
+**Typeface** — Carlito (SIL OFL), metrically identical to Calibri
 **Signatures** — signature_pad 4.1.7 · Canvas 2D
 **Downloads** — FileSaver.js 2.0.5
 **CI** — GitHub Actions (Node 20 · 22)
@@ -178,6 +179,8 @@ ConsultantClaimSystem/
 │   ├── sync.test.js              # the database sync, and how it degrades
 │   └── generate.test.js          # generates all four docs and checks them
 ├── vendor/                       # pinned libraries, committed for offline use
+│   ├── carlito.js                # the Calibri-metric typeface, subset for this form
+│   └── Carlito-OFL.txt           # its licence
 └── .github/workflows/ci.yml      # lint + tests on Node 20 & 22
 ```
 
@@ -250,6 +253,37 @@ The site header, the footer and the Claim PDF all read their artwork from `asset
 Drop a file in and it is picked up on the next reload — no code change. Where one is missing the
 app falls back to a **typographic recreation** of that wordmark, so nothing renders blank. The
 fallbacks are approximations; use the official artwork for anything you actually submit.
+
+### Matching the printed sheet
+
+Every value below was read out of the reference PDF itself — its font table and its own
+drawing operators — rather than matched by eye:
+
+| | Value | Where it came from |
+|---|---|---|
+| Typeface | Calibri / Calibri Bold | the PDF's embedded font table |
+| Panel and header fills | `#F2F2F2` | the fill operator behind Section A, the day table head and Section C |
+| Arrow and footer rule | `#ED7D31` | Office's *Orange, Accent 2* |
+| Arrow size | 0.899 % × 0.909 % of the content width | 6.137 × 6.200 pt on a 682.32 pt sheet |
+| Footer rule | 0.585 pt wide, 2.657 % of the content width tall | a stroked line, not a bar |
+
+The Uzma wordmark is a separate matter: it is an image on the reference sheet, and its own
+orange is `#F26522` — a different colour from the form's `#ED7D31`. Both are correct; they are
+different things. The typographic fallback in `logo.js` keeps the brand orange.
+
+**On the typeface.** The sheet is an Excel document set in Calibri, and a PDF that is not set
+in Calibri does not read as the same form. Calibri belongs to Microsoft and cannot be shipped
+in a public repository, so the app embeds **Carlito** — an open-licensed face drawn to be
+metrically identical. Every glyph carries the same advance width, checked against the Calibri
+on a Windows machine across both weights, so lines break and columns fill exactly as in the
+original. It is subset to Latin-1, Latin Extended-A and the punctuation this form actually
+meets, which brings two weights down from 1.3 MB to 240 kB.
+
+Two deliberate differences remain. The reference is **US Letter** landscape and this app
+renders **A4**, because A4 is what comes out of a Malaysian printer; every measurement above is
+a fraction of the content width, so the proportions survive the change. And the day grid labels
+*every* weekend in the month, not only those inside the claimed period — that is the app
+filling the sheet in for you, and it is why the ticks are worth checking before you download.
 
 ### Placing the Uzma mark
 
@@ -344,15 +378,18 @@ wins by default.
 node test/page.test.js        # 11 checks — the markup and the stylesheet
 node test/auth.test.js        # 29 checks — the sign-in gate
 node test/sync.test.js        # 31 checks — the database sync
-node test/generate.test.js    #  9 checks — the four documents
+node test/generate.test.js    # 15 checks — the four documents
 ```
 
 No `npm install`, and nothing touches the network. Three of the suites load the application
 code into a Node VM behind a small browser stub.
 
-`generate.test.js` produces all four documents and asserts nine things — the invoice amount
-(RM 903.23), `TOTAL DAYS [A]`, `BALANCE`, the automatic SAT/SUN labels, and the size plus magic
-bytes of every generated file.
+`generate.test.js` produces all four documents and checks both the arithmetic — the invoice
+amount (RM 903.23), `TOTAL DAYS [A]`, `BALANCE`, the automatic SAT/SUN labels — and the files
+themselves: size and magic bytes for each, that the Claim PDF really embeds Carlito, and that
+the Invoice PDF does *not*, since it is not set in Calibri and should not carry a face it never
+draws with. It also pins the template's grey and orange, so a change to either fails loudly
+rather than quietly shipping a form that no longer matches the one finance receives.
 
 `auth.test.js` puts a fake BDOS and a fake browser behind the gate — no network call, no real
 password — and pins the rules that matter: only the two listed accounts get in, the address
@@ -472,6 +509,29 @@ ordinary fields on the Claim page: type over any of them when a different person
 (297 × 210). The vertical budget is tight — Section A, the day table, Section C, the notes and
 the footer all have to fit on one page. If you add a row, take the height from `secH` or the
 signature row rather than pushing the footer down.
+
+</details>
+
+<details>
+<summary><b>Rebuilding the Carlito subset</b></summary>
+
+`vendor/carlito.js` is generated, not hand-written. To rebuild it — after adding a language
+that needs more glyphs, say:
+
+```bash
+pip install fonttools
+curl -sLO https://cdn.jsdelivr.net/gh/googlefonts/carlito@main/fonts/ttf/Carlito-Regular.ttf
+curl -sLO https://cdn.jsdelivr.net/gh/googlefonts/carlito@main/fonts/ttf/Carlito-Bold.ttf
+
+pyftsubset Carlito-Regular.ttf --unicodes="U+0020-007E,U+00A0-017F,U+2013,U+2014,U+2018,U+2019,U+201C,U+201D,U+2022,U+2026,U+20AC,U+2122" --layout-features='*' --no-hinting --desubroutinize
+```
+
+Base64 the result and drop it into the `REGULAR` and `BOLD` strings. Keep it as concatenated
+string chunks — a raw newline inside a JavaScript string literal is a syntax error, and the
+whole file is one `<script>`, so that mistake takes the app down with it.
+
+Do **not** substitute Microsoft's `calibri.ttf`. It renders identically, but this repository is
+public and the font is not redistributable.
 
 </details>
 

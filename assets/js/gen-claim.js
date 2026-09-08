@@ -57,20 +57,31 @@ function claimMatrix (S) {
 
 /* ============================ PDF ============================ */
 
+/* The form is an Excel document set in Calibri. Carlito is metrically
+   identical to it and open-licensed — see vendor/carlito.js. */
+const FONT = 'Carlito';
+
 async function buildClaimPDF (S) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
+  addCarlito(doc);                      // Calibri metrics — see vendor/carlito.js
 
   const L = 10, R = 287, W = R - L;
   const C = S.consultant, P = S.project, ts = S.timesheet;
-  const GREY = [235, 235, 235], DARK = [35, 31, 32], ORANGE = [242, 101, 34];
+  /* Taken from the reference sheet itself, not matched by eye: its fills
+     read #F2F2F2 and #ED7D31 (Office's "Orange, Accent 2"). */
+  const GREY = [242, 242, 242], DARK = [35, 31, 32], ORANGE = [237, 125, 49];
 
   /* ---------- page header ---------- */
+  /* The arrow, measured off the reference sheet rather than eyeballed: three
+     segments spanning 6.137 x 6.200 pt on a 682.32 pt content width, which
+     is 0.899% x 0.909% of it. Ours was nearly twice that size. */
+  const triW = W * 0.008994, triH = W * 0.009086, triCentre = 14.2;
   doc.setFillColor(...ORANGE);
-  doc.triangle(L, 12, L, 16.4, L + 3.6, 14.2, 'F');
-  doc.setFont('helvetica', 'bold').setFontSize(9.5).setTextColor(...DARK);
+  doc.triangle(L, triCentre - triH / 2, L, triCentre + triH / 2, L + triW, triCentre, 'F');
+  doc.setFont(FONT, 'bold').setFontSize(9.5).setTextColor(...DARK);
   doc.text('PERSONNEL TIME SHEET', L + 5.5, 15.2);
-  doc.setFontSize(6).setTextColor(90, 90, 90);
+  doc.setFontSize(6).setTextColor(...DARK);      // black on the printed form, not grey
   doc.text('PEOPLE DIVISION', L + 5.5, 19);
 
   /* The wordmark is placed off the printed form's own geometry. Measured
@@ -83,7 +94,6 @@ async function buildClaimPDF (S) {
   if (uzma) {
     const lw = W * 0.08583;
     const lh = lw / (uzma.w / uzma.h);
-    const triCentre = 14.2;                           // the orange arrow's centre line
     doc.addImage(uzma.url, 'PNG', R - W * 0.00725 - lw, triCentre + W * 0.00298 - lh / 2, lw, lh);
   } else {
     drawUzmaFallback(doc, R, 11.5, 7);
@@ -95,23 +105,22 @@ async function buildClaimPDF (S) {
 
   const sectionHeader = (x, y, w, text) => {
     doc.setDrawColor(60, 60, 60).setLineWidth(0.3);
-    doc.setFillColor(255, 255, 255);
-    doc.rect(x, y, w, 5.6, 'S');
-    doc.setFont('helvetica', 'bold').setFontSize(6.6).setTextColor(...DARK);
+    doc.setFillColor(...GREY);
+    doc.rect(x, y, w, 5.6, 'FD');
+    doc.setFont(FONT, 'bold').setFontSize(6.6).setTextColor(...DARK);
     doc.text(text, x + 2, y + 3.8);
   };
-  doc.setDrawColor(60, 60, 60).setLineWidth(0.3);
-  doc.rect(L, secTop, leftW, secH, 'S');
-  doc.rect(rightX, secTop, rightW, secH, 'S');
+  // Only the title bar is boxed. On the printed form the fields below it
+  // carry nothing but their own underlines.
   sectionHeader(L, secTop, leftW, 'A. PERSONNEL DETAILS');
   sectionHeader(rightX, secTop, rightW, 'PROJECT DETAILS (IF APPLICABLE)');
 
   /** one underlined field: label : value______ */
   const field = (x, y, labelW, lineEnd, lab, val, bold) => {
-    doc.setFont('helvetica', bold ? 'bold' : 'bold').setFontSize(5.8).setTextColor(...DARK);
+    doc.setFont(FONT, bold ? 'bold' : 'bold').setFontSize(5.8).setTextColor(...DARK);
     doc.text(lab, x, y);
     doc.text(':', x + labelW, y);
-    doc.setFont('helvetica', 'normal').setFontSize(6.4);
+    doc.setFont(FONT, 'normal').setFontSize(6.4);
     doc.text(String(val || ''), x + labelW + 3, y - 0.5);
     doc.setDrawColor(120, 120, 120).setLineWidth(0.2);
     doc.line(x + labelW + 3, y + 1, lineEnd, y + 1);
@@ -149,7 +158,7 @@ async function buildClaimPDF (S) {
 
   /* ---------- Section B ---------- */
   let y = secTop + secH + 4;
-  doc.setFont('helvetica', 'bold').setFontSize(6.4).setTextColor(...DARK);
+  doc.setFont(FONT, 'bold').setFontSize(6.4).setTextColor(...DARK);
   doc.text('(B)', L, y);
   y += 2;
 
@@ -176,10 +185,10 @@ async function buildClaimPDF (S) {
     theme: 'grid',
     margin: { left: L, right: 297 - R },
     tableWidth: W,
-    styles: { font: 'helvetica', fontSize: 5.2, cellPadding: { top: 1, bottom: 1, left: 0.6, right: 0.6 },
+    styles: { font: FONT, fontSize: 5.2, cellPadding: { top: 1, bottom: 1, left: 0.6, right: 0.6 },
               lineColor: [80, 80, 80], lineWidth: 0.15, textColor: [20, 20, 20],
               halign: 'center', valign: 'middle', minCellHeight: 5.2, overflow: 'linebreak' },
-    headStyles: { fillColor: [255, 255, 255], textColor: [20, 20, 20], fontStyle: 'bold',
+    headStyles: { fillColor: GREY, textColor: [20, 20, 20], fontStyle: 'bold',
                   fontSize: 4.4, lineWidth: 0.2, valign: 'middle', minCellHeight: 12 },
     columnStyles: colStyles,
     didParseCell: d => {
@@ -192,7 +201,7 @@ async function buildClaimPDF (S) {
   y = doc.lastAutoTable.finalY + 4;
 
   /* ---------- Section C ---------- */
-  doc.setFont('helvetica', 'bold').setFontSize(6.4).setTextColor(...DARK);
+  doc.setFont(FONT, 'bold').setFontSize(6.4).setTextColor(...DARK);
   doc.text('(C)', L, y + 3);
 
   const labW = 26, colW = (W - labW) / 3;
@@ -218,7 +227,7 @@ async function buildClaimPDF (S) {
     doc.setDrawColor(60, 60, 60).setLineWidth(0.25);
     if (row.type !== 'head') {
       doc.rect(L, cy, labW, row.h, 'S');
-      doc.setFont('helvetica', 'bold').setFontSize(6).setTextColor(...DARK);
+      doc.setFont(FONT, 'bold').setFontSize(6).setTextColor(...DARK);
       doc.text(row.label, L + 2, cy + row.h / 2 + 1);
     } else {
       doc.setFillColor(...GREY);
@@ -229,10 +238,10 @@ async function buildClaimPDF (S) {
       else doc.rect(cx(i), cy, colW, row.h, 'S');
 
       if (row.type === 'head') {
-        doc.setFont('helvetica', 'bold').setFontSize(6.2).setTextColor(...DARK);
+        doc.setFont(FONT, 'bold').setFontSize(6.2).setTextColor(...DARK);
         doc.text(row.cells[i], cx(i) + colW / 2, cy + row.h / 2 + 1, { align: 'center' });
       } else if (row.type === 'text') {
-        doc.setFont('helvetica', row.bold ? 'bold' : 'normal').setFontSize(6.2).setTextColor(...DARK);
+        doc.setFont(FONT, row.bold ? 'bold' : 'normal').setFontSize(6.2).setTextColor(...DARK);
         doc.text(String(row.cells[i] || ''), cx(i) + colW / 2, cy + row.h / 2 + 1, { align: 'center' });
       } else if (row.type === 'sig' && sigs[i]) {
         const s = sigs[i];
@@ -247,7 +256,7 @@ async function buildClaimPDF (S) {
 
   /* ---------- NOTES ---------- */
   let ny = cy + 5;
-  doc.setFont('helvetica', 'bold').setFontSize(6).setTextColor(...DARK);
+  doc.setFont(FONT, 'bold').setFontSize(6).setTextColor(...DARK);
   doc.text('NOTES:', L, ny);
   ny += 4;
   doc.setFontSize(5.2);
@@ -259,10 +268,16 @@ async function buildClaimPDF (S) {
 
   /* ---------- footer ---------- */
   const fyy = 198;
-  doc.setFont('helvetica', 'bold').setFontSize(5.6).setTextColor(...DARK);
+  doc.setFont(FONT, 'bold').setFontSize(5.6).setTextColor(...DARK);
   doc.text(UZMA_FOOTER.company, L, fyy);
   doc.text(UZMA_FOOTER.regNo, L, fyy + 3);
-  doc.setFont('helvetica', 'normal').setFontSize(5.2).setTextColor(70, 70, 70);
+  doc.setFont(FONT, 'normal').setFontSize(5.2).setTextColor(70, 70, 70);
+  /* The orange rule beside the address. On the reference it is a hairline —
+     0.585 pt wide, 18.13 pt tall, or 2.657% of the content width — not the
+     bar we had, which was three times too heavy. */
+  doc.setDrawColor(...ORANGE).setLineWidth(0.206);
+  const ruleH = W * 0.026572, ruleMid = fyy - 0.4;
+  doc.line(L + 57.9, ruleMid - ruleH / 2, L + 57.9, ruleMid + ruleH / 2);
   UZMA_FOOTER.addr.forEach((a, i) => doc.text(a, L + 60, fyy - 3 + i * 3));
   doc.text(UZMA_FOOTER.tel, L + 165, fyy);
   doc.text(UZMA_FOOTER.fax, L + 165, fyy + 3);
