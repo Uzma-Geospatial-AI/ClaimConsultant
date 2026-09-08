@@ -6,7 +6,33 @@
 <title>Consultant Claim System</title>
 <link rel="stylesheet" href="assets/css/style.css">
 </head>
-<body>
+<body class="locked">
+
+<!-- ============ SIGN IN ============ -->
+<div class="authgate" id="authGate">
+  <form class="auth-card" id="authForm" autocomplete="on">
+    <div class="auth-mark"><span class="gw-main">G<span class="gw-eo">[EO]</span>SPATIAL<span class="gw-ai">AI</span></span></div>
+    <h1>Consultant Claim System</h1>
+    <p class="auth-lead">Sign in with your <b>BDOS</b> account to continue.</p>
+
+    <label>Email
+      <input type="email" id="authEmail" name="email" autocomplete="username"
+             placeholder="you@uzmagroup.com" required>
+    </label>
+    <label>Password
+      <input type="password" id="authPassword" name="password" autocomplete="current-password"
+             placeholder="Your BDOS password" required>
+    </label>
+
+    <p class="auth-error" id="authError" hidden></p>
+    <button type="submit" class="btn primary auth-submit" id="authSubmit">Sign in</button>
+
+    <p class="auth-note">
+      Access is limited to two named accounts. Passwords are checked by BDOS &mdash;
+      this app never sees or stores them. Forgotten yours? A BDOS administrator resets it.
+    </p>
+  </form>
+</div>
 
 <header class="topbar">
   <div class="brand">
@@ -25,6 +51,8 @@
     <button class="btn ghost" id="btnImport">Import JSON</button>
     <button class="btn danger" id="btnReset" title="Erase all saved data and start over">Reset All</button>
     <input type="file" id="fileImport" accept="application/json" hidden>
+    <span class="whoami" id="authWho" hidden></span>
+    <button class="btn ghost" id="btnSignOut" hidden>Sign out</button>
   </div>
 </header>
 
@@ -340,6 +368,8 @@
 <script src="assets/js/signature.js"></script>
 <script src="assets/js/gen-invoice.js"></script>
 <script src="assets/js/gen-claim.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/sync.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
 </html>

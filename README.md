@@ -5,9 +5,10 @@
 **Invoice Timesheet &amp; Personnel Time Sheet generator · PDF · Excel · Word**
 Fill the form once, tick the calendar, download all four documents.
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-open%20the%20app-F26522?style=for-the-badge&logo=githubpages&logoColor=white)](https://kymy07.github.io/ConsultantClaimSystem/)
 [![CI](https://github.com/kymy07/ConsultantClaimSystem/actions/workflows/ci.yml/badge.svg)](https://github.com/kymy07/ConsultantClaimSystem/actions/workflows/ci.yml)
 [![Build](https://img.shields.io/badge/Build-none%20required-1F3864?style=for-the-badge)]()
-[![Offline](https://img.shields.io/badge/Runs-fully%20offline-F26522?style=for-the-badge)]()
+[![Offline](https://img.shields.io/badge/Runs%20offline-after%20sign--in-F26522?style=for-the-badge)]()
 [![Dependencies](https://img.shields.io/badge/npm%20install-not%20needed-2F5597?style=for-the-badge&logo=npm&logoColor=white)]()
 
 <img src="assets/img/preview.png" alt="The invoice step — a fillable copy of the invoice itself" width="100%">
@@ -22,8 +23,12 @@ A static web app for consultants who invoice monthly. Enter your details once, t
 you worked on a calendar grid, and the app generates the two documents finance asks for — in
 four file formats — straight from the browser.
 
-No server, no build step, no `npm install`, no internet connection. Every library is vendored
-into `vendor/`, so the whole thing runs from a single folder on any machine.
+No server, no build step, no `npm install`. Every library is vendored into `vendor/`, so the
+whole thing runs from a single folder on any machine.
+
+The one thing that needs the network is the front door: the app is opened by two named people
+and asks them to sign in with their **BDOS** account. After that the session lasts 30 days and
+the app works with the network unplugged.
 
 ---
 
@@ -37,6 +42,39 @@ into `vendor/`, so the whole thing runs from a single folder on any machine.
 Both PDFs are laid out to match the official templates: the invoice in portrait with the navy
 header band, the time sheet in landscape with Sections A, B and C, the notes block and the
 Uzma footer.
+
+---
+
+## Signing In
+
+The app is for two people, so the door is a **BDOS** account
+(`https://bdos.uzmadigitalearth.app`) plus a two-name allow-list in
+[`assets/js/auth.js`](assets/js/auth.js):
+
+```js
+const ALLOWED_USERS = [
+  'adlishah0821@gmail.com',
+  'hanis.rashidan@uzmagroup.com'
+];
+```
+
+| | |
+|---|---|
+| **Who checks the password** | BDOS. This app never sees, stores or transmits it anywhere else |
+| **What comes back** | a JWT valid for **30 days**, kept in `localStorage` under `ccs.token` |
+| **On every visit after** | the stored token opens the app immediately, and BDOS is asked to confirm it in the background |
+| **Offline** | a valid token still opens the app — a dead network never locks you out |
+| **Signing out** | discards the token; BDOS has no logout endpoint because the token is stateless |
+| **Password resets** | there is no self-service reset — a BDOS administrator sets a new one |
+
+The allow-list is applied twice: once to what was typed, and again to the address BDOS itself
+confirms, so an account that is not on the list cannot get in with a valid password.
+
+> **This gate says who is at the keyboard — it is not a lock on the data.** Everything it hides
+> is HTML and JavaScript the browser has already downloaded, and anyone with the folder can
+> open `index.html` directly. It is the right size of lock for a tool whose data never leaves
+> your own browser; it is *not* what would protect a shared database. See
+> [Data Storage](#data-storage).
 
 ---
 
@@ -79,6 +117,8 @@ unless you have already ticked days, in which case your ticks win.
 
 | | |
 |---|---|
+| 🔐 **BDOS sign-in** | Two named accounts, checked against the BDOS auth API; the 30-day session then opens the app offline |
+| 🗄️ **Shared history, when BDOS offers it** | Profiles, the open draft and every generated claim go to the `cradle` database through BDOS &mdash; and the app works exactly as before when it cannot reach them |
 | 🧭 **Guided, branching flow** | Fill your details once, then pick **A** (Invoice), **B** (Claim) or **both** — the remaining steps rearrange so you only ever see the document you asked for |
 | 📄 **You fill the real document** | Steps 3 and 4 are pixel-shaped copies of the invoice and the Uzma time sheet, so every value is typed exactly where it prints |
 | 💡 **A hint in every box** | Each blank carries an example of what belongs in it, and optional fields say so outright |
@@ -119,6 +159,8 @@ ConsultantClaimSystem/
 │   ├── css/style.css             # design tokens + every component
 │   ├── img/                      # logo-uzma.png + README screenshots
 │   └── js/
+│       ├── auth.js               # the BDOS sign-in gate + allow-list
+│       ├── sync.js               # profiles / draft / claims → the cradle DB, via BDOS
 │       ├── state.js              # data model, formulas, localStorage
 │       ├── logo.js               # brand artwork loading + vector fallbacks
 │       ├── timesheet.js          # Section B — the 31-column day grid
@@ -126,7 +168,12 @@ ConsultantClaimSystem/
 │       ├── gen-invoice.js        # Invoice → PDF (jsPDF) + Excel (ExcelJS)
 │       ├── gen-claim.js          # Claim   → PDF (jsPDF) + Word (docx)
 │       └── app.js                # step flow, profiles, generate buttons
-├── test/generate.test.js         # generates all four docs and checks them
+├── docs/
+│   └── BDOS-CCS-Endpoints.md     # the storage API this app asks BDOS for
+├── test/
+│   ├── auth.test.js              # who may sign in, and what happens next
+│   ├── sync.test.js              # the database sync, and how it degrades
+│   └── generate.test.js          # generates all four docs and checks them
 ├── vendor/                       # pinned libraries, committed for offline use
 └── .github/workflows/ci.yml      # lint + tests on Node 20 & 22
 ```
@@ -134,6 +181,13 @@ ConsultantClaimSystem/
 ---
 
 ## Getting Started
+
+The app is live on GitHub Pages — nothing to install:
+
+**<https://kymy07.github.io/ConsultantClaimSystem/>**
+
+It runs entirely in your browser there too: nothing is uploaded, everything stays in that
+browser's `localStorage`. To keep a copy on your own machine instead:
 
 ```bash
 git clone https://github.com/kymy07/ConsultantClaimSystem.git
@@ -228,12 +282,16 @@ site never changes what finance receives.
 
 ## Data Storage
 
-There is **no database and no server**. Everything lives in two `localStorage` keys:
+The app has no server of its own, and it never holds a database password &mdash; a static page
+downloaded by a browser has nowhere to hide one. Everything it stores by itself lives in
+`localStorage`:
 
 | Key | Contents |
 |---|---|
 | `ccs.current` | the form currently open, autosaved every 250 ms |
 | `ccs.profiles` | every profile saved via **Save Profile** |
+| `ccs.token` | the BDOS session token (30 days) |
+| `ccs.user` | the signed-in name and email, to greet you and to re-check the allow-list |
 
 Worth knowing:
 
@@ -241,22 +299,69 @@ Worth knowing:
 - It is lost if you clear browsing data, switch browser or machine, or use a private window.
 - The quota is roughly 5–10 MB; signatures (base64 PNG) take the most room. If the quota is
   exceeded the app raises a red warning instead of failing silently — export a JSON backup then.
-- **Export JSON** is the only real backup. Use it before anything irreversible.
+- **Export JSON** is the only real backup while the shared database is not yet in place.
+
+### The shared database
+
+Beyond the browser, the app is written to keep three things in the **`cradle`** PostgreSQL
+database &mdash; **shared profiles**, **the draft you have open**, and **a history of every claim
+generated** &mdash; so the two accounts see each other's work and nothing is lost when a browser
+is cleared.
+
+A browser cannot speak to PostgreSQL: it is a TCP wire protocol, not HTTP, and a public static
+app could not be trusted with the password anyway. So the database stays behind BDOS, which
+already authenticates these users, and the app reaches it over the same API as the sign-in.
+The endpoints this needs are specified in
+[`docs/BDOS-CCS-Endpoints.md`](docs/BDOS-CCS-Endpoints.md) &mdash; six routes under `/ccs/`, the
+table shapes behind them, and the server-side allow-list that has to be enforced there rather
+than here.
+
+| Data | Where | Who sees it |
+|---|---|---|
+| Profiles | `ccs.profiles` | both accounts |
+| The open draft | `ccs.drafts` | just you |
+| Generated claims | `ccs.claims` | both accounts |
+
+**Until BDOS deploys those routes, none of this is on.** [`sync.js`](assets/js/sync.js) probes
+once at sign-in; a `404`, a `403` or an unreachable server turns syncing off for the session
+without a word, and the app saves to `localStorage` exactly as it always has. That is also what
+happens on a plane. Nothing in the app ever waits on a sync response, so a slow or broken
+database cannot interrupt somebody filling in a form.
+
+When a draft is found in the database, it is adopted only when it cannot cost you anything:
+silently if the form on screen is untouched, and otherwise only after asking, and only when the
+stored draft is demonstrably newer than the last one this browser sent up. Work on your screen
+wins by default.
 
 ---
 
 ## Testing & CI
 
 ```bash
-node test/generate.test.js
+node test/auth.test.js        # 27 checks — the sign-in gate
+node test/sync.test.js        # 31 checks — the database sync
+node test/generate.test.js    #  9 checks — the four documents
 ```
 
-No `npm install`. The suite loads the application code into a Node VM behind a small browser
-stub, generates all four documents, and asserts nine things — the invoice amount (RM 903.23),
-`TOTAL DAYS [A]`, `BALANCE`, the automatic SAT/SUN labels, and the size plus magic bytes of
-every generated file.
+No `npm install`. All three suites load the application code into a Node VM behind a small
+browser stub; none of them touches the network.
 
-GitHub Actions runs it on every push across Node 20 and 22, alongside a JavaScript syntax
+`generate.test.js` produces all four documents and asserts nine things — the invoice amount
+(RM 903.23), `TOTAL DAYS [A]`, `BALANCE`, the automatic SAT/SUN labels, and the size plus magic
+bytes of every generated file.
+
+`auth.test.js` puts a fake BDOS and a fake browser behind the gate — no network call, no real
+password — and pins the rules that matter: only the two listed accounts get in, the address
+BDOS confirms overrules the one typed, an expired token is dropped rather than trusted, a
+valid one opens the app even with the network down, and signing out leaves nothing behind.
+
+`sync.test.js` runs the sync against a stub BDOS, and its first assertion is the one that
+matters most today: with the endpoints returning 404, syncing switches off, one probe is sent
+and nothing else, and the app is left exactly as it was. It then checks that a draft is adopted
+only when no work can be lost, that profiles converge in both directions, and that a recorded
+claim carries the month as 1&ndash;12 rather than the 0&ndash;11 the form uses internally.
+
+GitHub Actions runs both on every push across Node 20 and 22, alongside a JavaScript syntax
 check, a vendored-library check, and a scan that fails the build if a real IC number or bank
 account number ever lands in the repository.
 
@@ -276,6 +381,25 @@ Every colour is a CSS custom property in the `:root` block at the top of `assets
 
 The PDF generators keep their own copies as RGB triples (`NAVY`, `BAR`, `LBL` in
 `gen-invoice.js`), because jsPDF cannot read CSS. Change both if you re-brand.
+
+</details>
+
+<details>
+<summary><b>Changing who can sign in</b></summary>
+
+The list is one array at the top of `assets/js/auth.js`:
+
+```js
+const ALLOWED_USERS = [
+  'adlishah0821@gmail.com',
+  'hanis.rashidan@uzmagroup.com'
+];
+```
+
+Addresses are compared lower-case and trimmed, so case and stray spaces do not matter. Anyone
+added here still needs a BDOS account — registration is invite-only, so ask a BDOS
+administrator for a one-time PIN first. `test/auth.test.js` asserts the list is exactly two
+names long; update that expectation when you add a third.
 
 </details>
 

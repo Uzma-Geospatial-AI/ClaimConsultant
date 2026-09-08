@@ -343,6 +343,7 @@ let saveWarned = false;
 function persist () {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
+    Sync.pushDraft(S);                       // lazy, silent, never blocking
     if (Store.saveCurrent(S)) { saveWarned = false; return; }
     if (!saveWarned) {
       saveWarned = true;
@@ -466,6 +467,7 @@ function boot () {
     if (Store.saveProfile(name.trim(), S)) {
       refreshProfileList();
       document.getElementById('profileSelect').value = name.trim();
+      Sync.pushProfile(name.trim(), S);
       toast(`Profile "${name.trim()}" saved.`);
     } else toast('Could not save the profile (storage full?).', true);
   });
@@ -474,6 +476,7 @@ function boot () {
     if (!sel) { toast('Select a profile first.', true); return; }
     if (!confirm(`Delete the profile "${sel}"?`)) return;
     Store.deleteProfile(sel);
+    Sync.deleteProfile(sel);
     refreshProfileList();
     toast('Profile deleted.');
   });
@@ -504,6 +507,7 @@ function boot () {
     if (!confirm('Are you sure? This cannot be undone.')) return;
 
     Store.clearAll();
+    Sync.forget();
     S = defaultState();
     fillDefaultsForMonth();
     stepIndex = 0;
@@ -551,12 +555,32 @@ function boot () {
     if (S.mode === 'claim' || S.mode === 'both') {
       jobs.push(['Claim PDF', generateClaimPDF], ['Claim Word', generateClaimDOCX]);
     }
+    const made = [];
     for (const [label, fn] of jobs) {
-      try { await fn(S); log(`✓ ${label} generated.`, 'ok'); }
+      try { await fn(S); made.push(label); log(`✓ ${label} generated.`, 'ok'); }
       catch (err) { log(`✗ ${label} failed: ${err.message}`, 'err'); console.error(err); }
       await new Promise(res => setTimeout(res, 350));
     }
+    // One row per submission, not per button: this is the claim going out.
+    if (made.length) Sync.recordClaim(S, made);
     toast('Done — check your Downloads folder.');
+  });
+
+  /* -----------------------------------------------------------------------
+     Last, and never blocking: ask BDOS whether the shared database is on
+     offer. If it is not — not deployed, offline, not permitted — nothing
+     above notices and the app stays exactly as it was.
+     ----------------------------------------------------------------------- */
+  Sync.init(S, adopted => {
+    S = adopted;
+    stepIndex = 0;
+    renderAll();
+    Store.saveCurrent(S);
+  }).then(r => {
+    if (!r.on) return;
+    if (r.adopted)     toast('Loaded the draft saved from your other device.');
+    else if (r.gained) toast(`${r.gained} shared profile(s) loaded.`);
+    refreshProfileList();
   });
 }
 
@@ -612,4 +636,5 @@ function refreshProfileList () {
   sel.value = cur;
 }
 
-document.addEventListener('DOMContentLoaded', boot);
+/* The app lives behind the BDOS sign-in gate — boot() runs once it opens. */
+document.addEventListener('DOMContentLoaded', () => Auth.start(boot));

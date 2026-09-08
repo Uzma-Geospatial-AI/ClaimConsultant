@@ -1,0 +1,225 @@
+/* =======================================================================
+   sync.test.js — the database sync, with zero npm dependencies.
+
+   Loads state.js and sync.js into a Node VM behind a stub browser and a
+   stub BDOS, and pins the behaviour the app depends on:
+
+     · when the /ccs endpoints are not there, syncing switches itself off
+       and the app is left exactly as it was
+     · a draft is only adopted when doing so cannot lose work
+     · profiles converge in both directions
+     · a claim is recorded in the shape docs/BDOS-CCS-Endpoints.md promises
+
+   No real network call is made.
+
+   Run:  node test/sync.test.js
+   ======================================================================= */
+
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+
+const ROOT = path.join(__dirname, '..');
+
+let passed = 0;
+const failures = [];
+
+function check (label, actual, expected) {
+  if (String(actual) === String(expected)) {
+    passed++;
+    console.log(`  ok    ${label} = ${actual}`);
+  } else {
+    failures.push(`${label}: got ${actual}, expected ${expected}`);
+    console.log(`  FAIL  ${label}: got ${actual}, expected ${expected}`);
+  }
+}
+
+/* ---------------- stub browser ---------------- */
+const store = new Map();
+const localStorage = {
+  getItem: k => (store.has(k) ? store.get(k) : null),
+  setItem: (k, v) => store.set(k, String(v)),
+  removeItem: k => store.delete(k)
+};
+
+/* ---------------- stub BDOS ---------------- */
+let routes = {};                 // 'GET /ccs/draft' → { status, body }
+const sent = [];                 // every request the app made
+
+const fetch = async (url, opts) => {
+  const method = (opts && opts.method) || 'GET';
+  const p = String(url).replace('https://bdos.uzmadigitalearth.app', '');
+  const body = opts && opts.body ? JSON.parse(opts.body) : null;
+  sent.push({ method, path: p, body, auth: opts.headers.Authorization });
+
+  const r = routes[`${method} ${p.split('?')[0]}`] || { status: 404, body: { detail: 'Not Found' } };
+  return {
+    ok: r.status >= 200 && r.status < 300,
+    status: r.status,
+    json: async () => r.body
+  };
+};
+
+const ctx = vm.createContext({
+  console, localStorage, fetch, JSON, Map, Set, Date, Number, String, Object, Array, Boolean,
+  navigator: { onLine: true },
+  // Timers fire straight away here, so the lazy draft push is testable
+  // without the suite sitting through its five-second delay.
+  setTimeout: fn => { fn(); return 0; },
+  clearTimeout: () => {},
+  confirm: () => ctx.confirmAnswer,
+  Auth: { token: () => 'stub-token', BASE: 'https://bdos.uzmadigitalearth.app' },
+  confirmAnswer: false
+});
+
+vm.runInContext(fs.readFileSync(path.join(ROOT, 'assets/js/state.js'), 'utf8'), ctx, { filename: 'state.js' });
+vm.runInContext(fs.readFileSync(path.join(ROOT, 'assets/js/sync.js'), 'utf8'), ctx, { filename: 'sync.js' });
+
+const run = expr => vm.runInContext(expr, ctx);
+
+function reset (newRoutes) {
+  routes = newRoutes || {};
+  sent.length = 0;
+  store.clear();
+  run('Sync.forget()');
+}
+
+/** A state object with something in it worth not losing. */
+function filledState () {
+  const S = run('defaultState()');
+  S.consultant.name = 'Ahmad bin Abdullah';
+  S.mode = 'both';
+  S.invoice.no = 'INV-2026-08-026';
+  S.invoice.items = [{ desc: 'Consultancy', amount: 903.23 }];
+  S.timesheet.month = 7;                       // August, zero-based
+  S.timesheet.year = 2026;
+  return S;
+}
+
+const adopting = () => {
+  const box = { adopted: null };
+  ctx.adopt = s => { box.adopted = s; };
+  return box;
+};
+
+(async () => {
+  console.log('\nWhen BDOS has not shipped the endpoints');
+  reset({});                                    // everything 404s
+  ctx.S = filledState();
+  let box = adopting();
+  let r = await run('Sync.init(S, adopt)');
+  check('syncing is off',              r.on, false);
+  check('Sync.on agrees',              run('Sync.on'), false);
+  check('nothing was adopted',         box.adopted, null);
+  check('only the one probe was sent', sent.length, 1);
+  check('and it was the draft probe',  sent[0].method + ' ' + sent[0].path, 'GET /ccs/draft');
+
+  // With syncing off, the app may keep calling these — they must do nothing.
+  run('Sync.pushDraft(S)');
+  run("Sync.pushProfile('Ahmad', S)");
+  const recorded = await run('Sync.recordClaim(S, ["Invoice PDF"])');
+  check('a draft push is a no-op',   sent.length, 1);
+  check('a claim is not recorded',   recorded, null);
+
+  console.log('\nWhen the account is not allowed through');
+  reset({ 'GET /ccs/draft': { status: 403, body: { detail: 'Forbidden' } } });
+  ctx.S = filledState();
+  r = await run('Sync.init(S, adopt)');
+  check('a 403 also just turns syncing off', r.on, false);
+
+  console.log('\nAdopting a stored draft');
+  // An untouched form has nothing to lose, so the stored draft is loaded.
+  const remote = filledState();
+  remote.consultant.name = 'Saved Elsewhere';
+  reset({
+    'GET /ccs/draft': { status: 200, body: { draft: { data: remote, updated_at: '2026-09-08T10:00:00Z' } } },
+    'GET /ccs/profiles': { status: 200, body: { profiles: [] } }
+  });
+  ctx.S = run('defaultState()');                 // blank form
+  box = adopting();
+  r = await run('Sync.init(S, adopt)');
+  check('syncing is on',                r.on, true);
+  check('the blank form adopts it',     r.adopted, true);
+  check('the saved work is loaded',     box.adopted.consultant.name, 'Saved Elsewhere');
+  check('the request carried the token', sent[0].auth, 'Bearer stub-token');
+
+  // A form with work in it is never replaced without being asked.
+  reset({
+    'GET /ccs/draft': { status: 200, body: { draft: { data: remote, updated_at: '2026-09-08T10:00:00Z' } } },
+    'GET /ccs/profiles': { status: 200, body: { profiles: [] } }
+  });
+  ctx.S = filledState();
+  box = adopting();
+  ctx.confirmAnswer = false;
+  r = await run('Sync.init(S, adopt)');
+  check('work on screen is not silently replaced', r.adopted, false);
+  check('and nothing was handed over',             box.adopted, null);
+
+  // Unless it is demonstrably older than what another device sent up.
+  reset({
+    'GET /ccs/draft': { status: 200, body: { draft: { data: remote, updated_at: '2999-01-01T00:00:00Z' } } },
+    'GET /ccs/profiles': { status: 200, body: { profiles: [] } }
+  });
+  localStorage.setItem('ccs.syncedAt', '2026-09-01T00:00:00Z');
+  ctx.S = filledState();
+  box = adopting();
+  ctx.confirmAnswer = true;                      // the user says yes
+  r = await run('Sync.init(S, adopt)');
+  check('a newer draft is offered and taken', r.adopted, true);
+  check('the newer work is loaded',           box.adopted.consultant.name, 'Saved Elsewhere');
+
+  console.log('\nProfiles converge both ways');
+  const theirs = filledState();
+  theirs.consultant.name = 'Hanis';
+  reset({
+    'GET /ccs/draft':    { status: 200, body: { draft: null } },
+    'GET /ccs/profiles': { status: 200, body: { profiles: [{ id: 7, name: 'Hanis', data: theirs }] } },
+    'POST /ccs/profiles': { status: 200, body: { profile: { id: 8, name: 'Mine', data: {} } } }
+  });
+  run(`Store.saveProfile('Mine', defaultState())`);      // only in this browser
+  ctx.S = run('defaultState()');
+  box = adopting();
+  r = await run('Sync.init(S, adopt)');
+  check('the shared profile arrives',   r.gained, 1);
+  check('it is saved locally',          run(`Store.profiles()['Hanis'].consultant.name`), 'Hanis');
+  check('the local-only one is sent up', r.sent, 1);
+  check('a null draft changes nothing', r.adopted, false);
+
+  const post = sent.find(x => x.method === 'POST' && x.path === '/ccs/profiles');
+  check('the upload is keyed by name', post.body.name, 'Mine');
+
+  console.log('\nRecording a claim');
+  reset({
+    'GET /ccs/draft':  { status: 200, body: { draft: null } },
+    'GET /ccs/profiles': { status: 200, body: { profiles: [] } },
+    'POST /ccs/claims': { status: 200, body: { claim: { id: 3 } } },
+    'PUT /ccs/draft':  { status: 200, body: { ok: true } }
+  });
+  ctx.S = filledState();
+  await run('Sync.init(S, adopt)');
+  await run('Sync.recordClaim(S, ["Invoice PDF", "Claim Word"])');
+  const claim = sent.find(x => x.path === '/ccs/claims').body;
+  check('the consultant is named',        claim.consultant, 'Ahmad bin Abdullah');
+  check('the month is 1-12, not 0-11',    claim.period_month, 8);
+  check('the year is carried',            claim.period_year, 2026);
+  check('the invoice number is carried',  claim.invoice_no, 'INV-2026-08-026');
+  check('the total is computed, not typed', claim.amount, 903.23);
+  check('the documents are listed',       claim.documents.join(', '), 'Invoice PDF, Claim Word');
+  check('the whole form is kept with it', claim.data.consultant.name, 'Ahmad bin Abdullah');
+
+  console.log('\nThe draft goes up as you work');
+  run('Sync.pushDraft(S)');
+  await new Promise(res => setImmediate(res));
+  const put = sent.find(x => x.method === 'PUT' && x.path === '/ccs/draft');
+  check('the draft was sent',        put ? 'yes' : 'no', 'yes');
+  check('wrapped as { data }',       put.body.data.consultant.name, 'Ahmad bin Abdullah');
+  check('and the push is timestamped', localStorage.getItem('ccs.syncedAt') ? 'yes' : 'no', 'yes');
+
+  console.log(`\n${passed} passed, ${failures.length} failed`);
+  if (failures.length) {
+    console.log('\nFailures:');
+    failures.forEach(f => console.log('  - ' + f));
+    process.exit(1);
+  }
+  console.log('All tests passed.');
+})();

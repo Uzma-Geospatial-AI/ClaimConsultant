@@ -61,5 +61,11 @@ jobs:
           fi
           echo "ok  no personal data detected"
 
+      - name: Test the sign-in gate
+        run: node test/auth.test.js
+
+      - name: Test the database sync
+        run: node test/sync.test.js
+
       - name: Test document generation (PDF / Excel / Word)
         run: node test/generate.test.js
