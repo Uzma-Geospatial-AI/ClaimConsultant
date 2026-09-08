@@ -61,6 +61,9 @@ jobs:
           fi
           echo "ok  no personal data detected"
 
+      - name: Test the page itself (markup + stylesheet)
+        run: node test/page.test.js
+
       - name: Test the sign-in gate
         run: node test/auth.test.js
 

@@ -540,6 +540,11 @@ function boot () {
     e.target.value = '';
   });
 
+  /* --- look before you download --- */
+  mountPdfViewer();
+  wireView('btnInvPreview',   buildInvoicePDF, invoiceFileBase, 'Invoice Timesheet');
+  wireView('btnClaimPreview', buildClaimPDF,   claimFileBase,   'Claim / Personnel Time Sheet');
+
   /* --- generate --- */
   wire('btnInvPdf',    generateInvoicePDF,  'Invoice PDF');
   wire('btnInvXlsx',   generateInvoiceXLSX, 'Invoice Excel');
@@ -596,6 +601,27 @@ function mountClaimLogo () {
   if (!host) return;
   host.innerHTML = '<span class="uz-fallback">UZM<i>A</i></span>';
   loadLogo('uzma').then(l => { if (l) host.innerHTML = `<img src="${l.url}" alt="UZMA">`; });
+}
+
+/** Wire a "View PDF" button: build the document, then show it on screen. */
+function wireView (id, build, nameOf, label) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    if (!validate()) return;
+    const was = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Preparing…';
+    try {
+      openPdfPreview(label, `${nameOf(S)}.pdf`, await build(S));
+    } catch (err) {
+      toast(`${label} could not be rendered.`, true);
+      console.error(err);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = was;
+    }
+  });
 }
 
 function wire (id, fn, label) {

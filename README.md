@@ -127,6 +127,7 @@ unless you have already ticked days, in which case your ticks win.
 | ✍️ **Sign in the signature box** | The three pads (Personnel, HOD, Verified By) sit inside Section C where the pen would go; blank space around the stroke is trimmed before it is embedded |
 | 🖋️ **Approval block starts filled** | Section C opens with the usual names and today's date already in place — every one is a normal field, so type over it when somebody else signs |
 | 🏷️ **Official artwork, placed to the millimetre** | The Uzma wordmark ships with the app and is positioned from proportions measured off the printed form, not eyeballed |
+| 👁️ **View before you download** | **View PDF** renders the finished document in the browser's own PDF viewer &mdash; check it, then download from inside the viewer or close and keep editing. Nothing reaches the disk until you say so |
 | 🗂️ **Multiple activity rows** | Eight rows like the original form, each with its own Job ID, allocated days and past claim |
 | 📊 **Totals that add up** | `TOTAL DAYS [A]`, `ALLOCATED [B]`, `PAST CLAIM [C]` and `BALANCE [B-(A+C)]` are computed per row and in aggregate |
 | 💾 **Autosave + profiles** | Everything persists to `localStorage`; save one profile per consultant and switch between them |
@@ -167,10 +168,12 @@ ConsultantClaimSystem/
 │       ├── signature.js          # in-form signature pads + image trimming
 │       ├── gen-invoice.js        # Invoice → PDF (jsPDF) + Excel (ExcelJS)
 │       ├── gen-claim.js          # Claim   → PDF (jsPDF) + Word (docx)
+│       ├── preview.js            # the on-screen PDF viewer
 │       └── app.js                # step flow, profiles, generate buttons
 ├── docs/
 │   └── BDOS-CCS-Endpoints.md     # the storage API this app asks BDOS for
 ├── test/
+│   ├── page.test.js              # markup + stylesheet: what a fake DOM cannot see
 │   ├── auth.test.js              # who may sign in, and what happens next
 │   ├── sync.test.js              # the database sync, and how it degrades
 │   └── generate.test.js          # generates all four docs and checks them
@@ -338,13 +341,14 @@ wins by default.
 ## Testing & CI
 
 ```bash
-node test/auth.test.js        # 27 checks — the sign-in gate
+node test/page.test.js        # 11 checks — the markup and the stylesheet
+node test/auth.test.js        # 29 checks — the sign-in gate
 node test/sync.test.js        # 31 checks — the database sync
 node test/generate.test.js    #  9 checks — the four documents
 ```
 
-No `npm install`. All three suites load the application code into a Node VM behind a small
-browser stub; none of them touches the network.
+No `npm install`, and nothing touches the network. Three of the suites load the application
+code into a Node VM behind a small browser stub.
 
 `generate.test.js` produces all four documents and asserts nine things — the invoice amount
 (RM 903.23), `TOTAL DAYS [A]`, `BALANCE`, the automatic SAT/SUN labels, and the size plus magic
@@ -355,13 +359,21 @@ password — and pins the rules that matter: only the two listed accounts get in
 BDOS confirms overrules the one typed, an expired token is dropped rather than trusted, a
 valid one opens the app even with the network down, and signing out leaves nothing behind.
 
+`page.test.js` is the odd one out: it reads `index.html` and `style.css` as text, because the
+two worst bugs this app has had were invisible to a stubbed DOM. An overlay that sets its own
+`display` beats the browser's `[hidden]{display:none}`, so `el.hidden = true` did nothing and
+the sign-in gate sat over the unlocked app forever; and a form whose submit listener never
+bound fell back to a native GET, putting a password in the URL. In a fake DOM both of those
+pass. So this suite asserts that every overlay has its `[hidden]` rule, that the sign-in form
+cannot submit natively, and that the scripts load in a workable order.
+
 `sync.test.js` runs the sync against a stub BDOS, and its first assertion is the one that
 matters most today: with the endpoints returning 404, syncing switches off, one probe is sent
 and nothing else, and the app is left exactly as it was. It then checks that a draft is adopted
 only when no work can be lost, that profiles converge in both directions, and that a recorded
 claim carries the month as 1&ndash;12 rather than the 0&ndash;11 the form uses internally.
 
-GitHub Actions runs both on every push across Node 20 and 22, alongside a JavaScript syntax
+GitHub Actions runs all four on every push across Node 20 and 22, alongside a JavaScript syntax
 check, a vendored-library check, and a scan that fails the build if a real IC number or bank
 account number ever lands in the repository.
 

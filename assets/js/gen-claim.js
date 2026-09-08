@@ -57,7 +57,7 @@ function claimMatrix (S) {
 
 /* ============================ PDF ============================ */
 
-async function generateClaimPDF (S) {
+async function buildClaimPDF (S) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
 
@@ -268,6 +268,11 @@ async function generateClaimPDF (S) {
   doc.text(UZMA_FOOTER.fax, L + 165, fyy + 3);
   doc.text(UZMA_FOOTER.web, R, fyy + 3, { align: 'right' });
 
+  return doc;
+}
+
+async function generateClaimPDF (S) {
+  const doc = await buildClaimPDF(S);
   doc.save(`${claimFileBase(S)}.pdf`);
 }
 

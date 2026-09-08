@@ -324,6 +324,7 @@
       <h3>A &mdash; Invoice Timesheet</h3>
       <p id="gsum_inv" class="gsum"></p>
       <div class="btnrow">
+        <button class="btn ghost" id="btnInvPreview">View PDF</button>
         <button class="btn" id="btnInvPdf">Download PDF</button>
         <button class="btn" id="btnInvXlsx">Download Excel</button>
       </div>
@@ -332,6 +333,7 @@
       <h3>B &mdash; Claim / Personnel Time Sheet</h3>
       <p id="gsum_claim" class="gsum"></p>
       <div class="btnrow">
+        <button class="btn ghost" id="btnClaimPreview">View PDF</button>
         <button class="btn" id="btnClaimPdf">Download PDF</button>
         <button class="btn" id="btnClaimDocx">Download Word</button>
       </div>
@@ -357,6 +359,19 @@
   </div>
 </footer>
 
+<!-- ============ PDF VIEWER ============ -->
+<div class="pdfview" id="pdfView" hidden>
+  <div class="pdfview-bar">
+    <b id="pdfViewTitle"></b>
+    <div class="pdfview-actions">
+      <a class="btn ghost small" id="pdfViewTab" target="_blank" rel="noopener">Open in new tab</a>
+      <button class="btn small" id="pdfViewDownload">Download</button>
+      <button class="btn ghost small" id="pdfViewClose">Close</button>
+    </div>
+  </div>
+  <iframe id="pdfViewFrame" title="PDF preview"></iframe>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <script src="vendor/jspdf.umd.min.js"></script>
@@ -371,6 +386,7 @@
 <script src="assets/js/signature.js"></script>
 <script src="assets/js/gen-invoice.js"></script>
 <script src="assets/js/gen-claim.js"></script>
+<script src="assets/js/preview.js"></script>
 <script src="assets/js/auth.js"></script>
 <script src="assets/js/sync.js"></script>
 <script src="assets/js/app.js"></script>

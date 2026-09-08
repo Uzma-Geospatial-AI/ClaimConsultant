@@ -28,7 +28,9 @@ function invoiceFileBase (S) {
 
 /* ============================ PDF ============================ */
 
-async function generateInvoicePDF (S) {
+/* Building and delivering are separate so the same page can be previewed
+   on screen or written to disk, and the two can never drift apart. */
+async function buildInvoicePDF (S) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
 
@@ -187,6 +189,11 @@ async function generateInvoicePDF (S) {
     doc.text(doc.splitTextToSize(IV.note, W), L, Math.max(y, 262));
   }
 
+  return doc;
+}
+
+async function generateInvoicePDF (S) {
+  const doc = await buildInvoicePDF(S);
   doc.save(`${invoiceFileBase(S)}.pdf`);
 }
 
