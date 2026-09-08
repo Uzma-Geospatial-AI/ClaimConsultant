@@ -20,6 +20,20 @@ const NOTES = [
 
 const ROWS_MIN = 8;   // minimum activity rows, matching the original form
 
+/* Section (C), measured off the workbook the form is printed from rather
+   than by eye. That sheet is 1655.25 pt wide, and it prints to a single
+   scale, so every length here is carried over as a share of the content
+   width and holds on our A4 landscape sheet too.
+
+   C_EDGE  the four column breaks: the label column ends at column K, and
+           the three approver columns at Y, AN and BB.
+   C_ROW   row heights — 34 pt for each heading row, 80.15 pt for the
+           signature row, 30 pt for Name and Date.
+   C_GAP   the four empty rows (62 pt) standing between the grid and (C). */
+const C_EDGE = [0, 0.152243, 0.426824, 0.711826, 1];
+const C_ROW  = { head: 0.020541, sig: 0.048422, text: 0.018124 };
+const C_GAP  = 0.037457;
+
 /** compact month/year label: 'Aug-26' */
 function monthLabel (ts) {
   return `${MON3[ts.month]}-${String(ts.year).slice(2)}`;
@@ -115,13 +129,14 @@ async function buildClaimPDF (S) {
   sectionHeader(L, secTop, leftW, 'A. PERSONNEL DETAILS');
   sectionHeader(rightX, secTop, rightW, 'PROJECT DETAILS (IF APPLICABLE)');
 
-  /** one underlined field: label : value______ */
-  const field = (x, y, labelW, lineEnd, lab, val, bold) => {
-    doc.setFont(FONT, bold ? 'bold' : 'bold').setFontSize(5.8).setTextColor(...DARK);
+  /** one underlined field: label : value______ (rule omitted when bare) */
+  const field = (x, y, labelW, lineEnd, lab, val, bare) => {
+    doc.setFont(FONT, 'bold').setFontSize(5.8).setTextColor(...DARK);
     doc.text(lab, x, y);
     doc.text(':', x + labelW, y);
     doc.setFont(FONT, 'normal').setFontSize(6.4);
     doc.text(String(val || ''), x + labelW + 3, y - 0.5);
+    if (bare) return;
     doc.setDrawColor(120, 120, 120).setLineWidth(0.2);
     doc.line(x + labelW + 3, y + 1, lineEnd, y + 1);
   };
@@ -148,9 +163,11 @@ async function buildClaimPDF (S) {
   rightFields.forEach((f, i) => {
     const y = fy + i * gap;
     if (i === 3) {
-      // this row shares its space with the "Project Code" field
-      field(rightX + 3, y, 62, rightX + 92, f[0], f[1]);
-      field(rightX + 97, y, 20, R - 4, 'Project Code', P.code);
+      // This row shares its space with the "Project Code" field. That one
+      // carries no rule: its cell on the form (AY15:BB15 in the workbook)
+      // has no bottom border, unlike every other field here.
+      field(rightX + 3, y, 62, rightX + 80, f[0], f[1]);
+      field(rightX + 84, y, 18, 0, 'Project Code', P.code, true);
     } else {
       field(rightX + 3, y, 62, R - 4, f[0], f[1]);
     }
@@ -198,21 +215,22 @@ async function buildClaimPDF (S) {
       }
     }
   });
-  y = doc.lastAutoTable.finalY + 4;
+  /* Section (C) does not sit tight under the grid: four empty rows stand
+     between them on the form — 62 pt of a sheet 1655.25 pt wide. Everything
+     below is taken the same way, as a share of the content width, since the
+     sheet prints to one scale in both directions. */
+  y = doc.lastAutoTable.finalY + W * C_GAP;
 
   /* ---------- Section C ---------- */
-  doc.setFont(FONT, 'bold').setFontSize(6.4).setTextColor(...DARK);
-  doc.text('(C)', L, y + 3);
-
-  const labW = 26, colW = (W - labW) / 3;
-  const cx = i => L + labW + i * colW;
+  const labW = W * C_EDGE[1], colW = i => W * (C_EDGE[i + 2] - C_EDGE[i + 1]);
+  const cx = i => L + W * C_EDGE[i + 1];
   const rowsC = [
-    { h: 6,  type: 'head', cells: ['PREPARED BY', 'APPROVED BY', 'VERIFIED BY'] },
-    { h: 6,  type: 'head', cells: ['PERSONNEL', 'HOD', 'GROUP PEOPLE & GROUP FINANCE DIVISIONS'] },
-    { h: 18, type: 'sig',  label: 'Signature' },
-    { h: 6,  type: 'text', label: 'Name',
+    { h: W * C_ROW.head, type: 'head', cells: ['PREPARED BY', 'APPROVED BY', 'VERIFIED BY'] },
+    { h: W * C_ROW.head, type: 'head', cells: ['PERSONNEL', 'HOD', 'GROUP PEOPLE & GROUP FINANCE DIVISIONS'] },
+    { h: W * C_ROW.sig,  type: 'sig',  label: 'Signature' },
+    { h: W * C_ROW.text, type: 'text', label: 'Name',
       cells: [ts.prepName || C.name || '', ts.apprName || '', ts.verifName || ''], bold: true },
-    { h: 6,  type: 'text', label: 'Date',
+    { h: W * C_ROW.text, type: 'text', label: 'Date',
       cells: [ts.prepDate || '', ts.apprDate || '', ts.verifDate || ''] }
   ];
 
@@ -225,29 +243,35 @@ async function buildClaimPDF (S) {
   let cy = y;
   for (const row of rowsC) {
     doc.setDrawColor(60, 60, 60).setLineWidth(0.25);
-    if (row.type !== 'head') {
+    if (row.type === 'head') {
+      /* The label column is left open beside the two heading rows — the box
+         on the form starts at the PREPARED BY column, and the space to its
+         left is where the "(C)" marker sits. */
+      if (row === rowsC[0]) {
+        doc.setFont(FONT, 'bold').setFontSize(6.4).setTextColor(...DARK);
+        doc.text('(C)', L, cy + row.h / 2 + 1);
+      }
+    } else {
       doc.rect(L, cy, labW, row.h, 'S');
       doc.setFont(FONT, 'bold').setFontSize(6).setTextColor(...DARK);
       doc.text(row.label, L + 2, cy + row.h / 2 + 1);
-    } else {
-      doc.setFillColor(...GREY);
-      doc.rect(L, cy, labW, row.h, 'FD');
     }
     for (let i = 0; i < 3; i++) {
-      if (row.type === 'head') { doc.setFillColor(...GREY); doc.rect(cx(i), cy, colW, row.h, 'FD'); }
-      else doc.rect(cx(i), cy, colW, row.h, 'S');
+      const w = colW(i);
+      if (row.type === 'head') { doc.setFillColor(...GREY); doc.rect(cx(i), cy, w, row.h, 'FD'); }
+      else doc.rect(cx(i), cy, w, row.h, 'S');
 
       if (row.type === 'head') {
         doc.setFont(FONT, 'bold').setFontSize(6.2).setTextColor(...DARK);
-        doc.text(row.cells[i], cx(i) + colW / 2, cy + row.h / 2 + 1, { align: 'center' });
+        doc.text(row.cells[i], cx(i) + w / 2, cy + row.h / 2 + 1, { align: 'center' });
       } else if (row.type === 'text') {
         doc.setFont(FONT, row.bold ? 'bold' : 'normal').setFontSize(6.2).setTextColor(...DARK);
-        doc.text(String(row.cells[i] || ''), cx(i) + colW / 2, cy + row.h / 2 + 1, { align: 'center' });
+        doc.text(String(row.cells[i] || ''), cx(i) + w / 2, cy + row.h / 2 + 1, { align: 'center' });
       } else if (row.type === 'sig' && sigs[i]) {
         const s = sigs[i];
-        const maxW = colW - 16, maxH = row.h - 5;
+        const maxW = w - 16, maxH = row.h - 3.5;
         const sc = Math.min(maxW / s.w, maxH / s.h);
-        doc.addImage(s.url, 'PNG', cx(i) + (colW - s.w * sc) / 2, cy + (row.h - s.h * sc) / 2,
+        doc.addImage(s.url, 'PNG', cx(i) + (w - s.w * sc) / 2, cy + (row.h - s.h * sc) / 2,
                      s.w * sc, s.h * sc);
       }
     }
@@ -438,28 +462,41 @@ async function generateClaimDOCX (S) {
     });
   };
 
-  const cW = Math.floor((TOTAL_DXA - 2200) / 3);
+  /* Same column breaks the PDF uses, carried over from the workbook. */
+  const cwC = C_EDGE.slice(1).map((f, i) => Math.round((f - C_EDGE[i]) * TOTAL_DXA));
+  const [labDxa, c1, c2, c3] = cwC;
+
   const sigRowCells = [
-    cell(para(txt('Signature', { bold: true, size: 12 })), { width: 2200 }),
-    cell(await sigCell('personnel'), { width: cW }),
-    cell(await sigCell('hod'), { width: cW }),
-    cell(await sigCell('verified'), { width: cW })
+    cell(para(txt('Signature', { bold: true, size: 12 })), { width: labDxa }),
+    cell(await sigCell('personnel'), { width: c1 }),
+    cell(await sigCell('hod'), { width: c2 }),
+    cell(await sigCell('verified'), { width: c3 })
   ];
 
-  const cRow = (label, vals, bold, fill) => new TableRow({
+  const cRow = (label, vals, bold) => new TableRow({
     children: [
-      cell(para(txt(label, { bold: true, size: 12 })), { width: 2200, fill }),
-      ...vals.map(v => cell(para(txt(v, { bold: !!bold, size: 12 }), { align: AlignmentType.CENTER }),
-                            { width: cW, fill }))
+      cell(para(txt(label, { bold: true, size: 12 })), { width: labDxa }),
+      ...vals.map((v, i) => cell(para(txt(v, { bold: !!bold, size: 12 }), { align: AlignmentType.CENTER }),
+                                 { width: cwC[i + 1] }))
+    ]
+  });
+
+  /* The heading rows carry no label cell on the form — the box starts at
+     PREPARED BY, and "(C)" stands in the open space to its left. */
+  const cHead = (marker, vals) => new TableRow({
+    children: [
+      cell(para(txt(marker, { bold: true, size: 12 })), { width: labDxa, borders: noBorders }),
+      ...vals.map((v, i) => cell(para(txt(v, { bold: true, size: 12 }), { align: AlignmentType.CENTER }),
+                                 { width: cwC[i + 1], fill: 'EBEBEB' }))
     ]
   });
 
   const tableC = new Table({
     width: { size: TOTAL_DXA, type: WidthType.DXA },
-    columnWidths: [2200, cW, cW, cW],
+    columnWidths: cwC,
     rows: [
-      cRow('', ['PREPARED BY', 'APPROVED BY', 'VERIFIED BY'], true, 'EBEBEB'),
-      cRow('', ['PERSONNEL', 'HOD', 'GROUP PEOPLE & GROUP FINANCE DIVISIONS'], true, 'EBEBEB'),
+      cHead('(C)', ['PREPARED BY', 'APPROVED BY', 'VERIFIED BY']),
+      cHead('', ['PERSONNEL', 'HOD', 'GROUP PEOPLE & GROUP FINANCE DIVISIONS']),
       new TableRow({ children: sigRowCells, height: { value: 900, rule: 'atLeast' } }),
       cRow('Name', [ts.prepName || C.name || '', ts.apprName || '', ts.verifName || ''], true),
       cRow('Date', [ts.prepDate || '', ts.apprDate || '', ts.verifDate || ''], false)
@@ -489,7 +526,7 @@ async function generateClaimDOCX (S) {
         sectionA,
         para(txt('(B)', { bold: true, size: 12 }), { before: 200, after: 60 }),
         tableB,
-        para(txt('(C)', { bold: true, size: 12 }), { before: 240, after: 60 }),
+        para(txt(''), { before: 340 }),      // the four empty rows before (C)
         tableC,
         para(txt('NOTES:', { bold: true, size: 11 }), { before: 240, after: 40 }),
         ...NOTES.map(n => para(txt(n, { size: 10 }), { after: 40 })),

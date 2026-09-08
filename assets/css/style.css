@@ -234,6 +234,9 @@ label.check input{width:auto}
 /* --- claim: section B grid --- */
 .uz-blabel{font-weight:700;font-size:11px;margin:16px 0 4px}
 .uz-tip{margin:0 0 8px;font-size:11px;color:var(--muted)}
+/* 3.7% of the sheet's width — four empty rows — stands between the grid and
+   section (C) on the printed form. */
+.uz-tip.mt{margin-top:40px}
 .uz-gridwrap{overflow-x:auto}
 .uz-grid{border-collapse:collapse;font-size:9px;width:100%;table-layout:fixed}
 .uz-grid th{border:1px solid #545454;font-size:6.8px;font-weight:700;padding:3px 1px;line-height:1.15;vertical-align:middle;text-align:center}
@@ -267,8 +270,10 @@ label.check input{width:auto}
 .uz-sign th,.uz-sign td{border:1px solid #545454;padding:4px 6px;text-align:center}
 .uz-sign thead th{background:#ebebeb;font-size:10px;font-weight:700}
 .uz-sign thead tr.sub th{font-size:9px}
-.uz-sign .rl{width:110px;text-align:left;font-weight:700;background:#fff}
-.uz-sign thead .rl{background:#ebebeb}
+/* 15.2% is the share of the sheet the label column takes on the printed
+   form, where it runs from the left margin to the PREPARED BY column. */
+.uz-sign .rl{width:15.2%;text-align:left;font-weight:700;background:#fff}
+.uz-sign thead .rl.mark{background:#fff;border:none;font-size:11px;padding-left:0}
 .uz-sign .sigrow td{height:86px;padding:4px;vertical-align:middle}
 .uz-notes{margin-top:16px;font-size:8.5px;line-height:1.5}
 .uz-notes b{font-size:9px}

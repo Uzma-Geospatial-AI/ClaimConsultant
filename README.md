@@ -257,7 +257,9 @@ fallbacks are approximations; use the official artwork for anything you actually
 ### Matching the printed sheet
 
 Every value below was read out of the reference PDF itself — its font table and its own
-drawing operators — rather than matched by eye:
+drawing operators — or out of the Excel workbook it is printed from, rather than matched by
+eye. The sheet prints to one scale in both directions, so a length taken from the workbook is
+carried over as a share of the content width and holds on our A4 landscape page too:
 
 | | Value | Where it came from |
 |---|---|---|
@@ -266,6 +268,15 @@ drawing operators — rather than matched by eye:
 | Arrow and footer rule | `#ED7D31` | Office's *Orange, Accent 2* |
 | Arrow size | 0.899 % × 0.909 % of the content width | 6.137 × 6.200 pt on a 682.32 pt sheet |
 | Footer rule | 0.585 pt wide, 2.657 % of the content width tall | a stroked line, not a bar |
+| Section C columns | 15.224 %, 27.458 %, 28.500 %, 28.817 % of the content width | the workbook's column breaks — C→K, K→Y, Y→AN, AN→BB |
+| Section C rows | 34, 34, 80.15, 30 and 30 pt on a 1655.25 pt sheet | its row heights, heading rows through Date |
+| Gap above Section C | 3.746 % of the content width | the four empty rows (62 pt) between the grid and (C) |
+| `Project Code` | no rule under it | its cell, AY15:BB15, is the one field on the form with no bottom border |
+
+Two of those are easy to get wrong by drawing what looks like a table. The label column is
+**open** beside the two heading rows — the box starts at `PREPARED BY`, and the space to its
+left is where the `(C)` marker sits, not a grey cell. And `Project Code` shares its line with
+the profit centres but carries no rule of its own.
 
 The Uzma wordmark is a separate matter: it is an image on the reference sheet, and its own
 orange is `#F26522` — a different colour from the form's `#ED7D31`. Both are correct; they are
@@ -509,6 +520,10 @@ ordinary fields on the Claim page: type over any of them when a different person
 (297 × 210). The vertical budget is tight — Section A, the day table, Section C, the notes and
 the footer all have to fit on one page. If you add a row, take the height from `secH` or the
 signature row rather than pushing the footer down.
+
+Section C is not free-hand: `C_EDGE`, `C_ROW` and `C_GAP` at the top of the file hold its
+column breaks, row heights and the gap above it as shares of the content width, straight from
+the workbook. Change those and the PDF and the Word copy move together.
 
 </details>
 
