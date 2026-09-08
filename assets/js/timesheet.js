@@ -4,11 +4,16 @@
    the balance. Day cells are clickable.
    ======================================================================= */
 
-const CYCLE = ['', '/', 'PH'];   // values a day cell cycles through when clicked
+/* Values a day cell cycles through when clicked. Only '/' is a day worked
+   and only '/' is counted into [A] — PH, AL and UL mark the day for whoever
+   reads the sheet without adding to the claim. */
+const CYCLE = ['', '/', 'PH', 'AL', 'UL'];
+const MARKS = { PH: 'ph', AL: 'al', UL: 'ul' };          // tick -> cell style
+const MARK_NAMES = { PH: 'Public Holiday', AL: 'Annual Leave', UL: 'Unpaid Leave' };
 
 /**
  * The value shown for one day, and the value exported to the documents.
- * A manual tick ('/' or 'PH') overrides the automatic weekend label.
+ * A manual tick ('/', 'PH', 'AL' or 'UL') overrides the weekend label.
  */
 function dayValue (ts, act, d) {
   const v = act.days[d];
@@ -149,10 +154,11 @@ function paintDay (td, ts, act, d) {
   const shown = dayValue(ts, act, d);
   td.className = 'c-day dcell';
   if (manual === '/') td.classList.add('work');
-  else if (manual === 'PH') td.classList.add('ph');
+  else if (MARKS[manual]) td.classList.add(MARKS[manual]);
   else if (shown === 'SAT' || shown === 'SUN') td.classList.add('we');
   td.textContent = manual || shown || '';
-  td.title = `${d} ${MONTHS[ts.month]} ${ts.year}` + (shown ? ` — ${shown}` : '') + '  (click to change)';
+  const what = MARK_NAMES[manual] || (manual === '/' ? 'worked' : shown);
+  td.title = `${d} ${MONTHS[ts.month]} ${ts.year}` + (what ? ` — ${what}` : '') + '  (click to change)';
 }
 
 function updateRow (tr, S, act) {
@@ -177,13 +183,26 @@ function updateRow (tr, S, act) {
 function renderSummary (S) {
   const t = timesheetTotals(S.timesheet);
   const ts = S.timesheet;
-  const ph = new Set();
-  ts.activities.forEach(a => Object.keys(a.days).forEach(d => { if (a.days[d] === 'PH') ph.add(Number(d)); }));
+
+  /** the days carrying one mark, across every activity row */
+  const marked = mark => {
+    const days = new Set();
+    ts.activities.forEach(a => Object.keys(a.days).forEach(d => {
+      if (a.days[d] === mark) days.add(Number(d));
+    }));
+    return [...days].sort((x, y) => x - y);
+  };
+
+  // PH is always worth a line; leave only earns one when it is on the sheet
+  const ph = marked('PH'), al = marked('AL'), ul = marked('UL');
+  const line = (label, days, always) =>
+    (days.length || always) ? `<div>${label}<b>${days.join(', ') || '—'}</b></div>` : '';
+
   document.getElementById('tsSummary').innerHTML = `
     <div>Month<b>${MONTHS[ts.month]} ${ts.year}</b></div>
     <div>Total Days [A]<b>${t.A}</b></div>
     <div>Allocated [B]<b>${t.B}</b></div>
     <div>Past Claim [C]<b>${t.C}</b></div>
     <div>Balance<b>${t.balance}</b></div>
-    <div>Public Holiday<b>${ph.size ? [...ph].sort((x, y) => x - y).join(', ') : '—'}</b></div>`;
+    ${line('Public Holiday', ph, true)}${line('Annual Leave', al)}${line('Unpaid Leave', ul)}`;
 }

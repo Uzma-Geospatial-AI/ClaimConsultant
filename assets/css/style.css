@@ -256,6 +256,9 @@ label.check input{width:auto}
 .dcell.we{background:#eef1f4;color:#8b98a4;font-size:7px}
 .dcell.work{background:#e6f5ec;color:var(--ok)}
 .dcell.ph{background:var(--orange-soft);color:var(--orange);font-size:7.5px}
+/* leave is not a day worked, so it reads apart from both the ticks and PH */
+.dcell.al{background:#e9f0fa;color:#2f6fd0;font-size:7.5px}
+.dcell.ul{background:#f1ecf9;color:#7048c4;font-size:7.5px}
 .uz-grid tr.totalrow td{font-weight:700;background:#f4f6f8}
 .rowdel{border:none;background:#fdeaea;color:var(--danger);border-radius:5px;width:20px;height:20px;cursor:pointer;font-size:13px;line-height:1;font-family:inherit}
 

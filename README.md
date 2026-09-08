@@ -122,7 +122,7 @@ unless you have already ticked days, in which case your ticks win.
 | 🧭 **Guided, branching flow** | Fill your details once, then pick **A** (Invoice), **B** (Claim) or **both** — the remaining steps rearrange so you only ever see the document you asked for |
 | 📄 **You fill the real document** | Steps 3 and 4 are pixel-shaped copies of the invoice and the Uzma time sheet, so every value is typed exactly where it prints |
 | 💡 **A hint in every box** | Each blank carries an example of what belongs in it, and optional fields say so outright |
-| 📅 **Tickable day grid** | Section B is the real 31-column table — click a cell to cycle `blank → / → PH`; Saturdays and Sundays label themselves from the calendar |
+| 📅 **Tickable day grid** | Section B is the real 31-column table — click a cell to cycle `blank → / → PH → AL → UL`; Saturdays and Sundays label themselves from the calendar. `/` is a day worked and the only mark counted into TOTAL DAYS [A]; `PH`, `AL` (annual leave) and `UL` (unpaid leave) say why a day is not claimed |
 | 🧮 **Three ways to price a period** | Monthly rate prorated by calendar days, daily rate × days ticked, or a fixed amount you type yourself — the live formula shows its working |
 | ✍️ **Sign in the signature box** | The three pads (Personnel, HOD, Verified By) sit inside Section C where the pen would go; blank space around the stroke is trimmed before it is embedded |
 | 🖋️ **Approval block starts filled** | Section C opens with the usual names and today's date already in place — every one is a normal field, so type over it when somebody else signs |

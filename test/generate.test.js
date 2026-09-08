@@ -126,12 +126,15 @@ vm.runInContext(`
   S.timesheet.activities[0].name = 'Developing Platform (August 2026)';
   [24, 26, 27, 28].forEach(d => S.timesheet.activities[0].days[d] = '/');
   [25, 31].forEach(d => S.timesheet.activities[0].days[d] = 'PH');
+  S.timesheet.activities[0].days[20] = 'AL';    // annual leave
+  S.timesheet.activities[0].days[21] = 'UL';    // unpaid leave
   S.timesheet.prepName = 'Ahmad bin Abdullah';
   S.timesheet.prepDate = '26.8.2026';
   S.invoice.items = [];
   globalThis.__S = S;
   globalThis.__calc = computeAmount(S);
   globalThis.__tot = timesheetTotals(S.timesheet);
+  globalThis.__al  = dayValue(S.timesheet, S.timesheet.activities[0], 20);
   globalThis.__sat = dayValue(S.timesheet, S.timesheet.activities[0], 29);
   globalThis.__sun = dayValue(S.timesheet, S.timesheet.activities[0], 30);
 `, ctx);
@@ -142,7 +145,10 @@ vm.runInContext(`
   console.log('\nCalculations');
   // RM 3500 / 31 days in August x 8 calendar days (24-31) = RM 903.23
   check('invoice amount (RM)', ctx.__calc.amount, 903.23);
-  check('TOTAL DAYS [A]', ctx.__tot.A, 4);
+  // 20 and 21 August are marked AL and UL: leave says why a day is not
+  // claimed, so it must stay out of [A] the way PH does
+  check('TOTAL DAYS [A] counts only the ticks', ctx.__tot.A, 4);
+  check('20 Aug 2026 leave mark', ctx.__al, 'AL');
   check('BALANCE [B-(A+C)]', ctx.__tot.balance, -4);
   check('29 Aug 2026 auto-label', ctx.__sat, 'SAT');
   check('30 Aug 2026 auto-label', ctx.__sun, 'SUN');
