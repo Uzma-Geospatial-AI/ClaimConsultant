@@ -57,7 +57,11 @@ function fakeToken (expSeconds) {
 }
 
 let nextResponse = null;               // what the fake BDOS replies with
-const fetch = async () => {
+let lastBody = null;
+const lastLoginBody = () => lastBody;
+
+const fetch = async (url, opts) => {
+  lastBody = opts && opts.body ? JSON.parse(opts.body) : null;
   if (nextResponse instanceof Error) throw nextResponse;
   const r = nextResponse;
   return {
@@ -128,8 +132,8 @@ const run = expr => vm.runInContext(expr, ctx);
     () => login('stranger@example.com', 'whatever'), 'not on the list');
 
   nextResponse = { status: 401, body: { detail: 'Email or password is incorrect' } };
-  await checkThrows('BDOS rejecting the password is reported plainly',
-    () => login('adlishah0821@gmail.com', 'wrong'), 'Wrong email or password');
+  await checkThrows('a 401 is reported as BDOS refusing the pair',
+    () => login('adlishah0821@gmail.com', 'wrong'), 'BDOS did not accept');
 
   // The allow-list is applied again to whatever BDOS says the account is,
   // so a mismatched or redirected identity cannot walk in.
@@ -149,8 +153,10 @@ const run = expr => vm.runInContext(expr, ctx);
     status: 200,
     body: { token: ctx.freshToken, user: { uid: 'u1', email: 'adlishah0821@gmail.com', name: 'Adlishah Hakimi' } }
   };
-  const user = await login('adlishah0821@gmail.com', 'right');
+  const user = await login('  Adlishah0821@Gmail.com ', 'right');
   check('a good sign-in returns the user', user.name, 'Adlishah Hakimi');
+  check('the address reaches BDOS as typed, only trimmed',
+    lastLoginBody().email, 'Adlishah0821@Gmail.com');
   check('the token is kept for next time', run(`localStorage.getItem('ccs.token')`), ctx.freshToken);
 
   console.log('\nOpening the app again');
@@ -159,11 +165,16 @@ const run = expr => vm.runInContext(expr, ctx);
   // a server. That is the whole reason the gate does not block on the network.
   ctx.navigator.onLine = false;
   dom = fakeDom();
-  run('unlocked = false; startAuth(() => { unlocked = true; })');
+  run('starts = 0; unlocked = false; startAuth(() => { unlocked = true; starts = starts + 1; })');
   check('a stored session opens the app offline', run('unlocked'), true);
   check('the gate stays out of the way',          run('document.getElementById("authGate").hidden'), true);
   check('the app is unlocked',                    dom.locked(), false);
   check('the top bar names who is signed in',     run('document.getElementById("authWho").textContent'), 'Adlishah Hakimi');
+
+  // A second unlock — a double-clicked Sign in, or a stray second call —
+  // must not start the app again: every button would end up bound twice.
+  run('startAuth(() => { starts = starts + 1; })');
+  check('the app is only ever started once', run('starts'), 1);
 
   // A token past its 30 days is not worth trying: ask for the password again.
   dom = fakeDom();

@@ -89,22 +89,27 @@ async function bdosError (res, fallback) {
 }
 
 async function bdosLogin (email, password) {
-  const addr = normEmail(email);
-  if (!addr || !password) throw new Error('Enter your email and password.');
-  if (!isAllowed(addr)) throw new Error('That account is not on the list for this app.');
+  const typed = String(email || '').trim();
+  if (!typed || !password) throw new Error('Enter your email and password.');
+  if (!isAllowed(typed)) throw new Error('That account is not on the list for this app.');
 
   let res;
   try {
     res = await fetch(BDOS_BASE + '/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: addr, password: password })
+      body: JSON.stringify({ email: typed, password: password })
     });
   } catch (err) {
     throw new Error('Cannot reach BDOS. Check your internet connection and try again.');
   }
 
-  if (res.status === 401) throw new Error('Wrong email or password.');
+  if (res.status === 401) {
+    console.info('BDOS refused the sign-in for ' + typed +
+                 '. It answers 401 both for a wrong password and for an address it has ' +
+                 'never heard of, so check with a BDOS admin that this account exists.');
+    throw new Error('BDOS did not accept that email and password.');
+  }
   if (!res.ok) throw await bdosError(res, 'Sign-in failed. Please try again.');
 
   const data = await res.json();
@@ -175,11 +180,18 @@ function paintWho (user) {
   if (out) out.hidden = false;
 }
 
+let started = false;
+
 function unlockApp (user, onUnlock) {
   const gate = document.getElementById('authGate');
   if (gate) gate.hidden = true;
   document.body.classList.remove('locked');
   paintWho(user);
+
+  // Once only. A second run would bind every button's handler a second time,
+  // and the app would answer each click twice.
+  if (started) return;
+  started = true;
   onUnlock();
 }
 
