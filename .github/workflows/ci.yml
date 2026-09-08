@@ -37,7 +37,8 @@ jobs:
         run: |
           missing=0
           for f in jspdf.umd.min.js jspdf.plugin.autotable.min.js exceljs.min.js \
-                   FileSaver.min.js signature_pad.umd.min.js docx.umd.js \n                   carlito.js Carlito-OFL.txt; do
+                   FileSaver.min.js signature_pad.umd.min.js docx.umd.js \
+                   carlito.js Carlito-OFL.txt; do
             if [ -s "vendor/$f" ]; then
               echo "ok  vendor/$f ($(wc -c < "vendor/$f") bytes)"
             else
