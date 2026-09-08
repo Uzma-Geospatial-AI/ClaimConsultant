@@ -191,6 +191,23 @@ const run = expr => vm.runInContext(expr, ctx);
   run('unlocked = false; startAuth(() => { unlocked = true; })');
   check('a removed account cannot resume', run('unlocked'), false);
 
+  // ---------------------------------------------------------------------
+  // Two things no stubbed DOM can catch, because they are not JavaScript.
+  // Both shipped broken once: the gate stayed on screen over the unlocked
+  // app, and the form fell back to a native GET that put the password in
+  // the URL.
+  // ---------------------------------------------------------------------
+  console.log('\nThe page itself');
+  const css  = fs.readFileSync(path.join(ROOT, 'assets/css/style.css'), 'utf8');
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+
+  check('.authgate sets display, so it must also answer to [hidden]',
+    /\.authgate\[hidden\]\s*{[^}]*display\s*:\s*none/.test(css), true);
+  check('the sign-in form cannot submit natively',
+    /id="authForm"[^>]*onsubmit="return false"/.test(html), true);
+  check('the password box is a password box',
+    /id="authPassword"[^>]*type="password"|type="password"[^>]*id="authPassword"/.test(html), true);
+
   console.log('\nSigning out');
   ctx.navigator.onLine = true;
   dom = fakeDom();

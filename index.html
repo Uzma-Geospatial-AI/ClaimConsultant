@@ -10,7 +10,10 @@
 
 <!-- ============ SIGN IN ============ -->
 <div class="authgate" id="authGate">
-  <form class="auth-card" id="authForm" autocomplete="on">
+  <!-- onsubmit="return false" is the safety net: if the script that handles this
+     form ever fails to bind, the browser must not fall back to submitting it,
+     which would put the password in the URL and in the server log. -->
+  <form class="auth-card" id="authForm" autocomplete="on" onsubmit="return false">
     <div class="auth-mark"><span class="gw-main">G<span class="gw-eo">[EO]</span>SPATIAL<span class="gw-ai">AI</span></span></div>
     <h1>Consultant Claim System</h1>
     <p class="auth-lead">Sign in with your <b>BDOS</b> account to continue.</p>
