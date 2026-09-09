@@ -78,6 +78,13 @@ body{
 }
 .prow .picon:hover{background:#dde5ec;color:var(--navy)}
 .prow .pdel:hover{background:#fdeaea;color:var(--danger)}
+.profilemenu .padd{
+  display:block;width:100%;text-align:left;border:none;background:none;cursor:pointer;
+  font-family:inherit;font-size:13px;font-weight:600;color:var(--navy);
+  padding:9px 8px;border-radius:6px;
+}
+.profilemenu .padd.sep{border-top:1px solid var(--line);border-radius:0 0 6px 6px;margin-top:5px;padding-top:11px}
+.profilemenu .padd:hover{background:#eef2f6}
 
 /* ---------- stepper ---------- */
 .stepper{

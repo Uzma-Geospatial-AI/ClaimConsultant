@@ -704,6 +704,24 @@ function editProfile (name) {
   toast(`Editing "${name}" — press Save changes when you are done.`);
 }
 
+/**
+ * Start a fresh set of details. The profile itself appears in the list once
+ * it is saved a name, which is also when it stops being able to be
+ * abandoned by mistake — an empty profile is never left lying in the list.
+ */
+function newProfile () {
+  if (!confirm('Start a new profile?\n\nThe form open right now is cleared. Saved profiles are not touched.')) return;
+  S = defaultState();
+  fillDefaultsForMonth();
+  activeProfile = '';
+  stepIndex = 0;
+  renderAll();
+  persist();
+  openProfiles(false);
+  refreshProfileList();
+  toast('New profile — fill in the details, then press Save Profile.');
+}
+
 function removeProfile (name) {
   if (!confirm(`Delete the profile "${name}"?
 
@@ -739,9 +757,8 @@ function refreshProfileList () {
   if (!names.length) {
     const empty = document.createElement('div');
     empty.className = 'empty';
-    empty.textContent = 'No profiles saved yet — fill the form in and press Save Profile.';
+    empty.textContent = 'No profiles saved yet.';
     menu.appendChild(empty);
-    return;
   }
 
   names.forEach(name => {
@@ -756,21 +773,22 @@ function refreshProfileList () {
     open.title = `Open "${name}" and edit its details`;
     open.addEventListener('click', () => editProfile(name));
 
-    const edit = document.createElement('button');
-    edit.className = 'picon pedit';
-    edit.textContent = 'Edit';
-    edit.title = `Edit the details saved in "${name}"`;
-    edit.addEventListener('click', () => editProfile(name));
-
     const del = document.createElement('button');
     del.className = 'picon pdel';
     del.textContent = 'Delete';
     del.title = `Delete "${name}"`;
     del.addEventListener('click', () => removeProfile(name));
 
-    row.append(open, edit, del);
+    row.append(open, del);
     menu.appendChild(row);
   });
+
+  const add = document.createElement('button');
+  add.className = 'padd' + (names.length ? ' sep' : '');
+  add.textContent = '+  Add new profile';
+  add.title = 'Clear the form and start another set of details';
+  add.addEventListener('click', newProfile);
+  menu.appendChild(add);
 }
 
 /* The app lives behind the BDOS sign-in gate — boot() runs once it opens. */

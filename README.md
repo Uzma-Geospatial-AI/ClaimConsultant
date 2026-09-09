@@ -130,7 +130,7 @@ unless you have already ticked days, in which case your ticks win.
 | 👁️ **View before you download** | **View PDF** renders the finished document in the browser's own PDF viewer &mdash; check it, then download from inside the viewer or close and keep editing. Nothing reaches the disk until you say so |
 | 🗂️ **Multiple activity rows** | Eight rows like the original form, each with its own Job ID, allocated days and past claim |
 | 📊 **Totals that add up** | `TOTAL DAYS [A]`, `ALLOCATED [B]`, `PAST CLAIM [C]` and `BALANCE [B-(A+C)]` are computed per row and in aggregate |
-| 💾 **Autosave + profiles** | Everything persists to `localStorage`; save one profile per consultant and switch between them. The profile list gives every profile its own row &mdash; **Edit** opens that profile's details in the form, **Delete** removes that one |
+| 💾 **Autosave + profiles** | Everything persists to `localStorage`; save one profile per consultant and switch between them. The profile list gives every profile its own row &mdash; the name opens that profile's details in the form, **Delete** removes that one, and **+ Add new profile** clears the form for another consultant |
 | 📤 **Export / Import JSON** | Real backups you can move between machines — the only way data leaves the browser |
 | 🧨 **Reset All** | Two-step confirmation, then every stored key is wiped and the app is empty again |
 | 📱 **Responsive** | Collapses to a single column below 840px; the day grid wraps instead of scrolling |
