@@ -59,8 +59,8 @@ check('the menu is in the page', /id="profileMenu"/.test(html), true);
 check('its rows are built as text, never innerHTML',
   /menu\.innerHTML\s*=\s*['"]{2}/.test(appjs) &&
   !/prow[\s\S]{0,400}innerHTML\s*=\s*`/.test(appjs), true);
-check('a row can rename and delete its own profile',
-  /editProfileName\(name\)/.test(appjs) && /removeProfile\(name\)/.test(appjs), true);
+check('a row can edit and delete its own profile',
+  /editProfile\(name\)/.test(appjs) && /removeProfile\(name\)/.test(appjs), true);
 
 /* -----------------------------------------------------------------------
    Credentials must never be able to leave in a URL. If the script that

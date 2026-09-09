@@ -686,40 +686,22 @@ function openProfiles (open) {
   btn.setAttribute('aria-expanded', String(!!open));
 }
 
-/** open a profile into the form */
-function loadProfile (name) {
+/**
+ * Open a profile into the form, at Your Details. This is what editing one
+ * means: its details are the form, so they are edited by filling the form
+ * in, and Save Profile puts them back under the same name.
+ */
+function editProfile (name) {
   const p = Store.profiles()[name];
   if (!p) { toast(`Profile "${name}" is no longer there.`, true); refreshProfileList(); return; }
   S = mergeDefaults(p);
   activeProfile = name;
-  stepIndex = 0;
+  stepIndex = 0;                       // Your Details, which is what is being edited
   renderAll();
   persist();
   openProfiles(false);
   refreshProfileList();
-  toast(`Profile "${name}" loaded.`);
-}
-
-/** give a profile another name, keeping everything saved under it */
-function editProfileName (name) {
-  const typed = prompt(`Rename the profile "${name}" to:`, name);
-  if (typed === null) return;
-  const to = typed.trim();
-  if (!to || to === name) return;
-
-  const data = Store.profiles()[name];
-  if (Store.profiles()[to] !== undefined &&
-      !confirm(`A profile called "${to}" already exists. Replace it?`)) return;
-  if (!Store.renameProfile(name, to)) {
-    toast('Could not rename the profile (storage full?).', true);
-    return;
-  }
-  // the shared copy is keyed by name, so it is a new one plus the old removed
-  Sync.pushProfile(to, data);
-  Sync.deleteProfile(name);
-  if (activeProfile === name) activeProfile = to;
-  refreshProfileList();
-  toast(`Renamed to "${to}".`);
+  toast(`Editing "${name}" — press Save changes when you are done.`);
 }
 
 function removeProfile (name) {
@@ -739,6 +721,18 @@ function refreshProfileList () {
   const names = Object.keys(Store.profiles()).sort();
 
   if (label) label.textContent = activeProfile || '— Select a profile —';
+
+  /* With a profile open, saving goes back to it — the button says so, and
+     keeps its ellipsis because it still asks for the name, which is the one
+     chance to save the changes as a separate profile instead. */
+  const save = document.getElementById('btnSaveProfile');
+  if (save) {
+    save.textContent = activeProfile ? 'Save changes…' : 'Save Profile';
+    save.title = activeProfile
+      ? `Save what is in the form back to "${activeProfile}"`
+      : 'Save what is in the form as a profile';
+  }
+
   if (!menu) return;
   menu.innerHTML = '';
 
@@ -759,14 +753,14 @@ function refreshProfileList () {
     const open = document.createElement('button');
     open.className = 'pload';
     open.textContent = name;
-    open.title = `Open "${name}"`;
-    open.addEventListener('click', () => loadProfile(name));
+    open.title = `Open "${name}" and edit its details`;
+    open.addEventListener('click', () => editProfile(name));
 
     const edit = document.createElement('button');
     edit.className = 'picon pedit';
     edit.textContent = 'Edit';
-    edit.title = `Rename "${name}"`;
-    edit.addEventListener('click', () => editProfileName(name));
+    edit.title = `Edit the details saved in "${name}"`;
+    edit.addEventListener('click', () => editProfile(name));
 
     const del = document.createElement('button');
     del.className = 'picon pdel';
