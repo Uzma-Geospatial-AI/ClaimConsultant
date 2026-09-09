@@ -1,13 +1,18 @@
-# Request to the BDOS team — storage endpoints for the Consultant Claim System
+# Storage endpoints for the Consultant Claim System
 
-The Consultant Claim System (CCS) signs its two users in against the BDOS auth API and now needs
-somewhere durable to keep their work. CCS is a static browser app: it has no server of its own and
-cannot hold a database credential, so it is asking BDOS to own the storage and expose it over the
-same authenticated HTTPS API the sign-in already uses.
+> **Status — implemented.** These routes live in the BDOS repository
+> (`Uzma-Geospatial-AI/bdos`, `backend/app.py`, the *Consultant Claim System storage* section),
+> with `backend/test_ccs.py` covering them. This document is now the contract between the two
+> repositories rather than a request: change one side and this page says what the other expects.
 
-This document specifies the six endpoints CCS needs, the table shapes behind them, and the access
-rule that has to be enforced server-side. It follows the conventions already set by the *BDOS
-Authentication API Integration Guide*: `Bearer` tokens, JSON bodies, `{ "detail": "…" }` on error.
+The Consultant Claim System (CCS) signs its users in against the BDOS auth API and needs somewhere
+durable to keep their work. CCS is a static browser app: it has no server of its own and cannot
+hold a database credential, so BDOS owns the storage and exposes it over the same authenticated
+HTTPS API the sign-in already uses.
+
+This document specifies the six endpoints, the table shapes behind them, and the access rule that
+is enforced server-side. It follows the conventions already set by the *BDOS Authentication API
+Integration Guide*: `Bearer` tokens, JSON bodies, `{ "detail": "…" }` on error.
 
 - **Base URL** — `https://bdos.uzmadigitalearth.app`
 - **Auth** — every endpoint below requires `Authorization: Bearer <token>`; none are public
@@ -19,20 +24,26 @@ Authentication API Integration Guide*: `Bearer` tokens, JSON bodies, `{ "detail"
 
 ## 1 · The access rule (please enforce here)
 
-CCS is used by exactly two accounts:
+CCS is used by exactly three accounts:
 
 ```
 adlishah0821@gmail.com
+nuramilazulfa@gmail.com
 hanis.rashidan@uzmagroup.com
 ```
+
+BDOS reads the list from the `CCS_EMAILS` environment variable and falls back to those three, so
+adding or removing somebody is an environment change and a restart — no code edit.
 
 The browser app already checks this list, **but that check cannot be trusted** — it is JavaScript
 the user's own browser runs, and anybody can edit it. It is there to explain the door, not to lock
 it. Please apply the same allow-list server-side on every `/ccs/*` route and return `403` for any
 other valid BDOS token. That is the only place the rule actually holds.
 
-If a third person is ever added, the list changes in both places: here, and in
-`assets/js/auth.js` in the CCS repository.
+The list also lives in `assets/js/auth.js` in the CCS repository, where it decides what the sign-in
+page says. When somebody is added or removed, both change — but only this one is a lock. Being a
+BDOS admin does not grant access here: these rows carry an IC number and a bank account, so the
+list is the list.
 
 | Situation | Expected response |
 |---|---|
@@ -48,12 +59,19 @@ This matters for the `WHERE` clauses, so it is worth stating plainly:
 
 | Data | Visibility | Why |
 |---|---|---|
-| **Profiles** | shared between the two accounts | A consultant's details are reference data both people work from |
-| **Claims history** | shared between the two accounts | The point is that both can see what has been submitted |
-| **Draft** | private to each `uid` | It is the half-finished form on somebody's screen, not a record |
+| **Profiles** | shared | A consultant's details are reference data all three work from |
+| **Claims history** | shared | The point is that everyone can see what has been submitted |
+| **Draft** | shared — one row | The three of them work on one claim at a time, and picking it up on another machine is the reason this storage exists |
 
-The token's `uid` claim identifies the caller; please take it from the verified token rather than
-from anything in the request body.
+Everything is one set of rows: whoever signs in, on whichever machine, sees the same work. Nothing
+is keyed by `uid`. The caller's email is still recorded on every write — `updated_by` on a profile
+and the draft, `created_by` on a claim — so it is always visible who last touched something.
+
+The one thing this costs: two people editing at the same moment overwrite each other, last write
+wins. CCS pushes the draft at most once every five seconds and asks before replacing a form on
+screen with a newer one from the database, which is enough for three people who are not filling in
+the same claim simultaneously. If that ever stops being true, keying the draft by `uid` is a
+`WHERE` clause.
 
 ---
 
@@ -98,7 +116,7 @@ Errors: `400` if `name` is empty or `data` is not an object · `404` on delete o
 
 ### Draft — the form currently open
 
-One row per user, overwritten as they type. CCS sends it at most once every few seconds, not on
+One row, shared, overwritten as anybody types. CCS sends it at most once every few seconds, not on
 every keystroke.
 
 ```
@@ -108,8 +126,13 @@ PUT /ccs/draft     → { "ok": true, "updated_at": "…" }
 
 **`PUT /ccs/draft`** body: `{ "data": { … } }`
 
-`GET` must return `{ "draft": null }` (200, not 404) when the user has never saved one — CCS reads
-a null draft as "nothing to restore" and keeps what is in the browser.
+`GET` must return `{ "draft": null }` (200, not 404) when nothing has been saved yet — CCS reads a
+null draft as "nothing to restore" and keeps what is in the browser. A 404 reads as "the endpoint
+is missing" and switches syncing off for the session, which is the opposite of what an empty
+database should do.
+
+The draft also carries `updated_by`, the email of whoever last saved it, so the app can say whose
+work it is about to load.
 
 ### Claims history
 
@@ -146,8 +169,10 @@ Errors: `400` on a missing `consultant` or a non-numeric `amount`.
 
 ## 4 · Suggested schema for `cradle`
 
-Written as it would be applied. Adjust naming to match BDOS house style — CCS depends on the JSON
-above, not on these column names.
+Written as it would be applied. BDOS keeps to its own house style instead — flat `ccs_*` tables
+that self-create on boot, `TEXT` ids from its own id generator, and epoch-millisecond `BIGINT`
+timestamps rendered as the ISO strings below on the way out. CCS depends on the JSON above, not on
+these column names.
 
 ```sql
 CREATE SCHEMA IF NOT EXISTS ccs;
@@ -163,10 +188,11 @@ CREATE TABLE ccs.profiles (
   updated_at  timestamptz NOT NULL DEFAULT now()
 );
 
--- Private: one in-progress form per user.
+-- Shared: the one in-progress form.
 CREATE TABLE ccs.drafts (
-  uid         text        PRIMARY KEY,
+  id          text        PRIMARY KEY,   -- always 'shared'
   data        jsonb       NOT NULL,
+  updated_by  text,
   updated_at  timestamptz NOT NULL DEFAULT now()
 );
 

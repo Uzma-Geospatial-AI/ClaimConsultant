@@ -1,7 +1,7 @@
 /* =======================================================================
    auth.js — the BDOS sign-in gate
 
-   Only two people use this app, so the door is a BDOS account
+   Only three people use this app, so the door is a BDOS account
    (https://bdos.uzmadigitalearth.app) plus the allow-list below.
 
    BDOS issues a stateless JWT that lasts 30 days. We keep it in
@@ -11,7 +11,9 @@
    What this gate is NOT: a security boundary. Everything it hides is HTML
    and JavaScript the browser has already downloaded, and anyone can open
    the folder directly. Read it as "who is at the keyboard, and are they
-   meant to be here" — not as a lock on the documents.
+   meant to be here" — not as a lock on the documents. The lock is the same
+   list on the BDOS side, which decides who the stored work is handed to;
+   this one only decides what the sign-in page says.
    ======================================================================= */
 
 const BDOS_BASE = 'https://bdos.uzmadigitalearth.app';
@@ -19,6 +21,7 @@ const BDOS_BASE = 'https://bdos.uzmadigitalearth.app';
 /** The only accounts allowed in. Compared lower-case and trimmed. */
 const ALLOWED_USERS = [
   'adlishah0821@gmail.com',
+  'nuramilazulfa@gmail.com',
   'hanis.rashidan@uzmagroup.com'
 ];
 

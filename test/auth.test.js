@@ -109,11 +109,12 @@ const run = expr => vm.runInContext(expr, ctx);
 (async () => {
   console.log('\nThe allow-list');
   check('the owner is allowed',        run("isAllowed('adlishah0821@gmail.com')"), true);
-  check('the second account allowed',  run("isAllowed('hanis.rashidan@uzmagroup.com')"), true);
+  check('the second account allowed',  run("isAllowed('nuramilazulfa@gmail.com')"), true);
+  check('the third account allowed',   run("isAllowed('hanis.rashidan@uzmagroup.com')"), true);
   check('case and spaces ignored',     run("isAllowed('  Hanis.Rashidan@UzmaGroup.com ')"), true);
   check('any other BDOS user refused', run("isAllowed('someone.else@uzmagroup.com')"), false);
   check('empty refused',               run("isAllowed('')"), false);
-  check('exactly two accounts listed', run('ALLOWED_USERS.length'), 2);
+  check('exactly three accounts listed', run('ALLOWED_USERS.length'), 3);
 
   console.log('\nToken expiry');
   ctx.freshToken   = fakeToken(Math.floor(Date.now() / 1000) + 3600);

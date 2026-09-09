@@ -65,7 +65,8 @@ function isBlankForm (S) {
 }
 
 /* -----------------------------------------------------------------------
-   Draft — the form currently open, private to each user
+   Draft — the form currently open. One row, shared: picking it up on
+   another machine is the whole reason this file exists.
    ----------------------------------------------------------------------- */
 async function pullDraft () {
   const body = await ccsFetch('/draft', { method: 'GET' });
@@ -98,7 +99,7 @@ function pushDraft (S) {
 }
 
 /* -----------------------------------------------------------------------
-   Profiles — shared between the two accounts
+   Profiles — shared by every account that can sign in
    ----------------------------------------------------------------------- */
 async function pullProfiles () {
   const body = await ccsFetch('/profiles', { method: 'GET' });
@@ -241,7 +242,8 @@ async function initSync (S, adopt) {
       result.adopted = true;
     } else if (mine && draft.updated_at && draft.updated_at > mine) {
       const when = new Date(draft.updated_at).toLocaleString();
-      if (confirm('A newer draft was saved from another device on ' + when + '.\n\nLoad it? Your current form will be replaced.')) {
+      const who = draft.updated_by ? ' by ' + draft.updated_by : '';
+      if (confirm('A newer draft was saved' + who + ' on ' + when + '.\n\nLoad it? Your current form will be replaced.')) {
         adopt(mergeDefaults(draft.data));
         result.adopted = true;
       }

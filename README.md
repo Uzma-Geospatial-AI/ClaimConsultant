@@ -47,13 +47,14 @@ Uzma footer.
 
 ## Signing In
 
-The app is for two people, so the door is a **BDOS** account
-(`https://bdos.uzmadigitalearth.app`) plus a two-name allow-list in
+The app is for three people, so the door is a **BDOS** account
+(`https://bdos.uzmadigitalearth.app`) plus a three-name allow-list in
 [`assets/js/auth.js`](assets/js/auth.js):
 
 ```js
 const ALLOWED_USERS = [
   'adlishah0821@gmail.com',
+  'nuramilazulfa@gmail.com',
   'hanis.rashidan@uzmagroup.com'
 ];
 ```
@@ -357,26 +358,27 @@ Worth knowing:
 
 ### The shared database
 
-Beyond the browser, the app is written to keep three things in the **`cradle`** PostgreSQL
-database &mdash; **shared profiles**, **the draft you have open**, and **a history of every claim
-generated** &mdash; so the two accounts see each other's work and nothing is lost when a browser
-is cleared.
+Beyond the browser, the app keeps three things in the **`cradle`** PostgreSQL database &mdash;
+**profiles**, **the draft that is open**, and **a history of every claim generated**. All three
+are one shared set of rows, so signing in on another laptop brings the work with you and nothing
+is lost when a browser is cleared.
 
 A browser cannot speak to PostgreSQL: it is a TCP wire protocol, not HTTP, and a public static
 app could not be trusted with the password anyway. So the database stays behind BDOS, which
 already authenticates these users, and the app reaches it over the same API as the sign-in.
-The endpoints this needs are specified in
-[`docs/BDOS-CCS-Endpoints.md`](docs/BDOS-CCS-Endpoints.md) &mdash; six routes under `/ccs/`, the
-table shapes behind them, and the server-side allow-list that has to be enforced there rather
-than here.
+Those endpoints live in the BDOS repository (`backend/app.py`, the *Consultant Claim System
+storage* section) and are specified in [`docs/BDOS-CCS-Endpoints.md`](docs/BDOS-CCS-Endpoints.md)
+&mdash; six routes under `/ccs/`, the tables behind them, and the allow-list that is enforced
+there rather than here, because a check written in JavaScript is a check the reader can edit.
 
 | Data | Where | Who sees it |
 |---|---|---|
-| Profiles | `ccs.profiles` | both accounts |
-| The open draft | `ccs.drafts` | just you |
-| Generated claims | `ccs.claims` | both accounts |
+| Profiles | `ccs_profiles` | all three accounts |
+| The open draft | `ccs_drafts` | all three accounts — one row |
+| Generated claims | `ccs_claims` | all three accounts |
 
-**Until BDOS deploys those routes, none of this is on.** [`sync.js`](assets/js/sync.js) probes
+**Until a BDOS build carrying those routes is deployed, none of this is on.**
+[`sync.js`](assets/js/sync.js) probes
 once at sign-in; a `404`, a `403` or an unreachable server turns syncing off for the session
 without a word, and the app saves to `localStorage` exactly as it always has. That is also what
 happens on a plane. Nothing in the app ever waits on a sync response, so a slow or broken
@@ -385,7 +387,8 @@ database cannot interrupt somebody filling in a form.
 When a draft is found in the database, it is adopted only when it cannot cost you anything:
 silently if the form on screen is untouched, and otherwise only after asking, and only when the
 stored draft is demonstrably newer than the last one this browser sent up. Work on your screen
-wins by default.
+wins by default. Because the draft is shared, the question names whoever saved it &mdash; it may
+be one of the other two rather than your own other laptop.
 
 ---
 
@@ -458,9 +461,14 @@ The list is one array at the top of `assets/js/auth.js`:
 ```js
 const ALLOWED_USERS = [
   'adlishah0821@gmail.com',
+  'nuramilazulfa@gmail.com',
   'hanis.rashidan@uzmagroup.com'
 ];
 ```
+
+That array only decides what the sign-in page says. The list that actually holds is BDOS's
+`CCS_EMAILS`, checked on every `/ccs/*` request, and both have to change together &mdash; see
+[`docs/BDOS-CCS-Endpoints.md`](docs/BDOS-CCS-Endpoints.md).
 
 Addresses are compared lower-case and trimmed, so case and stray spaces do not matter. Anyone
 added here still needs a BDOS account — registration is invite-only, so ask a BDOS
