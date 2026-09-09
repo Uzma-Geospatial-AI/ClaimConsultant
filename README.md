@@ -239,6 +239,12 @@ drift out of step with the formula. Switch to **Fixed amount** to type your own.
 Long values wrap rather than collide: an address wider than its column continues on the next
 line and pushes the block down, instead of running into the Period column beside it.
 
+The address is typed as two lines because it prints as two, so **Address (Line 1)** holds only
+what the invoice can print on one — 66 mm, which is 46 characters at the 8.5 pt the invoice is
+set in, measured with the PDF's own metrics. Type past that and the overflow moves to the front
+of line 2 with the caret, breaking between words and never inside one, so you carry on typing
+where the words went. `splitAddressLines()` in `state.js` holds the rule.
+
 ---
 
 ## Branding & Logos

@@ -195,6 +195,30 @@ function mirror (path, source) {
   });
 }
 
+/**
+ * Keep the consultant's address line 1 inside what the invoice prints. What
+ * will not fit moves to the front of line 2, and the caret goes with it, so
+ * typing simply carries on where the words went.
+ */
+function flowAddressOverflow (el) {
+  const split = splitAddressLines(S.consultant.addr1, S.consultant.addr2);
+  if (!split.moved) return;
+
+  S.consultant.addr1 = split.line1;
+  S.consultant.addr2 = split.line2;
+  mirror('consultant.addr1');
+  mirror('consultant.addr2');
+
+  // the address is on the details page and again on the invoice: follow the
+  // words into the line 2 belonging to whichever copy is being typed in
+  const next = (el.closest('section') || document)
+    .querySelector('[data-bind="consultant.addr2"]');
+  if (next && document.activeElement === el) {
+    next.focus();
+    next.setSelectionRange(split.moved.length, split.moved.length);
+  }
+}
+
 function bindInputs () {
   document.querySelectorAll('[data-bind]').forEach(el => {
     const path = el.dataset.bind;
@@ -202,6 +226,9 @@ function bindInputs () {
     el.addEventListener(ev, () => {
       setPath(S, path, elValue(el));
       mirror(path, el);
+
+      // line 1 only holds so much of an address; the rest flows to line 2
+      if (path === 'consultant.addr1') flowAddressOverflow(el);
 
       if (path === 'consultant.name') {
         if (!S.timesheet.prepName.trim() || S.timesheet.prepName === lastName) {

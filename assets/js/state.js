@@ -106,6 +106,39 @@ const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
 /** strip characters that are not legal in a file name */
 const safeFile = s => String(s || '').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim();
 
+/* ---------------- address lines ---------------- */
+
+/* The invoice gives the address 66 mm before it would run into the column
+   beside it, and 66 mm is 46 characters of an ordinary address at the 8.5 pt
+   the invoice is set in — measured with the PDF's own metrics, not guessed.
+   Past that the line has to carry on somewhere, and line 2 is where. */
+const ADDR_LINE_MAX = 46;
+
+/**
+ * Keep line 1 inside what the invoice prints and move what does not fit to
+ * the front of line 2. The break falls on the last space that still fits, so
+ * a word is never cut in half; a single word longer than the whole line has
+ * nowhere better to break and breaks at the limit.
+ *
+ * @returns {{line1: string, line2: string, moved: string}} `moved` is what
+ *          crossed over, and is empty when line 1 already fitted.
+ */
+function splitAddressLines (line1, line2) {
+  const one = String(line1 == null ? '' : line1);
+  const two = String(line2 == null ? '' : line2);
+  if (one.length <= ADDR_LINE_MAX) return { line1: one, line2: two, moved: '' };
+
+  const space = one.lastIndexOf(' ', ADDR_LINE_MAX);
+  const at = space > 0 ? space : ADDR_LINE_MAX;
+  const head = one.slice(0, at).replace(/\s+$/, '');
+  const moved = one.slice(at).trim();
+  if (!moved) return { line1: head, line2: two, moved: '' };
+
+  // the address already punctuates itself where it was cut, or it needs a comma
+  const join = two ? (/[,;]$/.test(moved) ? ' ' : ', ') : '';
+  return { line1: head, line2: moved + join + two, moved };
+}
+
 /* ---------------- timesheet totals ---------------- */
 
 /** number of days ticked '/' for one activity */

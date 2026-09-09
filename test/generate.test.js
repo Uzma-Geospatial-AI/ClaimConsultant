@@ -134,6 +134,11 @@ vm.runInContext(`
   globalThis.__S = S;
   globalThis.__calc = computeAmount(S);
   globalThis.__tot = timesheetTotals(S.timesheet);
+  globalThis.__addrFits = splitAddressLines('No 12, Jalan Contoh 1,', 'Taman Contoh');
+  globalThis.__addrOver = splitAddressLines(
+    'No 5, Lorong Solok Imam Tahir, Kg Solok Duku, 78300 Masjid Tanah', '');
+  globalThis.__addrJoin = splitAddressLines(
+    'No 5, Lorong Solok Imam Tahir, Kg Solok Duku, 78300', 'Melaka');
   globalThis.__al  = dayValue(S.timesheet, S.timesheet.activities[0], 20);
   globalThis.__sat = dayValue(S.timesheet, S.timesheet.activities[0], 29);
   globalThis.__sun = dayValue(S.timesheet, S.timesheet.activities[0], 30);
@@ -152,6 +157,16 @@ vm.runInContext(`
   check('BALANCE [B-(A+C)]', ctx.__tot.balance, -4);
   check('29 Aug 2026 auto-label', ctx.__sat, 'SAT');
   check('30 Aug 2026 auto-label', ctx.__sun, 'SUN');
+
+  // Line 1 is only as long as the invoice can print (66 mm, 46 characters):
+  // an address longer than that carries on into line 2 instead of running
+  // into the column beside it, and it breaks between words, never inside one
+  check('a line that fits is left alone', ctx.__addrFits.moved, '');
+  check('a line that fits keeps line 2', ctx.__addrFits.line2, 'Taman Contoh');
+  check('the overflow breaks between words',
+        ctx.__addrOver.line1, 'No 5, Lorong Solok Imam Tahir, Kg Solok Duku,');
+  check('the overflow lands on line 2', ctx.__addrOver.line2, '78300 Masjid Tanah');
+  check('the overflow joins what line 2 held', ctx.__addrJoin.line2, '78300, Melaka');
 
   console.log('\nDocument generation');
   const jobs = [
