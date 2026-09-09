@@ -44,6 +44,7 @@ const STEPS = [
 ];
 
 let stepIndex = 0;
+let activeProfile = '';          // the saved profile the form was opened from
 
 function activeSteps () {
   if (!S.mode) return STEPS.filter(s => s.id === 'consultant' || s.id === 'choose');
@@ -489,35 +490,25 @@ function boot () {
   /* --- profiles --- */
   refreshProfileList();
   document.getElementById('btnSaveProfile').addEventListener('click', () => {
-    const name = prompt('Profile name:', S.consultant.name || 'Profile 1');
+    const name = prompt('Profile name:', activeProfile || S.consultant.name || 'Profile 1');
     if (!name) return;
     if (Store.saveProfile(name.trim(), S)) {
+      activeProfile = name.trim();
       refreshProfileList();
-      document.getElementById('profileSelect').value = name.trim();
       Sync.pushProfile(name.trim(), S);
       toast(`Profile "${name.trim()}" saved.`);
     } else toast('Could not save the profile (storage full?).', true);
   });
-  document.getElementById('btnDeleteProfile').addEventListener('click', () => {
-    const sel = document.getElementById('profileSelect').value;
-    if (!sel) { toast('Select a profile first.', true); return; }
-    if (!confirm(`Delete the profile "${sel}"?`)) return;
-    Store.deleteProfile(sel);
-    Sync.deleteProfile(sel);
-    refreshProfileList();
-    toast('Profile deleted.');
+  document.getElementById('btnProfiles').addEventListener('click', e => {
+    e.stopPropagation();
+    openProfiles(document.getElementById('profileMenu').hidden);
   });
-  document.getElementById('profileSelect').addEventListener('change', e => {
-    const name = e.target.value;
-    if (!name) return;
-    const p = Store.profiles()[name];
-    if (!p) return;
-    S = mergeDefaults(p);
-    stepIndex = 0;
-    renderAll();
-    persist();
-    toast(`Profile "${name}" loaded.`);
+  // anywhere else, and the list closes — including Escape, as a menu should
+  document.addEventListener('click', e => {
+    const box = document.getElementById('profileBox');
+    if (box && !box.contains(e.target)) openProfiles(false);
   });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') openProfiles(false); });
 
   /* --- reset everything --- */
   document.getElementById('btnReset').addEventListener('click', () => {
@@ -536,6 +527,7 @@ function boot () {
     Store.clearAll();
     Sync.forget();
     S = defaultState();
+    activeProfile = '';
     fillDefaultsForMonth();
     stepIndex = 0;
     refreshProfileList();
@@ -677,16 +669,114 @@ function log (msg, cls) {
   box.scrollTop = box.scrollHeight;
 }
 
+/* =======================================================================
+   Saved profiles
+
+   A dropdown could only ever load a profile; renaming one meant saving it
+   again under the new name and deleting the old, and deleting one meant
+   selecting it first. So the list is a menu of rows instead, and each row
+   carries the two things you can do to that profile.
+   ======================================================================= */
+
+function openProfiles (open) {
+  const menu = document.getElementById('profileMenu');
+  const btn  = document.getElementById('btnProfiles');
+  if (!menu || !btn) return;
+  menu.hidden = !open;
+  btn.setAttribute('aria-expanded', String(!!open));
+}
+
+/** open a profile into the form */
+function loadProfile (name) {
+  const p = Store.profiles()[name];
+  if (!p) { toast(`Profile "${name}" is no longer there.`, true); refreshProfileList(); return; }
+  S = mergeDefaults(p);
+  activeProfile = name;
+  stepIndex = 0;
+  renderAll();
+  persist();
+  openProfiles(false);
+  refreshProfileList();
+  toast(`Profile "${name}" loaded.`);
+}
+
+/** give a profile another name, keeping everything saved under it */
+function editProfileName (name) {
+  const typed = prompt(`Rename the profile "${name}" to:`, name);
+  if (typed === null) return;
+  const to = typed.trim();
+  if (!to || to === name) return;
+
+  const data = Store.profiles()[name];
+  if (Store.profiles()[to] !== undefined &&
+      !confirm(`A profile called "${to}" already exists. Replace it?`)) return;
+  if (!Store.renameProfile(name, to)) {
+    toast('Could not rename the profile (storage full?).', true);
+    return;
+  }
+  // the shared copy is keyed by name, so it is a new one plus the old removed
+  Sync.pushProfile(to, data);
+  Sync.deleteProfile(name);
+  if (activeProfile === name) activeProfile = to;
+  refreshProfileList();
+  toast(`Renamed to "${to}".`);
+}
+
+function removeProfile (name) {
+  if (!confirm(`Delete the profile "${name}"?
+
+The form open right now is not touched.`)) return;
+  Store.deleteProfile(name);
+  Sync.deleteProfile(name);
+  if (activeProfile === name) activeProfile = '';
+  refreshProfileList();
+  toast(`Profile "${name}" deleted.`);
+}
+
 function refreshProfileList () {
-  const sel = document.getElementById('profileSelect');
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">— Select a profile —</option>';
-  Object.keys(Store.profiles()).sort().forEach(n => {
-    const o = document.createElement('option');
-    o.value = n; o.textContent = n;
-    sel.appendChild(o);
+  const menu  = document.getElementById('profileMenu');
+  const label = document.getElementById('profileCurrent');
+  const names = Object.keys(Store.profiles()).sort();
+
+  if (label) label.textContent = activeProfile || '— Select a profile —';
+  if (!menu) return;
+  menu.innerHTML = '';
+
+  if (!names.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = 'No profiles saved yet — fill the form in and press Save Profile.';
+    menu.appendChild(empty);
+    return;
+  }
+
+  names.forEach(name => {
+    const row = document.createElement('div');
+    row.className = 'prow' + (name === activeProfile ? ' on' : '');
+
+    // names are typed by people and arrive from other people over BDOS, so
+    // they go in as text and never as markup
+    const open = document.createElement('button');
+    open.className = 'pload';
+    open.textContent = name;
+    open.title = `Open "${name}"`;
+    open.addEventListener('click', () => loadProfile(name));
+
+    const edit = document.createElement('button');
+    edit.className = 'picon pedit';
+    edit.textContent = 'Edit';
+    edit.title = `Rename "${name}"`;
+    edit.addEventListener('click', () => editProfileName(name));
+
+    const del = document.createElement('button');
+    del.className = 'picon pdel';
+    del.textContent = 'Delete';
+    del.title = `Delete "${name}"`;
+    del.addEventListener('click', () => removeProfile(name));
+
+    row.append(open, edit, del);
+    menu.appendChild(row);
   });
-  sel.value = cur;
 }
 
 /* The app lives behind the BDOS sign-in gate — boot() runs once it opens. */

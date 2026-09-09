@@ -41,11 +41,26 @@ function check (label, actual, expected) {
    ----------------------------------------------------------------------- */
 console.log('\nOverlays can actually be hidden');
 
-['authgate', 'pdfview'].forEach(cls => {
+['authgate', 'pdfview', 'profilemenu'].forEach(cls => {
   const setsDisplay = new RegExp('\\.' + cls + '\\s*\\{[^}]*display\\s*:', 'm').test(css);
   const answersHidden = new RegExp('\\.' + cls + '\\[hidden\\]\\s*\\{[^}]*display\\s*:\\s*none').test(css);
   check(`.${cls}`, !setsDisplay || answersHidden, true);
 });
+
+/* -----------------------------------------------------------------------
+   The profile list. Each row acts on the profile it names, so the row has
+   to carry the name as text — profiles arrive from other people over BDOS,
+   and a name is not markup.
+   ----------------------------------------------------------------------- */
+console.log('\nThe profile list');
+
+const appjs = fs.readFileSync(path.join(ROOT, 'assets/js/app.js'), 'utf8');
+check('the menu is in the page', /id="profileMenu"/.test(html), true);
+check('its rows are built as text, never innerHTML',
+  /menu\.innerHTML\s*=\s*['"]{2}/.test(appjs) &&
+  !/prow[\s\S]{0,400}innerHTML\s*=\s*`/.test(appjs), true);
+check('a row can rename and delete its own profile',
+  /editProfileName\(name\)/.test(appjs) && /removeProfile\(name\)/.test(appjs), true);
 
 /* -----------------------------------------------------------------------
    Credentials must never be able to leave in a URL. If the script that

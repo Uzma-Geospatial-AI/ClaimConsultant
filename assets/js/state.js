@@ -218,6 +218,14 @@ const Store = {
     p[name] = JSON.parse(JSON.stringify(S));
     try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); return true; } catch (e) { return false; }
   },
+  /** carry a profile over to another name, data and all */
+  renameProfile (from, to) {
+    const p = Store.profiles();
+    if (!to || from === to || p[from] === undefined) return false;
+    p[to] = p[from];
+    delete p[from];
+    try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); return true; } catch (e) { return false; }
+  },
   deleteProfile (name) {
     const p = Store.profiles();
     delete p[name];

@@ -47,9 +47,15 @@
     </div>
   </div>
   <div class="topbar-actions">
-    <select id="profileSelect" title="Saved profiles"><option value="">— Select a profile —</option></select>
+    <div class="profiles" id="profileBox">
+      <button class="btn ghost profiles-toggle" id="btnProfiles" title="Saved profiles"
+              aria-haspopup="true" aria-expanded="false">
+        <span id="profileCurrent">&mdash; Select a profile &mdash;</span><span class="caret" aria-hidden="true">&#9662;</span>
+      </button>
+      <!-- one row per profile: open it, rename it, or delete that one -->
+      <div class="profilemenu" id="profileMenu" hidden></div>
+    </div>
     <button class="btn ghost" id="btnSaveProfile">Save Profile</button>
-    <button class="btn ghost" id="btnDeleteProfile">Delete</button>
     <button class="btn ghost" id="btnExport">Export JSON</button>
     <button class="btn ghost" id="btnImport">Import JSON</button>
     <button class="btn danger" id="btnReset" title="Erase all saved data and start over">Reset All</button>
