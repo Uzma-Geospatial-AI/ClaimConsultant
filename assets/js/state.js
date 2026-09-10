@@ -37,10 +37,16 @@ function defaultState () {
       year: now.getFullYear(),
       activities: [ newActivity('') ],
       prepName: '', prepDate: '',
+      reviewName: '', reviewDate: '',   // the project manager, who reviews first
       apprName: '', apprDate: '',
       verifName: '', verifDate: ''
     },
-    sig: { personnel: '', hod: '', verified: '' }
+    sig: { personnel: '', pm: '', hod: '', verified: '' },
+    /* Leave already taken this year, before the month on the sheet. The form
+       has always worked this way for days claimed — PAST CLAIM [C] is typed
+       in the same way — and it keeps the balance right without needing every
+       earlier month to hand. */
+    leave: { year: now.getFullYear(), pto: 0, mc: 0, ul: 0 }
   };
 }
 
@@ -137,6 +143,49 @@ function splitAddressLines (line1, line2) {
   // the address already punctuates itself where it was cut, or it needs a comma
   const join = two ? (/[,;]$/.test(moved) ? ' ' : ', ') : '';
   return { line1: head, line2: moved + join + two, moved };
+}
+
+/* ---------------- leave ---------------- */
+
+/* What a day off is called on the sheet, and how many of them a year holds.
+   Only '/' is a day worked and only '/' is claimed; these three say why a day
+   is not, and each is capped. PH is not here: a public holiday is the
+   calendar's doing, not the consultant's, so nothing counts down for it. */
+const LEAVE_LIMITS = { PTO: 12, MC: 12, UL: 12 };
+const LEAVE_NAMES  = { PTO: 'Paid time off', MC: 'Medical leave', UL: 'Unpaid leave' };
+const LEAVE_KEYS   = { PTO: 'pto', MC: 'mc', UL: 'ul' };     // mark -> where it is carried
+
+/** the days in this month's grid carrying one mark */
+function leaveDaysInMonth (ts, mark) {
+  const days = new Set();
+  (ts.activities || []).forEach(a => Object.keys(a.days || {}).forEach(d => {
+    if (a.days[d] === mark) days.add(Number(d));
+  }));
+  return [...days].sort((x, y) => x - y);
+}
+
+/**
+ * Where one kind of leave stands for the year the sheet is in.
+ * @returns {{mark, name, days, month, earlier, taken, limit, left, over}}
+ */
+function leaveStanding (S, mark) {
+  const ts = S.timesheet;
+  const days = leaveDaysInMonth(ts, mark);
+  // a balance carried from another year is not this year's balance
+  const carried = (S.leave && S.leave.year === ts.year)
+    ? Math.max(0, Number(S.leave[LEAVE_KEYS[mark]]) || 0) : 0;
+  const taken = carried + days.length;
+  const limit = LEAVE_LIMITS[mark];
+  return {
+    mark: mark, name: LEAVE_NAMES[mark], days: days,
+    month: days.length, earlier: carried, taken: taken,
+    limit: limit, left: limit - taken, over: taken > limit
+  };
+}
+
+/** every kind of leave, in the order they appear on the sheet */
+function leaveStandings (S) {
+  return Object.keys(LEAVE_LIMITS).map(mark => leaveStanding(S, mark));
 }
 
 /* ---------------- timesheet totals ---------------- */

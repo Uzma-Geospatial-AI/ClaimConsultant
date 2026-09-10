@@ -268,38 +268,42 @@
     </div>
 
     <div class="uz-blabel">(B)</div>
-    <p class="uz-tip">Click a day cell to cycle it: <b>blank &rarr; &ldquo;/&rdquo; worked &rarr; &ldquo;PH&rdquo; public holiday &rarr; &ldquo;AL&rdquo; annual leave &rarr; &ldquo;UL&rdquo; unpaid leave &rarr; blank</b>. SAT and SUN fill themselves in from the calendar. Only the &ldquo;/&rdquo; days count into TOTAL DAYS [A].</p>
+    <p class="uz-tip">Click a day cell to cycle it: <b>blank &rarr; &ldquo;/&rdquo; worked &rarr; &ldquo;PH&rdquo; public holiday &rarr; &ldquo;PTO&rdquo; paid time off &rarr; &ldquo;MC&rdquo; medical leave &rarr; &ldquo;UL&rdquo; unpaid leave &rarr; blank</b>. SAT and SUN fill themselves in from the calendar. Only the &ldquo;/&rdquo; days count into TOTAL DAYS [A].</p>
     <div class="uz-gridwrap" id="activities"></div>
     <div class="doc-underbar">
       <button class="btn ghost small" id="btnAddActivity">+ Add activity row</button>
       <button class="btn ghost small" id="btnResetDays">Clear all ticks</button>
     </div>
     <div class="summary" id="tsSummary"></div>
+    <div class="leavebox" id="leaveBox"></div>
 
     <p class="uz-tip mt">Names and dates are pre-filled with the usual approvers &mdash; type over any of them if somebody else signs this month.</p>
     <table class="uz-sign">
       <thead>
         <!-- On the form the box starts at PREPARED BY: the label column is
              open beside these two rows, and that is where (C) sits. -->
-        <tr><th class="rl mark">(C)</th><th>PREPARED BY</th><th>APPROVED BY</th><th>VERIFIED BY</th></tr>
-        <tr class="sub"><th class="rl mark"></th><th>PERSONNEL</th><th>HOD</th><th>GROUP PEOPLE &amp; GROUP FINANCE DIVISIONS</th></tr>
+        <tr><th class="rl mark">(C)</th><th>PREPARED BY</th><th>REVIEWED BY</th><th>APPROVED BY</th><th>VERIFIED BY</th></tr>
+        <tr class="sub"><th class="rl mark"></th><th>PERSONNEL</th><th>PROJECT MANAGER</th><th>HOD</th><th>GROUP PEOPLE &amp; GROUP FINANCE DIVISIONS</th></tr>
       </thead>
       <tbody>
         <tr class="sigrow">
           <td class="rl">Signature</td>
           <td data-sig="personnel"></td>
+          <td data-sig="pm"></td>
           <td data-sig="hod"></td>
           <td data-sig="verified"></td>
         </tr>
         <tr>
           <td class="rl">Name</td>
           <td><input class="dinput ta-c" data-bind="timesheet.prepName" placeholder="your name"></td>
+          <td><input class="dinput ta-c" data-bind="timesheet.reviewName" placeholder="project manager"></td>
           <td><input class="dinput ta-c" data-bind="timesheet.apprName" placeholder="head of department"></td>
           <td><input class="dinput ta-c" data-bind="timesheet.verifName" placeholder="leave blank &mdash; Finance fills this in"></td>
         </tr>
         <tr>
           <td class="rl">Date</td>
           <td><input class="dinput ta-c" data-bind="timesheet.prepDate" placeholder="26.8.2026"></td>
+          <td><input class="dinput ta-c" data-bind="timesheet.reviewDate" placeholder="26.8.2026"></td>
           <td><input class="dinput ta-c" data-bind="timesheet.apprDate" placeholder="26.8.2026"></td>
           <td><input class="dinput ta-c" data-bind="timesheet.verifDate" placeholder="leave blank &mdash; Finance fills this in"></td>
         </tr>

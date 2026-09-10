@@ -5,15 +5,16 @@
    ======================================================================= */
 
 /* Values a day cell cycles through when clicked. Only '/' is a day worked
-   and only '/' is counted into [A] — PH, AL and UL mark the day for whoever
-   reads the sheet without adding to the claim. */
-const CYCLE = ['', '/', 'PH', 'AL', 'UL'];
-const MARKS = { PH: 'ph', AL: 'al', UL: 'ul' };          // tick -> cell style
-const MARK_NAMES = { PH: 'Public Holiday', AL: 'Annual Leave', UL: 'Unpaid Leave' };
+   and only '/' is counted into [A] — the rest say why a day is not claimed.
+   PTO, MC and UL come out of a yearly allowance (see LEAVE_LIMITS); PH does
+   not, because a public holiday is the calendar's doing. */
+const CYCLE = ['', '/', 'PH', 'PTO', 'MC', 'UL'];
+const MARKS = { PH: 'ph', PTO: 'pto', MC: 'mc', UL: 'ul' };      // tick -> cell style
+const MARK_NAMES = Object.assign({ PH: 'Public Holiday' }, LEAVE_NAMES);
 
 /**
  * The value shown for one day, and the value exported to the documents.
- * A manual tick ('/', 'PH', 'AL' or 'UL') overrides the weekend label.
+ * A manual tick ('/', 'PH', 'PTO', 'MC' or 'UL') overrides the weekend label.
  */
 function dayValue (ts, act, d) {
   const v = act.days[d];
@@ -184,25 +185,204 @@ function renderSummary (S) {
   const t = timesheetTotals(S.timesheet);
   const ts = S.timesheet;
 
-  /** the days carrying one mark, across every activity row */
-  const marked = mark => {
-    const days = new Set();
-    ts.activities.forEach(a => Object.keys(a.days).forEach(d => {
-      if (a.days[d] === mark) days.add(Number(d));
-    }));
-    return [...days].sort((x, y) => x - y);
-  };
-
-  // PH is always worth a line; leave only earns one when it is on the sheet
-  const ph = marked('PH'), al = marked('AL'), ul = marked('UL');
-  const line = (label, days, always) =>
-    (days.length || always) ? `<div>${label}<b>${days.join(', ') || '—'}</b></div>` : '';
-
+  const ph = leaveDaysInMonth(ts, 'PH');
   document.getElementById('tsSummary').innerHTML = `
     <div>Month<b>${MONTHS[ts.month]} ${ts.year}</b></div>
     <div>Total Days [A]<b>${t.A}</b></div>
     <div>Allocated [B]<b>${t.B}</b></div>
     <div>Past Claim [C]<b>${t.C}</b></div>
     <div>Balance<b>${t.balance}</b></div>
-    ${line('Public Holiday', ph, true)}${line('Annual Leave', al)}${line('Unpaid Leave', ul)}`;
+    <div>Public Holiday<b>${ph.join(', ') || '—'}</b></div>`;
+
+  renderLeave(S);
+}
+
+/**
+ * The year's leave, one row per kind: what this month's grid holds, what was
+ * taken before it, and what is left of the allowance. The "before this month"
+ * figure is typed, the way PAST CLAIM [C] is, so the balance is right without
+ * needing every earlier sheet to hand.
+ */
+function renderLeave (S) {
+  const host = document.getElementById('leaveBox');
+  if (!host) return;
+  const ts = S.timesheet;
+
+  host.innerHTML = `
+    <div class="leavehead">
+      <b>Leave taken in ${ts.year}</b>
+      <span>${LEAVE_LIMITS.PTO} days each a year. Only the days ticked <b>/</b> are claimed.</span>
+    </div>
+    <table class="leavetable">
+      <thead><tr>
+        <th>Leave</th><th>Earlier in ${ts.year}</th>
+        <th>${MONTHS[ts.month]}</th><th>Taken</th><th>Left</th><th>Days this month</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>`;
+
+  const tbody = host.querySelector('tbody');
+  leaveStandings(S).forEach(L => tbody.appendChild(leaveRow(S, L.mark)));
+}
+
+/** one leave row, and the cells that follow whatever is typed into it */
+function leaveRow (S, mark) {
+  const ts = S.timesheet;
+  const tr = document.createElement('tr');
+
+  const name = document.createElement('td');
+  name.innerHTML = `<span class="lmark ${MARKS[mark]}"></span>`;
+  name.querySelector('.lmark').textContent = mark;
+  name.appendChild(document.createTextNode(' ' + LEAVE_NAMES[mark]));
+  tr.appendChild(name);
+
+  // What was taken before this sheet is the one figure nobody can derive.
+  const earlier = document.createElement('td');
+  const input = document.createElement('input');
+  input.className = 'dinput ta-c';
+  input.type = 'number'; input.min = '0'; input.step = '0.5';
+  input.title = `${LEAVE_NAMES[mark]} taken earlier in ${ts.year}, before ${MONTHS[ts.month]}`;
+  earlier.appendChild(input);
+  tr.appendChild(earlier);
+
+  const month = document.createElement('td');
+  const taken = document.createElement('td');
+  const left  = document.createElement('td');
+  const days  = document.createElement('td');
+  days.className = 'daylist';
+  tr.append(month, taken, left, days);
+
+  /* Only the cells that follow the number are repainted — rebuilding the row
+     here would take the focus out of the box being typed in. */
+  const paint = () => {
+    const L = leaveStanding(S, mark);
+    tr.className = L.over ? 'over' : '';
+    month.textContent = String(L.month);
+    taken.textContent = String(L.taken);
+    left.textContent = L.over ? `${L.left} — over by ${L.taken - L.limit}` : String(L.left);
+    left.className = L.over ? 'bad' : (L.left <= 2 ? 'low' : '');
+    days.textContent = L.days.join(', ') || '—';
+  };
+
+  input.value = leaveStanding(S, mark).earlier || '';
+  input.addEventListener('input', e => {
+    if (!S.leave || S.leave.year !== ts.year) S.leave = { year: ts.year, pto: 0, mc: 0, ul: 0 };
+    S.leave[LEAVE_KEYS[mark]] = Math.max(0, Number(e.target.value) || 0);
+    paint();
+    afterTimesheetChange();
+  });
+
+  paint();
+  return tr;
+}
+
+function paintDay (td, ts, act, d) {
+  const manual = act.days[d] || '';
+  const shown = dayValue(ts, act, d);
+  td.className = 'c-day dcell';
+  if (manual === '/') td.classList.add('work');
+  else if (MARKS[manual]) td.classList.add(MARKS[manual]);
+  else if (shown === 'SAT' || shown === 'SUN') td.classList.add('we');
+  td.textContent = manual || shown || '';
+  const what = MARK_NAMES[manual] || (manual === '/' ? 'worked' : shown);
+  td.title = `${d} ${MONTHS[ts.month]} ${ts.year}` + (what ? ` — ${what}` : '') + '  (click to change)';
+}
+
+function updateRow (tr, S, act) {
+  const a = activityTotal(act);
+  const bal = round2((Number(act.allocated) || 0) - (a + (Number(act.pastClaim) || 0)));
+  tr.querySelector('.cellA').textContent = a;
+  tr.querySelector('.cellBal').textContent = bal;
+
+  // keep the printed TOTAL row and the summary bar in step
+  const totalRow = tr.parentNode && tr.parentNode.querySelector('.totalrow');
+  if (totalRow) {
+    const t = timesheetTotals(S.timesheet);
+    const cells = totalRow.querySelectorAll('.c-tot');
+    if (cells.length === 4) {
+      cells[0].textContent = t.A; cells[1].textContent = t.B;
+      cells[2].textContent = t.C; cells[3].textContent = t.balance;
+    }
+  }
+  renderSummary(S);
+}
+
+function renderSummary (S) {
+  const t = timesheetTotals(S.timesheet);
+  const ts = S.timesheet;
+
+  const ph = leaveDaysInMonth(ts, 'PH');
+  document.getElementById('tsSummary').innerHTML = `
+    <div>Month<b>${MONTHS[ts.month]} ${ts.year}</b></div>
+    <div>Total Days [A]<b>${t.A}</b></div>
+    <div>Allocated [B]<b>${t.B}</b></div>
+    <div>Past Claim [C]<b>${t.C}</b></div>
+    <div>Balance<b>${t.balance}</b></div>
+    <div>Public Holiday<b>${ph.join(', ') || '—'}</b></div>`;
+
+  renderLeave(S);
+}
+
+/**
+ * The year's leave, one row per kind: what this month's grid holds, what was
+ * taken before it, and what is left of the allowance. The "before this month"
+ * figure is typed, the way PAST CLAIM [C] is, so the balance is right without
+ * needing every earlier sheet to hand.
+ */
+function renderLeave (S) {
+  const host = document.getElementById('leaveBox');
+  if (!host) return;
+  const ts = S.timesheet;
+
+  host.innerHTML = `
+    <div class="leavehead">
+      <b>Leave taken in ${ts.year}</b>
+      <span>${LEAVE_LIMITS.PTO} days each a year. Only the days ticked <b>/</b> are claimed.</span>
+    </div>
+    <table class="leavetable">
+      <thead><tr>
+        <th>Leave</th><th>Earlier in ${ts.year}</th>
+        <th>${MONTHS[ts.month]}</th><th>Taken</th><th>Left</th><th>Days this month</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>`;
+
+  const tbody = host.querySelector('tbody');
+  leaveStandings(S).forEach(L => {
+    const tr = document.createElement('tr');
+    if (L.over) tr.className = 'over';
+
+    const name = document.createElement('td');
+    name.innerHTML = `<span class="lmark ${MARKS[L.mark]}">${L.mark}</span> ${L.name}`;
+    tr.appendChild(name);
+
+    // what was taken before this sheet is the one figure nobody can derive
+    const earlier = document.createElement('td');
+    earlier.innerHTML = '<input class="dinput ta-c" type="number" min="0" step="0.5">';
+    const input = earlier.querySelector('input');
+    input.value = L.earlier || '';
+    input.title = `${L.name} taken earlier in ${ts.year}, before ${MONTHS[ts.month]}`;
+    input.addEventListener('input', e => {
+      if (!S.leave || S.leave.year !== ts.year) S.leave = { year: ts.year, pto: 0, mc: 0, ul: 0 };
+      S.leave[LEAVE_KEYS[L.mark]] = Math.max(0, Number(e.target.value) || 0);
+      renderLeave(S);
+      afterTimesheetChange();
+    });
+    tr.appendChild(earlier);
+
+    const cells = [
+      String(L.month),
+      String(L.taken),
+      L.over ? `${L.left} — over by ${L.taken - L.limit}` : String(L.left),
+      L.days.join(', ') || '—'
+    ];
+    cells.forEach((v, i) => {
+      const td = document.createElement('td');
+      td.textContent = v;
+      if (i === 2) td.className = L.over ? 'bad' : (L.left <= 2 ? 'low' : '');
+      if (i === 3) td.className = 'daylist';
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
 }

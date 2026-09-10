@@ -8,6 +8,7 @@
 
 const SIG_HINTS = {
   personnel: 'Draw here, or upload an image',
+  pm:        'Optional — leave blank for the project manager to sign',
   hod:       'Optional — leave blank for the HOD to sign',
   verified:  'Optional — leave blank for Finance'
 };

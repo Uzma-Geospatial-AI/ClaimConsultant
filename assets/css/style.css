@@ -289,8 +289,10 @@ label.check input{width:auto}
 .dcell.we{background:#eef1f4;color:#8b98a4;font-size:7px}
 .dcell.work{background:#e6f5ec;color:var(--ok)}
 .dcell.ph{background:var(--orange-soft);color:var(--orange);font-size:7.5px}
-/* leave is not a day worked, so it reads apart from both the ticks and PH */
-.dcell.al{background:#e9f0fa;color:#2f6fd0;font-size:7.5px}
+/* leave is not a day worked, so each kind reads apart from the ticks, from
+   PH, and from each other — the three come out of separate allowances */
+.dcell.pto{background:#e9f0fa;color:#2f6fd0;font-size:7px}
+.dcell.mc{background:#fdeced;color:#c0392b;font-size:7.5px}
 .dcell.ul{background:#f1ecf9;color:#7048c4;font-size:7.5px}
 .uz-grid tr.totalrow td{font-weight:700;background:#f4f6f8}
 .rowdel{border:none;background:#fdeaea;color:var(--danger);border-radius:5px;width:20px;height:20px;cursor:pointer;font-size:13px;line-height:1;font-family:inherit}
@@ -300,6 +302,35 @@ label.check input{width:auto}
   display:flex;gap:24px;flex-wrap:wrap;font-size:12px;
 }
 .summary b{display:block;font-size:17px;margin-top:2px}
+
+/* --- claim: the year's leave --- */
+.leavebox{margin-top:14px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.leavehead{
+  display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  padding:10px 14px;background:#f7fafc;border-bottom:1px solid var(--line);font-size:13px;
+}
+.leavehead span{color:var(--muted);font-size:12px}
+.leavetable{width:100%;border-collapse:collapse;font-size:12.5px}
+.leavetable th{
+  text-align:left;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.3px;padding:8px 14px;border-bottom:1px solid var(--line);
+}
+.leavetable td{padding:6px 14px;border-bottom:1px solid #eef2f6;vertical-align:middle}
+.leavetable tr:last-child td{border-bottom:none}
+.leavetable td:first-child{white-space:nowrap}
+.leavetable input{max-width:82px;text-align:center}
+.leavetable .daylist{color:var(--muted);font-size:12px}
+.leavetable .low{color:var(--orange);font-weight:700}
+.leavetable .bad{color:var(--danger);font-weight:700}
+.leavetable tr.over{background:#fdf3f2}
+/* the same badge the day cells wear, so the row and the grid read as one */
+.lmark{
+  display:inline-block;min-width:30px;text-align:center;padding:1px 5px;border-radius:4px;
+  font-size:10.5px;font-weight:700;margin-right:4px;
+}
+.lmark.pto{background:#e9f0fa;color:#2f6fd0}
+.lmark.mc{background:#fdeced;color:#c0392b}
+.lmark.ul{background:#f1ecf9;color:#7048c4}
 
 /* --- claim: section C --- */
 .uz-sign{border-collapse:collapse;width:100%;margin-top:4px;font-size:10px}

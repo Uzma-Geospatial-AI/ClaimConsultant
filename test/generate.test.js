@@ -126,8 +126,12 @@ vm.runInContext(`
   S.timesheet.activities[0].name = 'Developing Platform (August 2026)';
   [24, 26, 27, 28].forEach(d => S.timesheet.activities[0].days[d] = '/');
   [25, 31].forEach(d => S.timesheet.activities[0].days[d] = 'PH');
-  S.timesheet.activities[0].days[20] = 'AL';    // annual leave
-  S.timesheet.activities[0].days[21] = 'UL';    // unpaid leave
+  S.timesheet.activities[0].days[20] = 'PTO';   // paid time off
+  S.timesheet.activities[0].days[21] = 'MC';    // medical leave
+  S.timesheet.activities[0].days[19] = 'UL';    // unpaid leave
+  S.timesheet.reviewName = 'Muhammad Hanis Rashidan';
+  S.timesheet.reviewDate = '26.8.2026';
+  S.leave = { year: 2026, pto: 10, mc: 12, ul: 0 };   // taken earlier in the year
   S.timesheet.prepName = 'Ahmad bin Abdullah';
   S.timesheet.prepDate = '26.8.2026';
   S.invoice.items = [];
@@ -139,7 +143,12 @@ vm.runInContext(`
     'No 5, Lorong Solok Imam Tahir, Kg Solok Duku, 78300 Masjid Tanah', '');
   globalThis.__addrJoin = splitAddressLines(
     'No 5, Lorong Solok Imam Tahir, Kg Solok Duku, 78300', 'Melaka');
-  globalThis.__al  = dayValue(S.timesheet, S.timesheet.activities[0], 20);
+  globalThis.__al   = dayValue(S.timesheet, S.timesheet.activities[0], 20);
+  globalThis.__pto  = leaveStanding(S, 'PTO');
+  globalThis.__mc   = leaveStanding(S, 'MC');
+  globalThis.__ul   = leaveStanding(S, 'UL');
+  globalThis.__lastYear = leaveStanding(
+    Object.assign({}, S, { leave: { year: 2025, pto: 9, mc: 9, ul: 9 } }), 'PTO');
   globalThis.__sat = dayValue(S.timesheet, S.timesheet.activities[0], 29);
   globalThis.__sun = dayValue(S.timesheet, S.timesheet.activities[0], 30);
 `, ctx);
@@ -153,7 +162,20 @@ vm.runInContext(`
   // 20 and 21 August are marked AL and UL: leave says why a day is not
   // claimed, so it must stay out of [A] the way PH does
   check('TOTAL DAYS [A] counts only the ticks', ctx.__tot.A, 4);
-  check('20 Aug 2026 leave mark', ctx.__al, 'AL');
+  check('20 Aug 2026 leave mark', ctx.__al, 'PTO');
+
+  /* Leave comes out of a yearly allowance: what the grid holds this month
+     plus what was taken earlier, against the 12 days each kind gets. */
+  console.log('\nLeave against the year');
+  check('this month counted from the grid', ctx.__pto.month, 1);
+  check('added to what went before',        ctx.__pto.taken, 11);
+  check('leaving the rest of the twelve',   ctx.__pto.left, 1);
+  check('inside the allowance is not over', ctx.__pto.over, false);
+  check('the twelfth day is still allowed', ctx.__mc.taken, 13);
+  check('the thirteenth is over',           ctx.__mc.over, true);
+  check('and says by how much',             ctx.__mc.left, -1);
+  check('leave never taken starts at zero', ctx.__ul.earlier, 0);
+  check('a balance from another year is not this one', ctx.__lastYear.earlier, 0);
   check('BALANCE [B-(A+C)]', ctx.__tot.balance, -4);
   check('29 Aug 2026 auto-label', ctx.__sat, 'SAT');
   check('30 Aug 2026 auto-label', ctx.__sun, 'SUN');
@@ -189,6 +211,15 @@ vm.runInContext(`
      ----------------------------------------------------------------------- */
   console.log('\nMatching the printed form');
   const claimSrc = fs.readFileSync(path.join(ROOT, 'assets/js/gen-claim.js'), 'utf8');
+  // Section C carries four approvers now — the project manager reviews before
+  // the HOD approves — and the order on the sheet is the order of the flow.
+  // `const` inside a vm script is lexical, not a property of the context —
+  // these have to be evaluated in there rather than read off the object
+  const inApp = expr => vm.runInContext(expr, ctx);
+  check('section C has four approver columns', inApp('C_HEADS.length'), 4);
+  check('the project manager reviews second', inApp('C_HEADS[1][0]'), 'REVIEWED BY');
+  check('and signs in their own box',         inApp('C_HEADS[1][2]'), 'pm');
+  check('the label column keeps the workbook width', inApp('C_LABEL'), 0.152243);
   check('the sheet is set in Calibri metrics', /const FONT = 'Carlito'/.test(claimSrc), true);
   check('the fills are the template grey',     /GREY = \[242, 242, 242\]/.test(claimSrc), true);
   check('the orange is the template orange',   /ORANGE = \[237, 125, 49\]/.test(claimSrc), true);

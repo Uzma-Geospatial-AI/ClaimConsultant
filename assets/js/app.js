@@ -11,6 +11,7 @@ let S = Store.loadCurrent() || defaultState();
    name out or hand the sheet to somebody else and the documents follow.
    ----------------------------------------------------------------------- */
 const SIGN_DEFAULTS = {
+  review: 'Muhammad Hanis Rashidan',        // project manager, who reviews first
   hod: 'Gs. Mohammad Fadhli Jamaluddin',    // approver; edit on the Claim page
   verified: ''                              // Group People & Finance sign on paper
 };
@@ -397,10 +398,16 @@ function fillDefaultsForMonth () {
   if (!S.invoice.no) S.invoice.no = `INV-${ts.year}-${pad(ts.month + 1)}-001`;
   if (!S.consultant.assignPeriod) S.consultant.assignPeriod = monthLabel(ts);
   if (!S.timesheet.prepName) S.timesheet.prepName = S.consultant.name;
+  if (!S.timesheet.reviewName) S.timesheet.reviewName = SIGN_DEFAULTS.review;
   if (!S.timesheet.apprName)  S.timesheet.apprName  = SIGN_DEFAULTS.hod;
   if (!S.timesheet.verifName) S.timesheet.verifName = SIGN_DEFAULTS.verified;
   if (!S.timesheet.prepDate)  S.timesheet.prepDate  = todayDotted();
+  // the reviewer and the approver date their own boxes when they sign, so
+  // these only start filled the way the printed form starts filled
+  if (!S.timesheet.reviewDate) S.timesheet.reviewDate = S.timesheet.prepDate;
   if (!S.timesheet.apprDate)  S.timesheet.apprDate  = S.timesheet.prepDate;
+  // a year turned over: this year's leave starts from nothing
+  if (!S.leave || S.leave.year !== ts.year) S.leave = { year: ts.year, pto: 0, mc: 0, ul: 0 };
   lastName = S.consultant.name;
 }
 

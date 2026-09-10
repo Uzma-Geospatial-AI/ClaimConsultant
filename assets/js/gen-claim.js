@@ -25,12 +25,25 @@ const ROWS_MIN = 8;   // minimum activity rows, matching the original form
    scale, so every length here is carried over as a share of the content
    width and holds on our A4 landscape sheet too.
 
-   C_EDGE  the four column breaks: the label column ends at column K, and
-           the three approver columns at Y, AN and BB.
+   C_LABEL the label column, which ends at column K.
    C_ROW   row heights — 34 pt for each heading row, 80.15 pt for the
            signature row, 30 pt for Name and Date.
-   C_GAP   the four empty rows (62 pt) standing between the grid and (C). */
-const C_EDGE = [0, 0.152243, 0.426824, 0.711826, 1];
+   C_GAP   the four empty rows (62 pt) standing between the grid and (C).
+
+   The printed form carries three approver columns. Ours carries four: the
+   project manager reviews a claim before the HOD approves it, and signs for
+   having done so. The label column keeps the width the form gives it and
+   the four share what is left, which is the one place this sheet departs
+   from the workbook — deliberately, and only here. */
+const C_LABEL = 0.152243;
+const C_HEADS = [
+  ['PREPARED BY', 'PERSONNEL',   'personnel'],
+  ['REVIEWED BY', 'PROJECT MANAGER', 'pm'],
+  ['APPROVED BY', 'HOD',         'hod'],
+  ['VERIFIED BY', 'GROUP PEOPLE & GROUP FINANCE DIVISIONS', 'verified']
+];
+/** left edge of approver column i, as a share of the content width */
+const cEdgeAt = i => C_LABEL + i * (1 - C_LABEL) / C_HEADS.length;
 const C_ROW  = { head: 0.020541, sig: 0.048422, text: 0.018124 };
 const C_GAP  = 0.037457;
 
@@ -222,23 +235,21 @@ async function buildClaimPDF (S) {
   y = doc.lastAutoTable.finalY + W * C_GAP;
 
   /* ---------- Section C ---------- */
-  const labW = W * C_EDGE[1], colW = i => W * (C_EDGE[i + 2] - C_EDGE[i + 1]);
-  const cx = i => L + W * C_EDGE[i + 1];
+  const labW = W * C_LABEL, colW = W * (1 - C_LABEL) / C_HEADS.length;
+  const cx = i => L + W * cEdgeAt(i);
   const rowsC = [
-    { h: W * C_ROW.head, type: 'head', cells: ['PREPARED BY', 'APPROVED BY', 'VERIFIED BY'] },
-    { h: W * C_ROW.head, type: 'head', cells: ['PERSONNEL', 'HOD', 'GROUP PEOPLE & GROUP FINANCE DIVISIONS'] },
+    { h: W * C_ROW.head, type: 'head', cells: C_HEADS.map(h => h[0]) },
+    { h: W * C_ROW.head, type: 'head', cells: C_HEADS.map(h => h[1]) },
     { h: W * C_ROW.sig,  type: 'sig',  label: 'Signature' },
     { h: W * C_ROW.text, type: 'text', label: 'Name',
-      cells: [ts.prepName || C.name || '', ts.apprName || '', ts.verifName || ''], bold: true },
+      cells: [ts.prepName || C.name || '', ts.reviewName || '',
+              ts.apprName || '', ts.verifName || ''], bold: true },
     { h: W * C_ROW.text, type: 'text', label: 'Date',
-      cells: [ts.prepDate || '', ts.apprDate || '', ts.verifDate || ''] }
+      cells: [ts.prepDate || '', ts.reviewDate || '', ts.apprDate || '', ts.verifDate || ''] }
   ];
 
-  const sigs = {
-    0: await normalizeSignature(S.sig.personnel),
-    1: await normalizeSignature(S.sig.hod),
-    2: await normalizeSignature(S.sig.verified)
-  };
+  const sigs = {};
+  for (let i = 0; i < C_HEADS.length; i++) sigs[i] = await normalizeSignature(S.sig[C_HEADS[i][2]]);
 
   let cy = y;
   for (const row of rowsC) {
@@ -256,14 +267,18 @@ async function buildClaimPDF (S) {
       doc.setFont(FONT, 'bold').setFontSize(6).setTextColor(...DARK);
       doc.text(row.label, L + 2, cy + row.h / 2 + 1);
     }
-    for (let i = 0; i < 3; i++) {
-      const w = colW(i);
+    for (let i = 0; i < C_HEADS.length; i++) {
+      const w = colW;
       if (row.type === 'head') { doc.setFillColor(...GREY); doc.rect(cx(i), cy, w, row.h, 'FD'); }
       else doc.rect(cx(i), cy, w, row.h, 'S');
 
       if (row.type === 'head') {
         doc.setFont(FONT, 'bold').setFontSize(6.2).setTextColor(...DARK);
-        doc.text(row.cells[i], cx(i) + w / 2, cy + row.h / 2 + 1, { align: 'center' });
+        // the Finance heading is the long one; it wraps rather than run out
+        // of its column now that four of them share the width
+        const lines = doc.splitTextToSize(row.cells[i], w - 3);
+        doc.text(lines, cx(i) + w / 2, cy + row.h / 2 + 1 - (lines.length - 1) * 1.2,
+                 { align: 'center' });
       } else if (row.type === 'text') {
         doc.setFont(FONT, row.bold ? 'bold' : 'normal').setFontSize(6.2).setTextColor(...DARK);
         doc.text(String(row.cells[i] || ''), cx(i) + w / 2, cy + row.h / 2 + 1, { align: 'center' });
@@ -462,22 +477,20 @@ async function generateClaimDOCX (S) {
     });
   };
 
-  /* Same column breaks the PDF uses, carried over from the workbook. */
-  const cwC = C_EDGE.slice(1).map((f, i) => Math.round((f - C_EDGE[i]) * TOTAL_DXA));
-  const [labDxa, c1, c2, c3] = cwC;
+  /* Same columns the PDF draws: the label column at the width the workbook
+     gives it, and the four approvers sharing what is left. */
+  const labDxa = Math.round(C_LABEL * TOTAL_DXA);
+  const colDxa = Math.round((TOTAL_DXA - labDxa) / C_HEADS.length);
+  const cwC = [labDxa].concat(C_HEADS.map(() => colDxa));
 
-  const sigRowCells = [
-    cell(para(txt('Signature', { bold: true, size: 12 })), { width: labDxa }),
-    cell(await sigCell('personnel'), { width: c1 }),
-    cell(await sigCell('hod'), { width: c2 }),
-    cell(await sigCell('verified'), { width: c3 })
-  ];
+  const sigRowCells = [cell(para(txt('Signature', { bold: true, size: 12 })), { width: labDxa })];
+  for (const head of C_HEADS) sigRowCells.push(cell(await sigCell(head[2]), { width: colDxa }));
 
   const cRow = (label, vals, bold) => new TableRow({
     children: [
       cell(para(txt(label, { bold: true, size: 12 })), { width: labDxa }),
-      ...vals.map((v, i) => cell(para(txt(v, { bold: !!bold, size: 12 }), { align: AlignmentType.CENTER }),
-                                 { width: cwC[i + 1] }))
+      ...vals.map(v => cell(para(txt(v, { bold: !!bold, size: 12 }), { align: AlignmentType.CENTER }),
+                            { width: colDxa }))
     ]
   });
 
@@ -486,8 +499,8 @@ async function generateClaimDOCX (S) {
   const cHead = (marker, vals) => new TableRow({
     children: [
       cell(para(txt(marker, { bold: true, size: 12 })), { width: labDxa, borders: noBorders }),
-      ...vals.map((v, i) => cell(para(txt(v, { bold: true, size: 12 }), { align: AlignmentType.CENTER }),
-                                 { width: cwC[i + 1], fill: 'EBEBEB' }))
+      ...vals.map(v => cell(para(txt(v, { bold: true, size: 12 }), { align: AlignmentType.CENTER }),
+                            { width: colDxa, fill: 'EBEBEB' }))
     ]
   });
 
@@ -495,11 +508,12 @@ async function generateClaimDOCX (S) {
     width: { size: TOTAL_DXA, type: WidthType.DXA },
     columnWidths: cwC,
     rows: [
-      cHead('(C)', ['PREPARED BY', 'APPROVED BY', 'VERIFIED BY']),
-      cHead('', ['PERSONNEL', 'HOD', 'GROUP PEOPLE & GROUP FINANCE DIVISIONS']),
+      cHead('(C)', C_HEADS.map(h => h[0])),
+      cHead('', C_HEADS.map(h => h[1])),
       new TableRow({ children: sigRowCells, height: { value: 900, rule: 'atLeast' } }),
-      cRow('Name', [ts.prepName || C.name || '', ts.apprName || '', ts.verifName || ''], true),
-      cRow('Date', [ts.prepDate || '', ts.apprDate || '', ts.verifDate || ''], false)
+      cRow('Name', [ts.prepName || C.name || '', ts.reviewName || '',
+                    ts.apprName || '', ts.verifName || ''], true),
+      cRow('Date', [ts.prepDate || '', ts.reviewDate || '', ts.apprDate || '', ts.verifDate || ''], false)
     ]
   });
 
