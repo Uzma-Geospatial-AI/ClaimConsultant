@@ -318,7 +318,6 @@ label.check input{width:auto}
 .leavetable td{padding:6px 14px;border-bottom:1px solid #eef2f6;vertical-align:middle}
 .leavetable tr:last-child td{border-bottom:none}
 .leavetable td:first-child{white-space:nowrap}
-.leavetable input{max-width:82px;text-align:center}
 .leavetable .daylist{color:var(--muted);font-size:12px}
 .leavetable .low{color:var(--orange);font-weight:700}
 .leavetable .bad{color:var(--danger);font-weight:700}
