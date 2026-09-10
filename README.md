@@ -445,6 +445,22 @@ appended to a history that is never rewritten &mdash; who, when, which way, and 
 The HOD does not sign anything themselves. They approve; their PA places the signature. That is
 the arrangement the office already had, and the app follows it rather than arguing with it.
 
+### One thing to remember when changing anything under `assets/`
+
+GitHub Pages serves this page **and everything it loads** with `Cache-Control: max-age=600`. A
+reload fetches the page again but keeps the old JavaScript for up to ten minutes, which looks
+exactly like a fix that did not work — and costs an afternoon before anybody suspects the cache.
+
+So every local file is loaded with a `?v=` stamp:
+
+```html
+<script src="assets/js/sync.js?v=20260911a"></script>
+```
+
+**Bump that stamp whenever you change a file under `assets/`.** It is one find-and-replace across
+`index.html`, and it makes an ordinary reload pick up the whole set at once. `page.test.js`
+refuses a local file without a stamp, or a set of files that do not share one.
+
 ---
 
 ## Testing & CI

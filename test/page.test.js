@@ -116,9 +116,25 @@ check('and never remembers a typed password in the URL',
    Script order: every file the app leans on has to be parsed before the
    one that calls into it.
    ----------------------------------------------------------------------- */
+/* -----------------------------------------------------------------------
+   Cache keys. GitHub Pages serves this page and everything it loads with
+   max-age=600. A reload fetches the page again but keeps the old JavaScript
+   for up to ten minutes, which is indistinguishable from a fix that did not
+   work — so every local file carries a stamp that changes when it does.
+   ----------------------------------------------------------------------- */
+console.log('\nCache keys');
+
+const localAssets = [...html.matchAll(/(?:src|href)="((?:assets|vendor)\/[^"]+)"/g)]
+  .map(m => m[1]);
+const unstamped = localAssets.filter(u => !/\?v=/.test(u));
+check('every local file carries one', unstamped.length, 0);
+check('and they all carry the same one',
+  new Set(localAssets.map(u => u.split('?v=')[1])).size, 1);
+
 console.log('\nScript order');
 
-const scripts = [...html.matchAll(/<script src="(assets\/js\/[^"]+)"/g)].map(m => m[1]);
+// the ?v= cache key is part of the URL, and not part of which file this is
+const scripts = [...html.matchAll(/<script src="(assets\/js\/[^"?]+)/g)].map(m => m[1]);
 const at = f => scripts.indexOf('assets/js/' + f);
 
 check('every app script is loaded', scripts.length >= 8, true);
