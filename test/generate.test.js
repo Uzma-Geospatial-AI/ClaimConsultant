@@ -141,6 +141,15 @@ vm.runInContext(`
   globalThis.__addrFits = splitAddressLines('No 12, Jalan Contoh 1,', 'Taman Contoh');
   globalThis.__addrOver = splitAddressLines(
     'No 5, Lorong Solok Imam Tahir, Kg Solok Duku, 78300 Masjid Tanah', '');
+  // everything saved before the two-line rule existed still holds one long
+  // line, and it has to be reflowed when it is read back, not only when typed
+  const stale = mergeDefaults({ consultant: {
+    name: 'Adlishah Hakimi bin Sharilfuddin',
+    addr1: 'No 5, Lorong Solok Imam Tahir, Kg Solok Duku, 78300, Masjid Tanah, Melaka',
+    addr2: '' } });
+  globalThis.__loadedLine1 = stale.consultant.addr1;
+  globalThis.__loadedLine2 = stale.consultant.addr2;
+  globalThis.__reloaded    = mergeDefaults(stale).consultant.addr1;
   globalThis.__addrJoin = splitAddressLines(
     'No 5, Lorong Solok Imam Tahir, Kg Solok Duku, 78300', 'Melaka');
   globalThis.__al   = dayValue(S.timesheet, S.timesheet.activities[0], 20);
@@ -214,6 +223,11 @@ vm.runInContext(`
         ctx.__addrOver.line1, 'No 5, Lorong Solok Imam Tahir, Kg Solok Duku,');
   check('the overflow lands on line 2', ctx.__addrOver.line2, '78300 Masjid Tanah');
   check('the overflow joins what line 2 held', ctx.__addrJoin.line2, '78300, Melaka');
+  check('a line saved before the rule is reflowed on load',
+        ctx.__loadedLine1, 'No 5, Lorong Solok Imam Tahir, Kg Solok Duku,');
+  check('and what would not fit is on line 2',
+        ctx.__loadedLine2, '78300, Masjid Tanah, Melaka');
+  check('loading it again moves nothing further', ctx.__reloaded, ctx.__loadedLine1);
 
   console.log('\nDocument generation');
   const jobs = [

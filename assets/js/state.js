@@ -376,5 +376,16 @@ function mergeDefaults (saved) {
   if (!Array.isArray(out.timesheet.activities) || !out.timesheet.activities.length) {
     out.timesheet.activities = [ newActivity('') ];
   }
+
+  /* An address longer than the invoice can print is reflowed here as well as
+     while it is typed. Everything saved before that rule existed — every
+     profile, every stored draft — still holds a line 1 that runs off the end
+     of the page, and nobody is going to retype them. Splitting on the way in
+     costs nothing and is safe to repeat: a line that already fits is left
+     exactly as it is. */
+  const addr = splitAddressLines(out.consultant.addr1, out.consultant.addr2);
+  out.consultant.addr1 = addr.line1;
+  out.consultant.addr2 = addr.line2;
+
   return out;
 }
