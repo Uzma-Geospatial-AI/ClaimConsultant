@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Consultant Claim System</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20260912a">
+<link rel="stylesheet" href="assets/css/style.css?v=20260912b">
 </head>
 <body class="locked">
 
@@ -432,16 +432,29 @@
 
   <!-- The signed paper, once it exists. Everything above is the form as
        software holds it; this is what was actually signed. -->
-  <h3 class="archivehead">Signed copies on file</h3>
-  <p class="lead">When a claim comes back signed, file the two finished documents here.
-    They are kept against the person and the month, so any month can be produced again
-    later without hunting through anybody&rsquo;s downloads.</p>
+  <h3 class="archivehead" id="archiveHead">Signed copies on file</h3>
+  <p class="lead">When a document comes back signed, upload it here. Copies are kept
+    against the person and the month, so any month can be produced again later without
+    hunting through anybody&rsquo;s downloads.</p>
+  <div id="archiveList" class="archive"></div>
+</section>
+
+<!-- ============ STEP 8: HISTORY (administrator only) ============ -->
+<section class="panel" id="p-history" data-step="history">
+  <h2>History</h2>
+  <p class="lead">Every signed copy ever filed, for everybody, newest first. The Status
+    step shows one month; this is the whole record, which is what Finance asks for when
+    they ask about last March.</p>
   <div class="btnrow">
-    <label class="archivefilter">Show
-      <select id="archiveWho"><option value="">everybody</option></select>
+    <button class="btn ghost small" id="btnRefreshHistory">Refresh</button>
+    <label class="archivefilter">Who
+      <select id="historyWho"><option value="">everybody</option></select>
+    </label>
+    <label class="archivefilter">Year
+      <select id="historyYear"><option value="">every year</option></select>
     </label>
   </div>
-  <div id="archiveList" class="archive"></div>
+  <div id="historyList" class="archive"></div>
 </section>
 
 </main>
@@ -459,6 +472,10 @@
 <div class="pdfview" id="pdfView" hidden>
   <div class="pdfview-bar">
     <b id="pdfViewTitle"></b>
+    <!-- iOS Safari will not render a PDF inside an iframe; it shows one blank
+         page and no controls. "Open in new tab" is the way there, so on a
+         small screen the bar says so rather than leaving somebody staring. -->
+    <span class="pdfview-mobile">On a phone, use <b>Open in new tab</b>.</span>
     <div class="pdfview-actions">
       <a class="btn ghost small" id="pdfViewTab" target="_blank" rel="noopener">Open in new tab</a>
       <button class="btn small" id="pdfViewDownload">Download</button>
@@ -475,25 +492,25 @@
      fetches the page again but keeps the old JavaScript for up to ten minutes
      — which reads as "the fix did not work". Bump this stamp whenever
      anything under assets/ changes and a reload picks it all up at once. -->
-<script src="vendor/jspdf.umd.min.js?v=20260912a"></script>
-<script src="vendor/jspdf.plugin.autotable.min.js?v=20260912a"></script>
-<script src="vendor/carlito.js?v=20260912a"></script>
-<script src="vendor/exceljs.min.js?v=20260912a"></script>
-<script src="vendor/FileSaver.min.js?v=20260912a"></script>
-<script src="vendor/signature_pad.umd.min.js?v=20260912a"></script>
-<script src="vendor/docx.umd.js?v=20260912a"></script>
-<script src="assets/js/state.js?v=20260912a"></script>
-<script src="assets/js/holidays.js?v=20260912a"></script>
-<script src="assets/js/logo.js?v=20260912a"></script>
-<script src="assets/js/timesheet.js?v=20260912a"></script>
-<script src="assets/js/signature.js?v=20260912a"></script>
-<script src="assets/js/gen-invoice.js?v=20260912a"></script>
-<script src="assets/js/gen-claim.js?v=20260912a"></script>
-<script src="assets/js/preview.js?v=20260912a"></script>
-<script src="assets/js/auth.js?v=20260912a"></script>
-<script src="assets/js/sync.js?v=20260912a"></script>
-<script src="assets/js/approvals.js?v=20260912a"></script>
-<script src="assets/js/archive.js?v=20260912a"></script>
-<script src="assets/js/app.js?v=20260912a"></script>
+<script src="vendor/jspdf.umd.min.js?v=20260912b"></script>
+<script src="vendor/jspdf.plugin.autotable.min.js?v=20260912b"></script>
+<script src="vendor/carlito.js?v=20260912b"></script>
+<script src="vendor/exceljs.min.js?v=20260912b"></script>
+<script src="vendor/FileSaver.min.js?v=20260912b"></script>
+<script src="vendor/signature_pad.umd.min.js?v=20260912b"></script>
+<script src="vendor/docx.umd.js?v=20260912b"></script>
+<script src="assets/js/state.js?v=20260912b"></script>
+<script src="assets/js/holidays.js?v=20260912b"></script>
+<script src="assets/js/logo.js?v=20260912b"></script>
+<script src="assets/js/timesheet.js?v=20260912b"></script>
+<script src="assets/js/signature.js?v=20260912b"></script>
+<script src="assets/js/gen-invoice.js?v=20260912b"></script>
+<script src="assets/js/gen-claim.js?v=20260912b"></script>
+<script src="assets/js/preview.js?v=20260912b"></script>
+<script src="assets/js/auth.js?v=20260912b"></script>
+<script src="assets/js/sync.js?v=20260912b"></script>
+<script src="assets/js/approvals.js?v=20260912b"></script>
+<script src="assets/js/archive.js?v=20260912b"></script>
+<script src="assets/js/app.js?v=20260912b"></script>
 </body>
 </html>

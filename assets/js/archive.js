@@ -26,7 +26,6 @@ const ARCHIVE_SLOTS = [
 
 let archive = [];
 let archiveLoaded = false;
-let archiveWho = '';
 let archiveBusy = false;
 
 async function renderArchive (force) {
@@ -81,13 +80,24 @@ async function ensureArchive () {
  * and is counted for both — it was filed for that month, and saying "not on
  * file" about a file that is on file is the worse mistake.
  */
-function archiveHas (consultant, year, month, kind) {
+function archiveFor (consultant, year, month, kind) {
   const who = String(consultant || '').trim();
-  return archive.some(r =>
+  return archive.filter(r =>
     String(r.consultant || '').trim() === who &&
     Number(r.period_year) === Number(year) &&
     Number(r.period_month) === Number(month) + 1 &&
-    (!r.kind || r.kind === kind));
+    (!r.kind || r.kind === kind))[0] || null;
+}
+
+const archiveHas = (consultant, year, month, kind) =>
+  !!archiveFor(consultant, year, month, kind);
+
+/** who uploaded the signed copy back, and when — '' when nobody has */
+function archiveBy (consultant, year, month, kind) {
+  const rec = archiveFor(consultant, year, month, kind);
+  if (!rec) return '';
+  const when = rec.created_at ? new Date(rec.created_at).toLocaleDateString() : '';
+  return (rec.created_by || 'somebody') + (when ? ' on ' + when : '');
 }
 
 /** may the account that is signed in put documents on file? */
@@ -95,54 +105,37 @@ function canFileSigned () {
   return !Auth.role() || Auth.prepares() || Auth.places();
 }
 
-/** the names anybody has filed something under, plus whoever is in the form */
-function archiveNames () {
-  const names = new Set(archive.map(r => String(r.consultant || '').trim()).filter(Boolean));
-  const here = String(S.consultant.name || '').trim();
-  if (here) names.add(here);
-  return [...names].sort();
-}
-
+/**
+ * The Status step's list: the month the table above is showing, and nothing
+ * else. One month is the question that step asks — the whole record is the
+ * History step, which is the administrator's.
+ */
 function paintArchive () {
   const host = document.getElementById('archiveList');
-  const who  = document.getElementById('archiveWho');
   if (!host) return;
 
-  if (who) {
-    const names = archiveNames();
-    who.innerHTML = '<option value="">everybody</option>';
-    names.forEach(n => {
-      const o = document.createElement('option');
-      o.value = n;
-      o.textContent = n;              // names are typed by people, never markup
-      who.appendChild(o);
-    });
-    who.value = names.indexOf(archiveWho) >= 0 ? archiveWho : '';
-    archiveWho = who.value;
-    who.onchange = () => { archiveWho = who.value; paintArchive(); };
-  }
+  const when = (typeof statusMonth === 'object' && statusMonth)
+    ? statusMonth : { y: S.timesheet.year, m: S.timesheet.month };
+
+  const head = document.getElementById('archiveHead');
+  if (head) head.textContent = `Signed copies on file — ${MONTHS[when.m]} ${when.y}`;
 
   host.innerHTML = '';
 
-  /* Whoever is holding the signed paper. That is usually the consultant who
-     prepared it — and it is always the PA at the end, because placing the
-     signature is their whole part in this and some months it happens on
-     paper rather than in the app. */
+  // whoever is holding the signed paper: the consultant who prepared it, and
+  // always the PA at the end, because placing the signature is their part
   if (canFileSigned()) host.appendChild(archiveUploadCard());
 
   const rows = archive
-    .filter(r => !archiveWho || String(r.consultant || '').trim() === archiveWho)
+    .filter(r => Number(r.period_year) === when.y && Number(r.period_month) === when.m + 1)
     .slice()
-    .sort((a, b) =>
-      (b.period_year - a.period_year) || (b.period_month - a.period_month) ||
-      String(a.consultant || '').localeCompare(String(b.consultant || '')));
+    .sort((a, b) => String(a.consultant || '').localeCompare(String(b.consultant || '')));
 
   if (!rows.length) {
     const empty = document.createElement('p');
     empty.className = 'emptynote';
-    empty.textContent = archiveWho
-      ? 'Nothing filed for ' + archiveWho + ' yet.'
-      : 'Nothing filed yet. When a claim comes back signed, put the two documents here.';
+    empty.textContent = `Nothing on file for ${MONTHS[when.m]} ${when.y} yet. ` +
+      'When a document comes back signed, upload it above.';
     host.appendChild(empty);
     return;
   }
@@ -161,7 +154,134 @@ function paintArchive () {
   });
 }
 
-function archiveRow (r) {
+/* =======================================================================
+   The History step — everything, for the administrator
+
+   Status answers "where is this month". Somebody has to be able to answer
+   "where is last March" as well, and that is a different screen: no upload,
+   no approvals, just every signed copy that has ever been filed, newest
+   first, filtered by person and by year.
+   ======================================================================= */
+
+let historyWho = '';
+let historyYear = '';
+
+async function renderHistory (force) {
+  const host = document.getElementById('historyList');
+  if (!host) return;
+
+  if (!Sync.on) {
+    archiveLoaded = false;
+    host.innerHTML =
+      '<p class="emptynote"><b>Not connected to the database.</b> ' +
+      'The history lives in the shared database, which this browser cannot reach ' +
+      'right now.</p>';
+    return;
+  }
+
+  if (force) archiveLoaded = false;
+  host.innerHTML = '<p class="emptynote">Loading…</p>';
+  await ensureArchive();
+
+  if (!Sync.archiveOn) {
+    host.innerHTML =
+      '<p class="emptynote"><b>The archive is not switched on yet.</b> ' +
+      'BDOS has not shipped the storage for signed copies — see ' +
+      'docs/BDOS-CCS-Endpoints.md. Once it is there, every month filed from the ' +
+      'Status step appears here.</p>';
+    return;
+  }
+  paintHistory();
+}
+
+function paintHistory () {
+  const host = document.getElementById('historyList');
+  const who = document.getElementById('historyWho');
+  const year = document.getElementById('historyYear');
+  if (!host) return;
+
+  if (who) {
+    const names = [...new Set(archive.map(r => String(r.consultant || '').trim()))]
+      .filter(Boolean).sort();
+    fillSelect(who, 'everybody', names, names.map(n => n));
+    who.value = names.indexOf(historyWho) >= 0 ? historyWho : '';
+    historyWho = who.value;
+    who.onchange = () => { historyWho = who.value; paintHistory(); };
+  }
+  if (year) {
+    const years = [...new Set(archive.map(r => Number(r.period_year)).filter(Boolean))]
+      .sort((a, b) => b - a);
+    fillSelect(year, 'every year', years.map(String), years.map(String));
+    year.value = years.map(String).indexOf(historyYear) >= 0 ? historyYear : '';
+    historyYear = year.value;
+    year.onchange = () => { historyYear = year.value; paintHistory(); };
+  }
+
+  const rows = archive
+    .filter(r => !historyWho || String(r.consultant || '').trim() === historyWho)
+    .filter(r => !historyYear || String(r.period_year) === historyYear)
+    .slice()
+    .sort((a, b) =>
+      (b.period_year - a.period_year) || (b.period_month - a.period_month) ||
+      String(a.consultant || '').localeCompare(String(b.consultant || '')));
+
+  host.innerHTML = '';
+
+  const count = document.createElement('p');
+  count.className = 'historycount';
+  const files = rows.reduce((n, r) => n + ((r.files || []).length), 0);
+  count.textContent = rows.length
+    ? `${rows.length} record${rows.length > 1 ? 's' : ''}, ${files} file${files > 1 ? 's' : ''}.`
+    : '';
+  if (rows.length) host.appendChild(count);
+
+  if (!rows.length) {
+    const empty = document.createElement('p');
+    empty.className = 'emptynote';
+    empty.textContent = (historyWho || historyYear)
+      ? 'Nothing on file for that.'
+      : 'Nothing has been filed yet.';
+    host.appendChild(empty);
+    return;
+  }
+
+  // grouped by month, because that is how anybody asks for one
+  let seen = null;
+  rows.forEach(r => {
+    const m = Number(r.period_month) || 0;
+    const label = `${MONTHS[Math.max(0, m - 1)]} ${r.period_year || ''}`.trim();
+    if (label !== seen) {
+      seen = label;
+      const h = document.createElement('h4');
+      h.className = 'archiveperson';
+      h.textContent = label;
+      host.appendChild(h);
+    }
+    host.appendChild(archiveRow(r, true));
+  });
+}
+
+/** rebuild a <select> without losing the caller's placeholder */
+function fillSelect (el, placeholder, values, labels) {
+  el.innerHTML = '';
+  const first = document.createElement('option');
+  first.value = '';
+  first.textContent = placeholder;
+  el.appendChild(first);
+  values.forEach((v, i) => {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = labels[i];        // names are typed by people, never markup
+    el.appendChild(o);
+  });
+}
+
+/**
+ * One filed record.
+ * @param {boolean} [namePerson] head it with the consultant rather than the
+ *        month — History groups by month, so the month is already above it
+ */
+function archiveRow (r, namePerson) {
   const row = document.createElement('div');
   row.className = 'archrow';
 
@@ -169,8 +289,17 @@ function archiveRow (r) {
   head.className = 'archhead';
   const when = document.createElement('b');
   const m = Number(r.period_month) || 0;
-  when.textContent = (MONTHS[Math.max(0, m - 1)] + ' ' + (r.period_year || '')).trim();
+  when.textContent = namePerson
+    ? (String(r.consultant || '').trim() || '(no name)')
+    : (MONTHS[Math.max(0, m - 1)] + ' ' + (r.period_year || '')).trim();
   head.appendChild(when);
+
+  if (r.kind && typeof kindLabel === 'function') {
+    const tag = document.createElement('span');
+    tag.className = 'doctag ' + r.kind;
+    tag.textContent = kindLabel(r.kind);
+    head.appendChild(tag);
+  }
 
   const meta = document.createElement('span');
   meta.textContent = [

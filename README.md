@@ -172,6 +172,9 @@ hands it back to the calendar.
 | ✍️ **Sign in the signature box** | The four pads (Personnel, Project Manager, HOD, Verified By) sit inside Section C where the pen would go; blank space around the stroke is trimmed before it is embedded |
 | ✅ **Three stages, in order** | A submitted document goes to the project manager, then to the HOD, and the HOD's signature is placed by their PA. Each approver reads it as it will be printed, signs their own box or sends it back with a reason, and every move is recorded against a name and a time |
 | 🚦 **A status table that starts from the people** | Everybody with a profile gets a row per document for the month you are looking at, **whether or not they have sent anything** — because "has Amila sent September yet" is the question that gets asked, and a list of what was sent can never answer it. Then five lights, in the order they happen: **Sent · Reviewed · Approved · Signed · On file**. Green done, amber waiting here now, red sent back from here, blank not yet. Pick another month from the same row of controls |
+| 🧑 **Every column says whose it is** | "Reviewed" tells nobody anything; **Reviewed / Muhammad Hanis Rashidan** tells them who to go and ask. Each heading names the person who holds that stage, and each light says who actually moved it and when — usually the same person, occasionally the admin standing in |
+| 🗄️ **A History tab, for the administrator** | Status answers "where is this month". History answers "where is last March": every signed copy ever filed, for everybody, grouped by month and filtered by person or year. Only the admin account is offered it |
+| 📱 **Works on a phone** | The four people who approve a claim read it on whatever is in their hand. The status table becomes a card each below 700px, every ordinary field is 16px so iOS does not zoom in and stay there, tap targets are 40px, and the notch does not sit over the top bar. The two document replicas keep their printed geometry and scroll sideways instead — shrinking those would mean the thing on screen was no longer the thing that prints |
 | 🖊️ **The PA signs, on screen or on paper** | The last stage is the PA's, and their whole job is the signature. Draw it in the app, or — when it was signed on paper, in a room, with a pen — upload the finished document instead. Either finishes the month, and the uploaded one goes straight onto the Signed copies list |
 | 🖋️ **Approval block starts filled** | Section C opens with the usual names and today's date already in place — every one is a normal field, so type over it when somebody else signs |
 | 🏷️ **Official artwork, placed to the millimetre** | The Uzma wordmark ships with the app and is positioned from proportions measured off the printed form, not eyeballed |
@@ -180,7 +183,32 @@ hands it back to the calendar.
 | 📊 **Totals that add up** | `TOTAL DAYS [A]`, `ALLOCATED [B]`, `PAST CLAIM [C]` and `BALANCE [B-(A+C)]` are computed per row and in aggregate |
 | 💾 **Autosave + profiles** | Everything persists to `localStorage`; save one profile per consultant and switch between them. **Save Profile** sits at the foot of the details it saves, not in the top bar a screenful away. The profile list gives every profile its own row &mdash; the name opens that profile's details in the form, **Delete** removes that one, and **+ Add new profile** clears the form for another consultant |
 | 🧨 **Reset All** | Two-step confirmation, then every stored key is wiped and the app is empty again |
-| 📱 **Responsive** | Collapses to a single column below 840px; the day grid wraps instead of scrolling |
+| 📱 **Responsive** | Collapses to a single column below 840px, and to phone-shaped below 700px — see [On a Phone](#on-a-phone) |
+
+---
+
+## On a Phone
+
+Four of the five people who touch a claim only ever approve one, and they do it on whatever is in
+their hand. So the parts they use work at 360px before anything else does:
+
+- The **status table becomes a card each** below 700px — name, document, the five lights in a
+  row with their labels under them, then the buttons. No horizontal scrolling to find out whether
+  something is waiting on you.
+- **Every ordinary field is 16px** on a small screen. Below that, iOS Safari zooms the page in
+  when a field takes focus and never zooms back out, which is the single most common way a form
+  becomes unusable on an iPhone.
+- **Tap targets are 40px**, the top bar stacks, and the stepper scrolls sideways with momentum.
+- The **notch** is kept out of the way with `env(safe-area-inset-*)`, and pinch zoom is never
+  disabled — `maximum-scale` locks out the people who need it most.
+- iOS Safari will not render a PDF inside an iframe; it shows one blank page. The viewer says so
+  on a small screen and points at **Open in new tab**, which does work.
+
+The two **document replicas** are the exception, deliberately. They are the printed page at its
+printed size, and they scroll sideways rather than reflow — a replica that rearranged itself to
+fit a phone would no longer be showing you where each value lands on the paper, which is the
+entire reason it is a replica. Filling one in on a phone is possible; it is not pleasant, and it
+was never meant to be.
 
 ---
 
@@ -218,8 +246,8 @@ ConsultantClaimSystem/
 │       ├── gen-invoice.js        # Invoice → PDF (jsPDF) + Excel (ExcelJS)
 │       ├── gen-claim.js          # Claim   → PDF (jsPDF) + Word (docx)
 │       ├── preview.js            # the on-screen PDF viewer
-│       ├── approvals.js          # the approval queue and the decisions
-│       ├── archive.js            # the signed copies on file
+│       ├── approvals.js          # the status table and the decisions
+│       ├── archive.js            # the signed copies, and the History step
 │       └── app.js                # step flow, profiles, generate buttons
 ├── docs/
 │   └── BDOS-CCS-Endpoints.md     # the storage API this app asks BDOS for
@@ -533,6 +561,19 @@ app, or &mdash; when it was signed on paper, in a room, with a pen &mdash; uploa
 document instead. Either finishes the month; the uploaded one also lights the **On file** column
 and joins the Signed copies list, which is the record somebody actually needs when Finance asks
 about September a year later.
+
+The Status step shows one month. The **History** step &mdash; offered to the administrator
+account and nobody else &mdash; shows every month: every signed copy ever filed, grouped by
+month, filtered by person or year. Both are reporting screens, so neither is gated behind filling
+a form in: opening the app to see whether somebody has sent September should not first ask you to
+choose a document you are not going to produce.
+
+Who each stage belongs to is written into the table rather than left to be remembered. The
+heading names the person &mdash; **Reviewed / Muhammad Hanis Rashidan**, **Approved /
+Gs. Mohammad Fadhli Jamaluddin**, **Signed / Fatin Zaini** &mdash; and each light says who
+actually moved it, and when. Those names live in one place, [`auth.js`](assets/js/auth.js),
+beside the accounts they belong to; the approval block on the Claim page starts from the same
+list rather than a second copy of it.
 
 Who may move a claim is decided by the stage it is at, and decided in BDOS, not here: the project
 manager cannot approve in the HOD's place, nobody can approve twice, and the row is locked while

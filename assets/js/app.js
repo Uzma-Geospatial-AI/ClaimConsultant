@@ -11,8 +11,8 @@ let S = Store.loadCurrent() || defaultState();
    name out or hand the sheet to somebody else and the documents follow.
    ----------------------------------------------------------------------- */
 const SIGN_DEFAULTS = {
-  review: 'Muhammad Hanis Rashidan',        // project manager, who reviews first
-  hod: 'Gs. Mohammad Fadhli Jamaluddin',    // approver; edit on the Claim page
+  review: Auth.personFor('manager'),        // project manager, who reviews first
+  hod: Auth.personFor('boss'),              // approver; edit on the Claim page
   verified: ''                              // Group People & Finance sign on paper
 };
 
@@ -50,8 +50,16 @@ const STEPS = [
      several times while a month is still being argued about; submitting
      happens once and cannot be taken back. They are separate steps now. */
   { id: 'submit',     label: 'Submit' },
-  { id: 'approvals',  label: 'Status' }
+  { id: 'approvals',  label: 'Status' },
+  /* The administrator, and only them: the Status step answers "where is this
+     month", and somebody has to be able to answer "where is last March" as
+     well. `admin: true` is the only thing that keeps a step out of the flow
+     for everybody else. */
+  { id: 'history',    label: 'History', admin: true }
 ];
+
+/** steps this account is allowed to see at all */
+const permittedSteps = () => STEPS.filter(s => !s.admin || Auth.isAdmin());
 
 let stepIndex = 0;
 let activeProfile = '';          // the saved profile the form was opened from
@@ -61,14 +69,15 @@ function activeSteps () {
      wizard is not drawn for them at all. The admin is not an approver in that
      sense: they prepare claims like a consultant as well, and get everything.
      "Prepares" is the question, not "is a consultant". */
+  const all = permittedSteps();
   if (Auth.role() && !Auth.prepares()) {
-    return STEPS.filter(s => s.id === 'approvals');
+    return all.filter(s => s.id === 'approvals' || s.id === 'history');
   }
-  const tail = STEPS.filter(s => s.id === 'approvals');
+  const tail = all.filter(s => s.id === 'approvals' || s.id === 'history');
   if (!S.mode) {
-    return STEPS.filter(s => s.id === 'consultant' || s.id === 'choose').concat(tail);
+    return all.filter(s => s.id === 'consultant' || s.id === 'choose').concat(tail);
   }
-  return STEPS.filter(s => !s.modes || s.modes.includes(S.mode));
+  return all.filter(s => !s.modes || s.modes.includes(S.mode));
 }
 
 function canLeave (id) {
@@ -84,10 +93,17 @@ function canLeave (id) {
   return true;
 }
 
+/* Steps that only report. Nothing on them is part of preparing a claim, so
+   nothing has to be filled in to look at one — an administrator opening the
+   app to see whether Amila has sent September should not first be asked to
+   pick a document they are not going to produce. */
+const INFO_STEPS = ['approvals', 'history'];
+
 function goToStep (i, skipGuard) {
   const list = activeSteps();
   const target = Math.max(0, Math.min(i, list.length - 1));
-  if (!skipGuard && target > stepIndex) {
+  const reporting = INFO_STEPS.indexOf(list[target].id) >= 0;
+  if (!skipGuard && !reporting && target > stepIndex) {
     for (let k = stepIndex; k < target; k++) if (!canLeave(list[k].id)) return;
   }
   stepIndex = target;
@@ -109,6 +125,7 @@ function showStep () {
   if (step.id === 'choose') paintChoices();
   if (step.id === 'submit') renderSubmitStep();
   if (step.id === 'approvals') { renderApprovals(); renderArchive(); }
+  if (step.id === 'history') renderHistory();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -934,6 +951,8 @@ function boot () {
     await renderArchive(true);
     await renderApprovals();
   });
+  const btnHist = document.getElementById('btnRefreshHistory');
+  if (btnHist) btnHist.addEventListener('click', () => renderHistory(true));
 
   document.getElementById('btnSubmitClaim').addEventListener('click', async () => {
     if (!validate()) return;

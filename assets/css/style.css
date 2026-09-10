@@ -725,3 +725,136 @@ body.locked > .sitefoot{display:none}
 .statusrow.unsent .doctag{opacity:.55}
 .statusnone{color:var(--muted);font-size:12px;font-style:italic}
 .statusempty{padding:22px 14px;text-align:center;color:var(--muted)}
+
+/* the History step's counts and the document tag on a filed record */
+.historycount{margin:0 0 4px;font-size:12.5px;color:var(--muted)}
+.archhead .doctag{margin-left:2px}
+
+/* the stage headings carry the person who does that stage */
+.statustable th.stagecol{text-align:center;line-height:1.3}
+.statustable th.stagecol small{
+  display:block;margin-top:3px;font-size:10.5px;font-weight:500;letter-spacing:0;
+  text-transform:none;color:var(--muted);max-width:130px;margin-inline:auto;
+}
+
+/* =======================================================================
+   On a phone
+
+   The four people who approve a claim read it on whatever is in their hand,
+   which is usually a phone — so the parts they touch have to work at 360px
+   before anything else does. The parts nobody sensibly fills in on a phone
+   (the two document replicas, which are the printed page at its printed
+   size) keep their geometry and scroll sideways instead: shrinking those
+   would mean the thing on screen was no longer the thing that prints.
+   ======================================================================= */
+
+/* Anything that scrolls sideways should do it the way the platform does. */
+.sheetwrap,.uz-gridwrap,.statuswrap,.stepper{-webkit-overflow-scrolling:touch}
+
+/* The notch, and the rounded corners under it. */
+.topbar,.sitefoot{
+  padding-left:max(22px,env(safe-area-inset-left));
+  padding-right:max(22px,env(safe-area-inset-right));
+}
+
+@media(max-width:700px){
+  /* iOS zooms the page in when a field smaller than 16px takes focus, and
+     never zooms back out. Every ordinary control is therefore 16px here. The
+     document replicas keep theirs — .dinput is a class and outranks this —
+     because their sizes are the printed sizes. */
+  input,select,textarea{font-size:16px}
+
+  .topbar{padding-top:11px;padding-bottom:11px;gap:12px}
+  .brand{gap:10px}
+  .brand-text h1{font-size:14.5px}
+  .brand-text p{display:none}
+  .brand-rule{height:28px}
+  .brand-img{height:30px}
+  .topbar-actions{width:100%;gap:6px}
+  .topbar-actions .btn{flex:1 1 auto;min-height:40px}
+  .profiles{flex:1 1 100%}
+  .profiles-toggle{max-width:none;width:100%;min-height:40px}
+  .profilemenu{min-width:0;width:100%;max-width:none}
+  .whoami{padding-left:0;margin-left:0;border-left:none;flex:1 1 100%;order:9}
+
+  .stepper{padding:0 8px}
+  .step{padding:11px 5px;font-size:12.5px}
+  .step:not(:last-child)::after{width:10px;margin:0 2px 0 6px}
+
+  main{padding:14px 10px 30px}
+  .panel{padding:16px 14px;border-radius:9px}
+  h2{font-size:17px}
+  .lead{font-size:13px;margin-bottom:16px}
+
+  /* a finger is not a mouse pointer */
+  .btn{min-height:40px;padding:10px 14px}
+  .btn.small{min-height:36px;padding:8px 12px}
+  .navrow{flex-wrap:wrap}
+  .navrow .stepnote{order:3;width:100%;text-align:center}
+
+  .sheetwrap{padding:10px;border-radius:8px}
+  /* the day grid is tapped, one cell at a time, so the cells grow */
+  .uz-grid td{height:30px}
+  .uz-grid .c-day{width:26px}
+  .uz-grid .c-act{width:150px}
+
+  /* ---- the status table becomes a card each ---- */
+  .statuswrap{overflow:visible;border:none;background:none;border-radius:0}
+  .statustable{display:block;min-width:0}
+  .statustable thead{display:none}
+  .statustable tbody{display:block}
+  .statustable tr.statusrow{
+    display:flex;flex-wrap:wrap;align-items:center;gap:2px 10px;
+    border:1px solid var(--line);border-radius:9px;background:#fff;
+    padding:12px 14px;margin-bottom:10px;
+  }
+  .statustable tr.statusrow.firstof td{border-top:none}
+  .statustable tr.statusrow td{display:block;border:none;padding:0}
+  .statustable td.who{width:100%;order:1}
+  .statustable td.who:empty{display:none}
+  .statustable td.doc{width:100%;order:2;margin-bottom:6px}
+  .statustable td.stagecell{
+    order:3;display:flex;flex-direction:column-reverse;align-items:center;gap:4px;
+    flex:1 1 auto;min-width:56px;padding:6px 0;
+  }
+  .statustable td.stagecell::before{
+    content:attr(data-col);font-size:9.5px;letter-spacing:.4px;text-transform:uppercase;
+    color:var(--muted);white-space:nowrap;
+  }
+  .statustable td.statusacts{
+    order:4;width:100%;text-align:left;white-space:normal;
+    display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;
+  }
+  .statustable td.statusacts .btn{margin-left:0;flex:1 1 auto}
+  .statustable tr.decidetr{display:block;margin:-6px 0 12px}
+  .statustable tr.decidetr td{display:block;padding:0}
+  .decidetr .decidebox{border-radius:9px;border:1px solid var(--line)}
+  .statuslegend{padding:10px 2px;gap:12px;font-size:11.5px}
+  .statusbar{gap:10px}
+  .statuspick,.statuspick select{width:100%}
+  .statuscount{width:100%}
+
+  .bulkbar{flex-direction:column;align-items:stretch}
+  .bulkbar .dinput{min-width:0}
+
+  .archupload{padding:14px}
+  .archfiles .btn{flex:1 1 auto}
+  .archivefilter{width:100%}
+  .archivefilter select{max-width:none}
+
+  /* iOS Safari cannot show a PDF in an iframe, so point at the way out */
+  .pdfview-mobile{display:block;color:#cfdae4;font-size:12px;width:100%}
+  .pdfview-actions{width:100%}
+  .pdfview-actions .btn{flex:1 1 auto;justify-content:center}
+
+  .auth-card{padding:24px 20px 20px}
+}
+
+/* the PDF hint is for small screens only */
+.pdfview-mobile{display:none}
+
+@media(max-width:400px){
+  .statustable td.stagecell{min-width:48px}
+  .statustable td.stagecell::before{font-size:9px}
+  .brand-text h1{font-size:13.5px}
+}

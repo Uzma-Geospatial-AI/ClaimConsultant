@@ -46,6 +46,24 @@ const ROLE_NAMES = {
   pa:         'PA to the HOD'
 };
 
+/**
+ * Who actually holds each part, by name.
+ *
+ * "Reviewed" is a column heading that tells nobody anything; "Muhammad Hanis
+ * Rashidan" tells them who to go and ask. These are the people the process
+ * runs through today, and they are only what the screen says — every one of
+ * them is also an ordinary field on the Claim page, so a month somebody else
+ * signs is typed over there and the documents follow.
+ *
+ * Changed together with ROLES above when somebody moves on.
+ */
+const ROLE_PEOPLE = {
+  consultant: 'the consultant',
+  manager:    'Muhammad Hanis Rashidan',
+  boss:       'Gs. Mohammad Fadhli Jamaluddin',
+  pa:         'Fatin Zaini'
+};
+
 /* The admin prepares claims like a consultant and can also move any claim at
    any stage — somebody has to be able to finish a month when the project
    manager is on leave and the HOD is on a plane. BDOS decides this too; the
@@ -309,6 +327,8 @@ const Auth = {
   isAllowed: isAllowed,
   role: currentRole,
   roleName: r => ROLE_NAMES[r || currentRole()] || '',
+  /** the person who holds that part, by name */
+  personFor: r => ROLE_PEOPLE[r] || '',
   prepares: () => prepares(currentRole()),
   places: () => places(currentRole()),
   isAdmin: () => isAdmin(currentRole()),

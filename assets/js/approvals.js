@@ -41,9 +41,12 @@ const STATUS_ROLE = {
 
 /* The three approval stages in order, and what each column is called. */
 const STAGES = [
-  { key: 'pending_manager',   head: 'Reviewed', who: 'manager' },
-  { key: 'pending_boss',      head: 'Approved', who: 'boss' },
-  { key: 'pending_signature', head: 'Signed',   who: 'pa' }
+  { key: 'pending_manager',   head: 'Reviewed', who: 'manager',
+    does: 'reads it and signs the REVIEWED BY box' },
+  { key: 'pending_boss',      head: 'Approved', who: 'boss',
+    does: 'approves it; signs nothing themselves' },
+  { key: 'pending_signature', head: 'Signed',   who: 'pa',
+    does: 'places the HOD signature, in the app or on paper' }
 ];
 const STAGE_KEYS = STAGES.map(s => s.key);
 
@@ -386,10 +389,12 @@ function statusTable () {
   const hr = document.createElement('tr');
   hr.appendChild(th('Consultant'));
   hr.appendChild(th('Document'));
-  hr.appendChild(lampHead('Sent', 'the consultant has submitted it'));
+  hr.appendChild(lampHead('Sent', Auth.personFor('consultant'),
+                          'the consultant submits it'));
   STAGES.forEach(st => hr.appendChild(
-    lampHead(st.head, 'waiting on the ' + Auth.roleName(st.who))));
-  hr.appendChild(lampHead('On file', 'the signed copy has been uploaded back'));
+    lampHead(st.head, Auth.personFor(st.who), Auth.roleName(st.who) + ' — ' + st.does)));
+  hr.appendChild(lampHead('On file', Auth.personFor('pa'),
+                          'the signed document is uploaded back into the system'));
   hr.appendChild(th(''));
   thead.appendChild(hr);
   table.appendChild(thead);
@@ -431,10 +436,25 @@ function th (text) {
   return cell;
 }
 
-function lampHead (text, why) {
-  const cell = th(text);
+/**
+ * A stage column heading: what the stage is, and who does it.
+ *
+ * "Reviewed" on its own tells nobody anything. "Reviewed / Muhammad Hanis
+ * Rashidan" tells them who to go and ask, which is what somebody staring at
+ * an amber light actually wants to know.
+ */
+function lampHead (text, who, why) {
+  const cell = document.createElement('th');
   cell.className = 'stagecol';
-  cell.title = why;
+  const name = document.createElement('span');
+  name.textContent = text;
+  cell.appendChild(name);
+  if (who) {
+    const person = document.createElement('small');
+    person.textContent = who;          // typed by us, but read as text regardless
+    cell.appendChild(person);
+  }
+  cell.title = why || '';
   return cell;
 }
 
@@ -454,6 +474,7 @@ function statusRow (name, kind, sub, first) {
 
   const who = document.createElement('td');
   who.className = 'who';
+  who.dataset.col = 'Consultant';
   if (first) {
     const b = document.createElement('b');
     b.textContent = name;
@@ -468,6 +489,7 @@ function statusRow (name, kind, sub, first) {
 
   const doc = document.createElement('td');
   doc.className = 'doc';
+  doc.dataset.col = 'Document';
   const tag = document.createElement('span');
   tag.className = 'doctag ' + kind;
   tag.textContent = kindLabel(kind);
@@ -481,25 +503,27 @@ function statusRow (name, kind, sub, first) {
   // the three approval stages
   STAGES.forEach(st => {
     const state = stageState(sub, st.key);
+    const did = sub ? whoDid(sub, st.key) : '';
     tr.appendChild(lampCell(state, st.head,
       !sub ? 'nothing sent yet'
-      : state === 'done' ? 'done'
-      : state === 'waiting' ? 'waiting on the ' + Auth.roleName(st.who)
-      : state === 'returned' ? 'sent back by the ' + Auth.roleName(st.who)
+      : state === 'done' ? (did ? 'done by ' + did : 'done')
+      : state === 'waiting' ? 'waiting on ' + Auth.personFor(st.who)
+      : state === 'returned' ? 'sent back' + (did ? ' by ' + did : '')
       : 'not reached yet'));
   });
 
-  // On file — the signed paper, uploaded back by the PA
-  const onFile = typeof archiveHas === 'function' &&
-                 archiveHas(name, statusMonth.y, statusMonth.m, kind);
-  tr.appendChild(lampCell(onFile ? 'done' : 'todo', 'On file',
-    onFile ? 'the signed copy is on file'
+  // On file — the signed paper, uploaded back into the system
+  const filedBy = typeof archiveBy === 'function'
+    ? archiveBy(name, statusMonth.y, statusMonth.m, kind) : '';
+  tr.appendChild(lampCell(filedBy ? 'done' : 'todo', 'On file',
+    filedBy ? 'uploaded back by ' + filedBy
     : (typeof Sync !== 'undefined' && Sync.archiveOn === false)
       ? 'the archive is not switched on yet'
       : 'not uploaded back yet'));
 
   const acts = document.createElement('td');
   acts.className = 'statusacts';
+  acts.dataset.col = '';
   if (sub) {
     acts.appendChild(button('Read', 'ghost small', () => reviewSubmission(sub.id)));
     if (waitingOnMe(sub)) {
@@ -524,6 +548,9 @@ function statusRow (name, kind, sub, first) {
 function lampCell (state, head, why) {
   const cell = document.createElement('td');
   cell.className = 'stagecell';
+  // on a phone the headings are gone and each row becomes a card, so every
+  // lamp has to be able to say what it is on its own
+  cell.dataset.col = head;
   const lamp = document.createElement('span');
   lamp.className = 'lamp ' + state;
   lamp.textContent = state === 'done' ? '✓'
@@ -532,6 +559,22 @@ function lampCell (state, head, why) {
   lamp.title = `${head} — ${why}`;
   cell.appendChild(lamp);
   return cell;
+}
+
+/**
+ * Who actually moved this document past one stage, and when.
+ *
+ * The heading says who is meant to; this says who did. They are usually the
+ * same person and occasionally not — the admin stands in when somebody is on
+ * a plane — and a light that cannot tell you which is a light you end up
+ * asking about anyway.
+ */
+function whoDid (sub, stageKey) {
+  const moved = (sub.history || []).filter(h => h.from === stageKey &&
+                                                (h.action === 'approve' || h.action === 'return'))[0];
+  if (!moved) return '';
+  const when = moved.at ? new Date(moved.at).toLocaleDateString() : '';
+  return (moved.by || 'somebody') + (when ? ' on ' + when : '');
 }
 
 function sentWhen (sub) {

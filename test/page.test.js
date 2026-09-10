@@ -195,6 +195,51 @@ check('and never remembers a typed password in the URL',
    one that calls into it.
    ----------------------------------------------------------------------- */
 /* -----------------------------------------------------------------------
+   The administrator's History step. Status answers "where is this month";
+   somebody has to be able to answer "where is last March" as well, and only
+   that account gets to.
+   ----------------------------------------------------------------------- */
+console.log('\nThe History step');
+
+check('the panel is in the page', /id="p-history"/.test(html), true);
+check('the step is marked for the administrator only',
+  /id: 'history',[^}]*admin: true/.test(appjs), true);
+check('and nothing else can reach it',
+  /STEPS\.filter\(s => !s\.admin \|\| Auth\.isAdmin\(\)\)/.test(appjs), true);
+// Status and History only report. Gating them behind "pick a document first"
+// asked an administrator opening the app to see whether Amila had sent
+// September to choose a document they were never going to produce.
+check('a reporting step is not gated behind the form',
+  /const INFO_STEPS = \['approvals', 'history'\]/.test(appjs) &&
+  /!skipGuard && !reporting/.test(appjs), true);
+check('the stage headings name who does the stage',
+  /Auth\.personFor\(st\.who\)/.test(approvals), true);
+check('and the approval block starts from the same list, not a second copy',
+  /review: Auth\.personFor\('manager'\)/.test(appjs), true);
+
+/* -----------------------------------------------------------------------
+   On a phone. Four people approve claims on whatever is in their hand, and
+   two of the failures that costs are invisible to a desktop browser: iOS
+   zooms in on any field under 16px and never zooms back, and a seven-column
+   table at 360px is a table nobody scrolls.
+   ----------------------------------------------------------------------- */
+console.log('\nOn a phone');
+
+check('the page declares the device width',
+  /name="viewport"[^>]*width=device-width/.test(html), true);
+check('and never blocks pinch zoom',
+  /(maximum-scale|user-scalable)/.test(html), false);
+check('ordinary fields are 16px, so iOS does not zoom in on them',
+  /@media\(max-width:700px\)\{[\s\S]{0,900}input,select,textarea\{font-size:16px\}/.test(css), true);
+check('the status table becomes a card each',
+  /\.statustable thead\{display:none\}/.test(css), true);
+check('and every lamp can then say what it is',
+  /\.statustable td\.stagecell::before\{[\s\S]{0,40}content:attr\(data-col\)/.test(css), true);
+check('which means the cells carry it', /cell\.dataset\.col = head/.test(approvals), true);
+check('the notch does not sit over the top bar',
+  /env\(safe-area-inset-left\)/.test(css), true);
+
+/* -----------------------------------------------------------------------
    Cache keys. GitHub Pages serves this page and everything it loads with
    max-age=600. A reload fetches the page again but keeps the old JavaScript
    for up to ten minutes, which is indistinguishable from a fix that did not
