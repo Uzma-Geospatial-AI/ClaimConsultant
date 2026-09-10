@@ -102,7 +102,8 @@ function showStep () {
   if (step.id === 'approvals') renderApprovals();
   if (step.id === 'generate') {
     const card = document.getElementById('card_submit');
-    if (card) card.hidden = !(Sync.on && (!Auth.role() || Auth.role() === 'consultant'));
+    // whoever prepares claims can send one — the admin included
+    if (card) card.hidden = !(Sync.on && (!Auth.role() || Auth.prepares()));
   }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }

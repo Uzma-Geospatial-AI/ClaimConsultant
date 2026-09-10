@@ -88,6 +88,11 @@ check('nothing is signed while it sits with the HOD',
 // nothing else.
 check('the wizard is hidden by what an account prepares, not by its role name',
   /Auth\.role\(\)\s*&&\s*!Auth\.prepares\(\)/.test(appjs), true);
+// Every "can this account do X" has to ask what the account does, never what
+// it is called. Comparing to a role name is how the admin ended up with less
+// access than the people it administers.
+check('nothing decides access by comparing to a role name',
+  /Auth\.role\(\)\s*===/.test(appjs + approvals), false);
 check('a claim waits on the manager, then the HOD, then the PA',
   /pending_manager:\s*'manager'[\s\S]{0,160}pending_boss:\s*'boss'[\s\S]{0,160}pending_signature:\s*'pa'/
     .test(approvals), true);

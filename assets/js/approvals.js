@@ -171,7 +171,7 @@ function paintApprovals () {
 
   host.innerHTML = '';
   if (!subs.length) {
-    host.innerHTML = myRole() === 'consultant'
+    host.innerHTML = Auth.prepares()
       ? '<p class="emptynote">Nothing submitted yet. Fill the claim in, then send it for approval from the Generate step.</p>'
       : '<p class="emptynote">Nothing has been sent for approval yet.</p>';
     return;
