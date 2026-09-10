@@ -315,18 +315,15 @@ async function initSync (S, adopt) {
 
   if (draft && draft.data) {
     const mine = lastSynced();
-    // Adopt when there is nothing here to lose, or when the stored draft is
-    // demonstrably newer than the last thing this browser sent up. Anything
-    // less certain leaves the work on screen alone — it wins by default and
-    // goes up on the next autosave.
+    /* Adopt when there is nothing here to lose. Otherwise ask, but only when
+       the stored draft is both different from the form on screen and newer
+       than the newest this browser has already seen — work on screen wins by
+       default and goes up on the next autosave. */
     if (isBlankForm(S)) {
       adopt(mergeDefaults(draft.data));
       result.adopted = true;
-    } else if (sameDraft(S, draft.data)) {
-      // the stored draft is the form already on screen — there is nothing to
-      // choose between, so there is nothing to ask about
-      markSynced(draft.updated_at);
-    } else if (mine && draft.updated_at && draft.updated_at > mine) {
+    } else if (!sameDraft(S, draft.data) && mine && draft.updated_at &&
+               draft.updated_at > mine) {
       const when = new Date(draft.updated_at).toLocaleString();
       const who = draft.updated_by ? ' by ' + draft.updated_by : '';
       if (confirm('A newer draft was saved' + who + ' on ' + when + '.\n\nLoad it? Your current form will be replaced.')) {
@@ -334,6 +331,15 @@ async function initSync (S, adopt) {
         result.adopted = true;
       }
     }
+
+    /* Seen it. Whatever was decided, this browser now knows about this draft,
+       and asking about it a second time is asking the same question twice.
+
+       That is what the mark means — the newest stored draft this browser has
+       been shown, not the last thing it sent. Meaning "sent" was the bug: a
+       reload with nothing typed sends nothing, so the mark never moved and
+       every reload put the same question again, for ever. */
+    markSynced(draft.updated_at);
   }
 
   try {

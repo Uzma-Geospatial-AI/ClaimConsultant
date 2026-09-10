@@ -246,6 +246,38 @@ const adopting = () => {
   check('the browser stops thinking it is behind',
         store.get('ccs.syncedAt'), '2999-01-01T00:00:00Z');
 
+  /* Answering the question has to settle it. The mark this browser keeps is
+     the newest stored draft it has been shown — not the last thing it sent,
+     which was the bug: a reload with nothing typed sends nothing, so the mark
+     never moved and the same question came back on every single reload. */
+  console.log('\nAsking twice about the same draft');
+  const hers = filledState();
+  hers.consultant.name = 'Somebody Else';
+  reset({
+    'GET /ccs/draft': { status: 200,
+      body: { draft: { data: hers, updated_at: '2999-01-01T00:00:00Z',
+                       updated_by: 'her@example.com' } } },
+    'GET /ccs/profiles': { status: 200, body: { profiles: [] } },
+    'PUT /ccs/draft': { status: 200, body: { ok: true } }
+  });
+  store.set('ccs.syncedAt', '2020-01-01T00:00:00Z');
+  ctx.confirmCalls = 0;
+  ctx.confirmAnswer = false;                    // "no, keep what I have"
+  ctx.S = filledState();
+  await run('Sync.init(S, adopt)');
+  check('a genuinely different draft is put to you once', ctx.confirmCalls, 1);
+
+  // reload, having typed nothing: the same draft is still sitting there
+  ctx.S = filledState();
+  await run('Sync.init(S, adopt)');
+  check('and not put to you again', ctx.confirmCalls, 1);
+
+  // ...but a newer one is a new question
+  routes['GET /ccs/draft'].body.draft.updated_at = '2999-06-01T00:00:00Z';
+  ctx.S = filledState();
+  await run('Sync.init(S, adopt)');
+  check('something newer is asked about', ctx.confirmCalls, 2);
+
   console.log('\nThe draft goes up as you work');
   run('Sync.pushDraft(S)');
   await new Promise(res => setImmediate(res));

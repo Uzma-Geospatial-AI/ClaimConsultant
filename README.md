@@ -395,11 +395,14 @@ without a word, and the app saves to `localStorage` exactly as it always has. Th
 happens on a plane. Nothing in the app ever waits on a sync response, so a slow or broken
 database cannot interrupt somebody filling in a form.
 
-The time this browser last sent the draft up is recorded as **the server timed it**, not as this
-machine did. The two clocks are not the same clock, and comparing one against the other made a
+The mark this browser keeps is **the newest stored draft it has been shown**, and it is recorded
+as the server timed it, not as this machine did. The two clocks are not the same clock, and comparing one against the other made a
 server a few seconds ahead look like somebody else had saved something newer — so the app offered
 to replace your form with your own work, on every reload. A stored draft that is the form already
-on screen is not put to anybody either: there is nothing to choose between.
+on screen is not put to anybody either: there is nothing to choose between. And answering the
+question settles it — meaning the mark as "the last thing this browser sent" was the same bug
+wearing a different hat, because a reload with nothing typed sends nothing, so the mark never
+moved and the same question came back every time.
 
 When a draft is found in the database, it is adopted only when it cannot cost you anything:
 silently if the form on screen is untouched, and otherwise only after asking, and only when the
