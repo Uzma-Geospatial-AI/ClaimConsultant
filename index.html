@@ -354,9 +354,29 @@
       <p class="gsum" id="gsum_all"></p>
       <div class="btnrow"><button class="btn primary" id="btnAll">Generate All</button></div>
     </div>
+
+    <!-- consultants only: the claim leaves here and goes to the approvers -->
+    <div class="gencard wide" id="card_submit" hidden>
+      <h3>Send for approval</h3>
+      <p class="gsum">The claim goes to the project manager first, then to the HOD, and the
+        HOD&rsquo;s signature is placed by their PA. You can follow it on the Approvals step.</p>
+      <textarea class="decidenote" id="submitNote" rows="2"
+                placeholder="Anything the project manager should know (optional)"></textarea>
+      <div class="btnrow"><button class="btn primary" id="btnSubmitClaim">Submit for approval</button></div>
+    </div>
   </div>
 
   <div id="genlog" class="genlog"></div>
+</section>
+
+<!-- ============ STEP 6: APPROVALS ============ -->
+<section class="panel" id="p-approvals" data-step="approvals">
+  <h2>Approvals</h2>
+  <p class="lead" id="approvalLead">Where every claim has got to, and what is waiting on you.</p>
+  <div class="btnrow">
+    <button class="btn ghost small" id="btnRefreshApprovals">Refresh</button>
+  </div>
+  <div id="approvalList" class="approvals"></div>
 </section>
 
 </main>
@@ -401,6 +421,7 @@
 <script src="assets/js/preview.js"></script>
 <script src="assets/js/auth.js"></script>
 <script src="assets/js/sync.js"></script>
+<script src="assets/js/approvals.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
 </html>

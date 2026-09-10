@@ -366,6 +366,53 @@ label.check input{width:auto}
 .doc-sigline .signame{font-size:11px;font-weight:700;border-top:1px solid #8a95a0;padding-top:3px;width:100%}
 .doc-sigline .signame small{display:block;font-weight:400;color:var(--muted);font-size:9.5px}
 
+/* ---------- approvals ---------- */
+.approvals{margin-top:16px;display:flex;flex-direction:column;gap:10px}
+.emptynote{
+  margin:0;padding:18px;border:1px dashed var(--line);border-radius:8px;
+  color:var(--muted);font-size:13px;line-height:1.6;background:#fbfdfe;
+}
+.subgrouphead{
+  margin:10px 0 0;font-size:12px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.4px;color:var(--muted);
+}
+.subrow{border:1px solid var(--line);border-radius:8px;padding:12px 14px;background:#fff}
+/* what is waiting on the person reading it comes first, and looks it */
+.subrow.urgent{border-color:var(--orange);box-shadow:0 1px 0 var(--orange-soft) inset}
+.subrow.done{background:#fbfdfb}
+.subtop{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.subwho{flex:1;min-width:180px;display:flex;flex-direction:column;gap:2px}
+.subwho b{font-size:14px}
+.subwho span{font-size:12px;color:var(--muted)}
+.subacts{display:flex;gap:6px;flex-wrap:wrap}
+.pill{
+  font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;white-space:nowrap;
+  background:#eef2f6;color:var(--navy-soft);
+}
+.pill.pending_manager{background:#fff4ec;color:#b4531d}
+.pill.pending_boss{background:#eaf1fb;color:#2f6fd0}
+.pill.pending_signature{background:#f1ecf9;color:#7048c4}
+.pill.returned{background:#fdeaea;color:var(--danger)}
+.pill.complete{background:#e6f5ec;color:var(--ok)}
+.subnote{margin:8px 0 0;font-size:12.5px;line-height:1.5;color:var(--ink)}
+.subnote b{color:var(--muted);font-weight:700}
+.subtrail{margin-top:8px;font-size:11px;color:var(--muted);word-break:break-word}
+.decidebox{
+  margin-top:12px;padding:12px;border-top:1px solid var(--line);
+  display:flex;flex-direction:column;gap:10px;
+}
+.decidehead{margin:0;font-weight:700;font-size:13px}
+.decidepad{max-width:300px}
+.decidepad .sigslot canvas{height:70px}
+.decidenote{
+  width:100%;font-family:inherit;font-size:13px;padding:8px 10px;
+  border:1px solid var(--line);border-radius:7px;resize:vertical;
+}
+.decidenote:focus{outline:none;border-color:var(--navy-soft)}
+.decidebox .btnrow{margin-top:0}
+.btn.ghost.danger{color:var(--danger);border-color:#e2a9a2;background:#fff}
+.btn.ghost.danger:hover{background:#fdeaea}
+
 /* ---------- generate ---------- */
 .gencards{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
 @media(max-width:840px){.gencards{grid-template-columns:1fr}}

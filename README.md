@@ -47,17 +47,22 @@ Uzma footer.
 
 ## Signing In
 
-The app is for three people, so the door is a **BDOS** account
-(`https://bdos.uzmadigitalearth.app`) plus a three-name allow-list in
-[`assets/js/auth.js`](assets/js/auth.js):
+The app is for five people, so the door is a **BDOS** account
+(`https://bdos.uzmadigitalearth.app`) plus the list in
+[`assets/js/auth.js`](assets/js/auth.js), which also says what each of them does with a claim:
 
 ```js
-const ALLOWED_USERS = [
-  'adlishah0821@gmail.com',
-  'nuramilazulfa@gmail.com',
-  'hanis.rashidan@uzmagroup.com'
-];
+const ROLES = {
+  'adlishah0821@gmail.com':          'consultant',
+  'nuramilazulfa@gmail.com':         'consultant',
+  'hanis.rashidan@uzmagroup.com':    'manager',
+  'fadhli.jamaluddin@uzmagroup.com': 'boss',
+  'fatin.zaini@uzmagroup.com':       'pa'
+};
 ```
+
+A consultant fills claims in; the other three only read and sign them, so the wizard is not even
+drawn for those accounts — they get the Approvals queue and nothing else.
 
 | | |
 |---|---|
@@ -127,6 +132,7 @@ unless you have already ticked days, in which case your ticks win.
 | 🧮 **Leave against the year** | `PTO`, `MC` and `UL` each come out of 12 days a year. Under the grid, a row per kind shows what this month holds, what was taken earlier in the year (typed once, the way PAST CLAIM [C] is), what is left, and colours the row when it goes over. `PH` counts against nothing — a public holiday is the calendar's doing |
 | 🧮 **Three ways to price a period** | Monthly rate prorated by calendar days, daily rate × days ticked, or a fixed amount you type yourself — the live formula shows its working |
 | ✍️ **Sign in the signature box** | The four pads (Personnel, Project Manager, HOD, Verified By) sit inside Section C where the pen would go; blank space around the stroke is trimmed before it is embedded |
+| ✅ **Two approvals, in order** | A submitted claim goes to the project manager, then to the HOD, and the HOD's signature is placed by their PA. Each approver reads the sheet as it will be printed, signs their own box or sends it back with a reason, and every move is recorded against a name and a time |
 | 🖋️ **Approval block starts filled** | Section C opens with the usual names and today's date already in place — every one is a normal field, so type over it when somebody else signs |
 | 🏷️ **Official artwork, placed to the millimetre** | The Uzma wordmark ships with the app and is positioned from proportions measured off the printed form, not eyeballed |
 | 👁️ **View before you download** | **View PDF** renders the finished document in the browser's own PDF viewer &mdash; check it, then download from inside the viewer or close and keep editing. Nothing reaches the disk until you say so |
@@ -391,6 +397,32 @@ stored draft is demonstrably newer than the last one this browser sent up. Work 
 wins by default. Because the draft is shared, the question names whoever saved it &mdash; it may
 be one of the other two rather than your own other laptop.
 
+### Approvals
+
+A claim does not go straight to Finance. It travels:
+
+```
+  consultant          project manager        HOD              PA to the HOD
+  ─────────────────   ────────────────────   ──────────────   ───────────────────
+  fills it in     →   reads and signs    →   approves     →   places the HOD's
+  submits it          REVIEWED BY            it               signature → complete
+                          │                      │
+                          └──── sends back ──────┴──→ returned, with a reason
+```
+
+Each approver reads the sheet as it will be printed &mdash; the PDF is rebuilt from the submitted
+form and opened in the same viewer the consultant used &mdash; and then signs their own box or
+sends it back. **Nothing on that screen edits a claim**: a claim that came back is fixed by the
+consultant in the form, not by the approver in the queue.
+
+Who may move a claim is decided by the stage it is at, and decided in BDOS, not here: the project
+manager cannot approve in the HOD's place, nobody can approve twice, and the row is locked while
+a decision is recorded so two approvers pressing at once cannot both move it. Every move is
+appended to a history that is never rewritten &mdash; who, when, which way, and what they said.
+
+The HOD does not sign anything themselves. They approve; their PA places the signature. That is
+the arrangement the office already had, and the app follows it rather than arguing with it.
+
 ---
 
 ## Testing & CI
@@ -457,18 +489,11 @@ The PDF generators keep their own copies as RGB triples (`NAVY`, `BAR`, `LBL` in
 <details>
 <summary><b>Changing who can sign in</b></summary>
 
-The list is one array at the top of `assets/js/auth.js`:
+The list is one object at the top of `assets/js/auth.js`, mapping each address to its part in a
+claim (`consultant`, `manager`, `boss`, `pa`).
 
-```js
-const ALLOWED_USERS = [
-  'adlishah0821@gmail.com',
-  'nuramilazulfa@gmail.com',
-  'hanis.rashidan@uzmagroup.com'
-];
-```
-
-That array only decides what the sign-in page says. The list that actually holds is BDOS's
-`CCS_EMAILS`, checked on every `/ccs/*` request, and both have to change together &mdash; see
+That object only decides what the app draws. The list that actually holds is BDOS's `CCS_ROLES`,
+checked on every `/ccs/*` request, and both have to change together &mdash; see
 [`docs/BDOS-CCS-Endpoints.md`](docs/BDOS-CCS-Endpoints.md).
 
 Addresses are compared lower-case and trimmed, so case and stray spaces do not matter. Anyone

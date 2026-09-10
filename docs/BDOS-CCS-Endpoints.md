@@ -24,16 +24,19 @@ Integration Guide*: `Bearer` tokens, JSON bodies, `{ "detail": "…" }` on error
 
 ## 1 · The access rule (please enforce here)
 
-CCS is used by exactly three accounts:
+CCS is used by exactly five accounts, and each has one part in a claim:
 
-```
-adlishah0821@gmail.com
-nuramilazulfa@gmail.com
-hanis.rashidan@uzmagroup.com
-```
+| Account | Role | What they do |
+|---|---|---|
+| `adlishah0821@gmail.com` | `consultant` | Prepares a claim and submits it |
+| `nuramilazulfa@gmail.com` | `consultant` | Prepares a claim and submits it |
+| `hanis.rashidan@uzmagroup.com` | `manager` | Reviews it first, and signs the REVIEWED BY box |
+| `fadhli.jamaluddin@uzmagroup.com` | `boss` | Approves it second — the HOD |
+| `fatin.zaini@uzmagroup.com` | `pa` | Places the HOD's signature in the APPROVED BY box |
 
-BDOS reads the list from the `CCS_EMAILS` environment variable and falls back to those three, so
-adding or removing somebody is an environment change and a restart — no code edit.
+BDOS reads the list from the `CCS_ROLES` environment variable — `email:role` pairs, comma
+separated — and falls back to the table above, so adding somebody or moving them to another role
+is an environment change and a restart, not a code edit.
 
 The browser app already checks this list, **but that check cannot be trusted** — it is JavaScript
 the user's own browser runs, and anybody can edit it. It is there to explain the door, not to lock
@@ -165,6 +168,45 @@ needed.
 
 Errors: `400` on a missing `consultant` or a non-numeric `amount`.
 
+### Submissions — a claim on its way through the approvals
+
+A claim is prepared, reviewed, approved and then signed, in that order. The order is kept here:
+the client may ask for any move, and only the account whose turn it is can make it.
+
+```
+POST /ccs/submissions              → { "submission": Submission }
+GET  /ccs/submissions?status=&mine= → { "submissions": [ Submission, … ] }   (no `data`)
+GET  /ccs/submissions/{id}         → { "submission": Submission }            (with `data`)
+POST /ccs/submissions/{id}/action  → { "submission": { id, status, history, updated_at } }
+GET  /ccs/me                       → { "email", "name", "role", "acts_on" }
+```
+
+| Status | Waiting on | Approving takes it to |
+|---|---|---|
+| `pending_manager` | `manager` | `pending_boss` |
+| `pending_boss` | `boss` | `pending_signature` |
+| `pending_signature` | `pa` | `complete` |
+| `returned` | the consultant who sent it | `pending_manager`, by `resubmit` |
+
+**`POST /ccs/submissions/{id}/action`** body: `{ "action": "approve" | "return" | "resubmit",
+"note": "…", "data": { … } }`.
+
+`data` is optional and is the whole form again — a step that signs sends the sheet back with the
+signature in it, so BDOS never has to know where inside that object a signature lives. `note` is
+required by CCS on a `return`, since it is the only thing the consultant is told.
+
+Refusals are the point of this endpoint, so they are specific: `403` when the claim is waiting on
+somebody else, `409` when it is not waiting on anybody (already finished, or already moved on by
+whoever got there first), `404` when there is no such claim. The row is locked `FOR UPDATE` for
+the length of a decision, so two approvers pressing at the same moment cannot both move it.
+
+`history` is every move anybody made — `{ at, by, role, action, note, from, to }` — appended and
+never rewritten. It is what makes an approval something you can point at afterwards.
+
+Everyone can read every claim: five people working one process, and an approver who cannot see
+what they approved last month is not much use. `mine=1` narrows to the claims this account sent;
+`status=open` to everything unfinished.
+
 ---
 
 ## 4 · Suggested schema for `cradle`
@@ -213,6 +255,24 @@ CREATE TABLE ccs.claims (
 
 CREATE INDEX ON ccs.claims (created_at DESC);
 CREATE INDEX ON ccs.claims (period_year DESC, period_month DESC);
+
+-- Shared: claims travelling through the approvals.
+CREATE TABLE ccs.submissions (
+  id            text        PRIMARY KEY,
+  consultant    text        NOT NULL,
+  period_month  smallint,
+  period_year   smallint,
+  invoice_no    text,
+  status        text        NOT NULL,   -- pending_manager | pending_boss |
+                                        -- pending_signature | returned | complete
+  data          jsonb       NOT NULL,   -- the form, signatures and all
+  history       jsonb       NOT NULL DEFAULT '[]',
+  created_by    text        NOT NULL,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX ON ccs.submissions (status);
 ```
 
 A note on what lands in `data`: it is the consultant's own name, address, IC number and bank

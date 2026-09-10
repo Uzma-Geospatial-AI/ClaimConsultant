@@ -18,12 +18,32 @@
 
 const BDOS_BASE = 'https://bdos.uzmadigitalearth.app';
 
-/** The only accounts allowed in. Compared lower-case and trimmed. */
-const ALLOWED_USERS = [
-  'adlishah0821@gmail.com',
-  'nuramilazulfa@gmail.com',
-  'hanis.rashidan@uzmagroup.com'
-];
+/**
+ * The only accounts allowed in, and what each of them does with a claim.
+ * A consultant prepares one; the project manager reviews it; the HOD
+ * approves it; the HOD's PA places their signature on it. Compared
+ * lower-case and trimmed.
+ *
+ * BDOS holds the same map and is the one that enforces it — this copy only
+ * decides what the app draws, and it must be changed alongside `CCS_ROLES`
+ * there. See docs/BDOS-CCS-Endpoints.md.
+ */
+const ROLES = {
+  'adlishah0821@gmail.com':          'consultant',
+  'nuramilazulfa@gmail.com':         'consultant',
+  'hanis.rashidan@uzmagroup.com':    'manager',
+  'fadhli.jamaluddin@uzmagroup.com': 'boss',
+  'fatin.zaini@uzmagroup.com':       'pa'
+};
+const ALLOWED_USERS = Object.keys(ROLES);
+
+/** What a role is called where somebody has to read it. */
+const ROLE_NAMES = {
+  consultant: 'Consultant',
+  manager:    'Project Manager',
+  boss:       'Head of Department',
+  pa:         'PA to the HOD'
+};
 
 const TOKEN_KEY = 'ccs.token';
 const USER_KEY  = 'ccs.user';
@@ -259,11 +279,19 @@ function startAuth (onUnlock) {
   if (out) out.addEventListener('click', signOut);
 }
 
+/** The signed-in account's part in the process, '' when signed out. */
+function currentRole () {
+  const u = storedUser();
+  return (u && ROLES[normEmail(u.email)]) || '';
+}
+
 const Auth = {
   start: startAuth,
   signOut: signOut,
   user: storedUser,
   token: storedToken,
   isAllowed: isAllowed,
+  role: currentRole,
+  roleName: r => ROLE_NAMES[r || currentRole()] || '',
   BASE: BDOS_BASE
 };

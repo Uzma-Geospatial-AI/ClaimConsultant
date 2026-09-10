@@ -109,12 +109,25 @@ const run = expr => vm.runInContext(expr, ctx);
 (async () => {
   console.log('\nThe allow-list');
   check('the owner is allowed',        run("isAllowed('adlishah0821@gmail.com')"), true);
-  check('the second account allowed',  run("isAllowed('nuramilazulfa@gmail.com')"), true);
-  check('the third account allowed',   run("isAllowed('hanis.rashidan@uzmagroup.com')"), true);
+  check('the second consultant allowed', run("isAllowed('nuramilazulfa@gmail.com')"), true);
+  check('the project manager allowed', run("isAllowed('hanis.rashidan@uzmagroup.com')"), true);
+  check('the HOD allowed',             run("isAllowed('fadhli.jamaluddin@uzmagroup.com')"), true);
+  check('the PA allowed',              run("isAllowed('fatin.zaini@uzmagroup.com')"), true);
   check('case and spaces ignored',     run("isAllowed('  Hanis.Rashidan@UzmaGroup.com ')"), true);
   check('any other BDOS user refused', run("isAllowed('someone.else@uzmagroup.com')"), false);
   check('empty refused',               run("isAllowed('')"), false);
-  check('exactly three accounts listed', run('ALLOWED_USERS.length'), 3);
+  check('five accounts, no more',      run('ALLOWED_USERS.length'), 5);
+
+  // A claim is prepared, reviewed, approved and then signed — each account
+  // has exactly one part in that, and the list is the roles it comes from.
+  console.log('\nWho does what');
+  check('the owner prepares claims',   run("ROLES['adlishah0821@gmail.com']"), 'consultant');
+  check('Hanis reviews them',          run("ROLES['hanis.rashidan@uzmagroup.com']"), 'manager');
+  check('Fadhli approves them',        run("ROLES['fadhli.jamaluddin@uzmagroup.com']"), 'boss');
+  check('Fatin signs for him',         run("ROLES['fatin.zaini@uzmagroup.com']"), 'pa');
+  check('everybody listed has a part',
+        run('ALLOWED_USERS.every(e => !!ROLES[e])'), true);
+  check('an outsider has none',        run("!ROLES['someone.else@uzmagroup.com']"), true);
 
   console.log('\nToken expiry');
   ctx.freshToken   = fakeToken(Math.floor(Date.now() / 1000) + 3600);

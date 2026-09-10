@@ -41,14 +41,23 @@ const STEPS = [
   { id: 'choose',     label: 'Document' },
   { id: 'invoice',    label: 'Invoice',    modes: ['invoice', 'both'] },
   { id: 'claim',      label: 'Claim Form', modes: ['claim', 'both'] },
-  { id: 'generate',   label: 'Generate' }
+  { id: 'generate',   label: 'Generate' },
+  { id: 'approvals',  label: 'Approvals' }
 ];
 
 let stepIndex = 0;
 let activeProfile = '';          // the saved profile the form was opened from
 
 function activeSteps () {
-  if (!S.mode) return STEPS.filter(s => s.id === 'consultant' || s.id === 'choose');
+  // An approver does not fill a claim in — they read one and sign it. The
+  // wizard is the consultant's; theirs is the queue, and it is all they get.
+  if (Auth.role() && Auth.role() !== 'consultant') {
+    return STEPS.filter(s => s.id === 'approvals');
+  }
+  const approvals = STEPS.filter(s => s.id === 'approvals');
+  if (!S.mode) {
+    return STEPS.filter(s => s.id === 'consultant' || s.id === 'choose').concat(approvals);
+  }
   return STEPS.filter(s => !s.modes || s.modes.includes(S.mode));
 }
 
@@ -88,6 +97,11 @@ function showStep () {
   if (step.id === 'claim' || step.id === 'invoice') setTimeout(() => Sig.resizeAll(), 30);
   if (step.id === 'generate') renderGenSummary();
   if (step.id === 'choose') paintChoices();
+  if (step.id === 'approvals') renderApprovals();
+  if (step.id === 'generate') {
+    const card = document.getElementById('card_submit');
+    if (card) card.hidden = !(Sync.on && (!Auth.role() || Auth.role() === 'consultant'));
+  }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -411,6 +425,19 @@ function fillDefaultsForMonth () {
   lastName = S.consultant.name;
 }
 
+/**
+ * Put a submitted claim back into the form. Used when one is sent back: the
+ * consultant gets exactly what the approver saw, fixes it, and resubmits.
+ */
+function adoptSubmission (sub) {
+  S = mergeDefaults(sub.data);
+  activeProfile = '';
+  stepIndex = Math.max(0, activeSteps().findIndex(s => s.id === 'claim'));
+  renderAll();
+  persist();
+  toast('Opened in the form. Fix it, then resubmit from the Approvals step.');
+}
+
 function timesheetUntouched () {
   return S.timesheet.activities.every(a => Object.keys(a.days || {}).length === 0);
 }
@@ -595,6 +622,29 @@ function boot () {
     // One row per submission, not per button: this is the claim going out.
     if (made.length) Sync.recordClaim(S, made);
     toast('Done — check your Downloads folder.');
+  });
+
+  /* --- sending the claim off to be approved --- */
+  document.getElementById('btnRefreshApprovals').addEventListener('click', renderApprovals);
+  document.getElementById('btnSubmitClaim').addEventListener('click', async () => {
+    if (!validate()) return;
+    if (!Sync.on) {
+      toast('The shared database is not reachable, so there is nowhere to send it yet.', true);
+      return;
+    }
+    const btn = document.getElementById('btnSubmitClaim');
+    const note = document.getElementById('submitNote');
+    btn.disabled = true;
+    try {
+      await Sync.submit(S, note.value.trim());
+      note.value = '';
+      toast('Sent to the project manager.');
+      goToStep(activeSteps().findIndex(st => st.id === 'approvals'), true);
+    } catch (err) {
+      toast(err.message || 'Could not send it.', true);
+    } finally {
+      btn.disabled = false;
+    }
   });
 
   /* -----------------------------------------------------------------------

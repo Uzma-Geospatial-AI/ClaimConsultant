@@ -200,6 +200,67 @@ async function claimHistory (limit) {
   } catch (err) { return []; }
 }
 
+/* -----------------------------------------------------------------------
+   Submissions — a claim on its way through the approvals
+
+   Unlike everything else here, these are not best-effort. A claim that
+   silently failed to reach the project manager is worse than one that was
+   never sent, so these throw and the caller says so out loud.
+   ----------------------------------------------------------------------- */
+
+/** What this account may do — BDOS decides, not the browser. */
+async function whoAmI () {
+  return ccsFetch('/me', { method: 'GET' });
+}
+
+/** Send a claim off for approval. */
+async function submitClaim (S, note) {
+  const body = await ccsFetch('/submissions', {
+    method: 'POST',
+    body: JSON.stringify({
+      consultant: String(S.consultant.name || '').trim(),
+      period_month: (Number(S.timesheet.month) || 0) + 1,
+      period_year: Number(S.timesheet.year) || null,
+      invoice_no: S.invoice.no || null,
+      note: note || '',
+      data: S
+    })
+  });
+  return (body && body.submission) || null;
+}
+
+/**
+ * @param {string} scope  '' for everything, 'open' for what is unfinished,
+ *                        or one status; `mine` narrows to this account's own
+ */
+async function listSubmissions (scope, mine) {
+  const q = [];
+  if (scope) q.push('status=' + encodeURIComponent(scope));
+  if (mine) q.push('mine=1');
+  const body = await ccsFetch('/submissions' + (q.length ? '?' + q.join('&') : ''),
+                              { method: 'GET' });
+  return (body && body.submissions) || [];
+}
+
+/** One claim, with the form itself — what an approver reads before deciding. */
+async function getSubmission (id) {
+  const body = await ccsFetch('/submissions/' + encodeURIComponent(id), { method: 'GET' });
+  return (body && body.submission) || null;
+}
+
+/**
+ * Move a claim along, or send it back.
+ * @param {string} action  'approve' | 'return' | 'resubmit'
+ * @param {object} [data]  the form again, when this step signed it
+ */
+async function actOnSubmission (id, action, note, data) {
+  const body = await ccsFetch('/submissions/' + encodeURIComponent(id) + '/action', {
+    method: 'POST',
+    body: JSON.stringify({ action: action, note: note || '', data: data || undefined })
+  });
+  return (body && body.submission) || null;
+}
+
 /* =======================================================================
    Start-up
 
@@ -269,6 +330,11 @@ function forgetSync () {
 
 const Sync = {
   init: initSync,
+  me: whoAmI,
+  submit: submitClaim,
+  submissions: listSubmissions,
+  submission: getSubmission,
+  act: actOnSubmission,
   pushDraft: pushDraft,
   pushProfile: pushProfile,
   deleteProfile: deleteProfile,

@@ -64,6 +64,26 @@ check('a row opens and deletes its own profile',
 check('the list can start a new profile', /Add new profile/.test(appjs), true);
 
 /* -----------------------------------------------------------------------
+   The approvals screen. A claim is read by four people and signed by three
+   of them, and the one thing that must never slip is which box each role
+   signs — the project manager in the HOD's box would be an approval nobody
+   gave, and nothing on the printed sheet would show it.
+   ----------------------------------------------------------------------- */
+console.log('\nThe approvals screen');
+
+const approvals = fs.readFileSync(path.join(ROOT, 'assets/js/approvals.js'), 'utf8');
+check('the panel is in the page', /id="p-approvals"/.test(html), true);
+check('the submit card starts hidden', /id="card_submit"[^>]*hidden/.test(html), true);
+check('the project manager signs the REVIEWED BY box',
+  /manager:\s*\{\s*sig:\s*'pm'/.test(approvals), true);
+check("the PA places the HOD's signature, not their own",
+  /pa:\s*\{\s*sig:\s*'hod'/.test(approvals), true);
+check('the HOD signs nothing themselves', /boss:\s*\{\s*sig:/.test(approvals), false);
+check('a claim waits on the manager, then the HOD, then the PA',
+  /pending_manager:\s*'manager'[\s\S]{0,160}pending_boss:\s*'boss'[\s\S]{0,160}pending_signature:\s*'pa'/
+    .test(approvals), true);
+
+/* -----------------------------------------------------------------------
    Credentials must never be able to leave in a URL. If the script that
    handles the sign-in form ever fails to bind its listener, the browser
    falls back to submitting the form itself — a GET carrying the password
@@ -94,6 +114,11 @@ check('state.js comes before sync.js',  at('state.js') < at('sync.js'), true);
 check('preview.js comes before app.js', at('preview.js') < at('app.js'), true);
 check('the generators come before preview.js',
   at('gen-invoice.js') < at('preview.js') && at('gen-claim.js') < at('preview.js'), true);
+// approvals.js rebuilds a submitted claim with the generator and shows it in
+// the viewer, so both have to be parsed before it
+check('approvals.js comes after the generator and the viewer',
+  at('gen-claim.js') < at('approvals.js') && at('preview.js') < at('approvals.js'), true);
+check('and before app.js, which calls into it', at('approvals.js') < at('app.js'), true);
 
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length) {
