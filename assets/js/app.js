@@ -641,7 +641,7 @@ function persist () {
     if (Store.saveCurrent(S)) { saveWarned = false; return; }
     if (!saveWarned) {
       saveWarned = true;
-      toast('Autosave failed — browser storage is full. Use "Export JSON" to back up.', true);
+      toast('Autosave failed — browser storage is full. Delete a profile you no longer need.', true);
     }
   }, 250);
 }
@@ -805,16 +805,7 @@ function boot () {
 
   /* --- profiles --- */
   refreshProfileList();
-  document.getElementById('btnSaveProfile').addEventListener('click', () => {
-    const name = prompt('Profile name:', activeProfile || S.consultant.name || 'Profile 1');
-    if (!name) return;
-    if (Store.saveProfile(name.trim(), S)) {
-      activeProfile = name.trim();
-      refreshProfileList();
-      Sync.pushProfile(name.trim(), S);
-      toast(`Profile "${name.trim()}" saved.`);
-    } else toast('Could not save the profile (storage full?).', true);
-  });
+  document.getElementById('btnSaveProfile').addEventListener('click', saveProfileNow);
   document.getElementById('btnProfiles').addEventListener('click', e => {
     e.stopPropagation();
     openProfiles(document.getElementById('profileMenu').hidden);
@@ -850,29 +841,6 @@ function boot () {
     renderAll();
     Store.saveCurrent(S);
     toast('All data erased — the app is back to empty.');
-  });
-
-  /* --- import / export --- */
-  document.getElementById('btnExport').addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
-    saveAs(blob, `${safeFile(S.consultant.name) || 'consultant-claim'}.json`);
-  });
-  document.getElementById('btnImport').addEventListener('click', () => document.getElementById('fileImport').click());
-  document.getElementById('fileImport').addEventListener('change', e => {
-    const f = e.target.files && e.target.files[0];
-    if (!f) return;
-    const r = new FileReader();
-    r.onload = () => {
-      try {
-        S = mergeDefaults(JSON.parse(r.result));
-        stepIndex = 0;
-        renderAll();
-        persist();
-        toast('Data imported successfully.');
-      } catch (err) { toast('That is not a valid JSON file.', true); }
-    };
-    r.readAsText(f);
-    e.target.value = '';
   });
 
   /* --- look before you download --- */
@@ -993,6 +961,33 @@ function log (msg, cls) {
   d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
   box.appendChild(d);
   box.scrollTop = box.scrollHeight;
+}
+
+/**
+ * Save what is on screen. That is all it does.
+ *
+ * It used to ask for a profile name every time, which meant the ordinary
+ * case — open a profile, change one thing, save it — was a dialog asking a
+ * question that had already been answered. A profile that is open is saved
+ * back to itself; a new one takes the name from the Full Name field, which
+ * is the name it would have been given anyway.
+ */
+function saveProfileNow () {
+  const name = (activeProfile || String(S.consultant.name || '')).trim();
+  if (!name) {
+    toast('Enter the Full Name first — that is what the profile is saved under.', true);
+    const box = document.getElementById('c_name');
+    if (box) box.focus();
+    return;
+  }
+  if (!Store.saveProfile(name, S)) {
+    toast('Could not save the profile (browser storage full?).', true);
+    return;
+  }
+  activeProfile = name;
+  refreshProfileList();
+  Sync.pushProfile(name, S);
+  toast(`Saved to "${name}".`);
 }
 
 /* =======================================================================
@@ -1164,15 +1159,16 @@ function refreshProfileList () {
   if (label) label.textContent = activeProfile || '— Select a profile —';
   renderProfileCards();
 
-  /* With a profile open, saving goes back to it — the button says so, and
-     keeps its ellipsis because it still asks for the name, which is the one
-     chance to save the changes as a separate profile instead. */
+  /* The button sits under the details it saves, and says what it will do
+     beside it rather than in a tooltip nobody hovers for. No ellipsis: it
+     asks nothing, it saves. */
   const save = document.getElementById('btnSaveProfile');
-  if (save) {
-    save.textContent = activeProfile ? 'Save changes…' : 'Save Profile';
-    save.title = activeProfile
-      ? `Save what is in the form back to "${activeProfile}"`
-      : 'Save what is in the form as a profile';
+  const hint = document.getElementById('saveHint');
+  if (save) save.textContent = activeProfile ? 'Save changes' : 'Save Profile';
+  if (hint) {
+    hint.textContent = activeProfile
+      ? `Saves the details above back to "${activeProfile}".`
+      : 'Saves the details above under the Full Name, to open again next month.';
   }
 
   if (!menu) return;

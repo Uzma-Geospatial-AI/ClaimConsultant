@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Consultant Claim System</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20260911c">
+<link rel="stylesheet" href="assets/css/style.css?v=20260911d">
 </head>
 <body class="locked">
 
@@ -55,11 +55,7 @@
       <!-- one row per profile: open it, rename it, or delete that one -->
       <div class="profilemenu" id="profileMenu" hidden></div>
     </div>
-    <button class="btn ghost" id="btnSaveProfile">Save Profile</button>
-    <button class="btn ghost" id="btnExport">Export JSON</button>
-    <button class="btn ghost" id="btnImport">Import JSON</button>
     <button class="btn danger" id="btnReset" title="Erase all saved data and start over">Reset All</button>
-    <input type="file" id="fileImport" accept="application/json" hidden>
     <span class="whoami" id="authWho" hidden></span>
     <button class="btn ghost" id="btnSignOut" hidden>Sign out</button>
   </div>
@@ -113,6 +109,14 @@
     </div>
 
     <div class="leavebox" id="leaveBoxProfile"></div>
+
+    <!-- The button that keeps all of this, at the end of the thing it keeps.
+         It used to live in the top bar, a screenful away from the last box
+         anybody had typed in. -->
+    <div class="saverow">
+      <button class="btn primary" id="btnSaveProfile">Save Profile</button>
+      <span class="savehint" id="saveHint"></span>
+    </div>
   </div>
 </section>
 
@@ -461,25 +465,25 @@
      fetches the page again but keeps the old JavaScript for up to ten minutes
      — which reads as "the fix did not work". Bump this stamp whenever
      anything under assets/ changes and a reload picks it all up at once. -->
-<script src="vendor/jspdf.umd.min.js?v=20260911c"></script>
-<script src="vendor/jspdf.plugin.autotable.min.js?v=20260911c"></script>
-<script src="vendor/carlito.js?v=20260911c"></script>
-<script src="vendor/exceljs.min.js?v=20260911c"></script>
-<script src="vendor/FileSaver.min.js?v=20260911c"></script>
-<script src="vendor/signature_pad.umd.min.js?v=20260911c"></script>
-<script src="vendor/docx.umd.js?v=20260911c"></script>
-<script src="assets/js/state.js?v=20260911c"></script>
-<script src="assets/js/holidays.js?v=20260911c"></script>
-<script src="assets/js/logo.js?v=20260911c"></script>
-<script src="assets/js/timesheet.js?v=20260911c"></script>
-<script src="assets/js/signature.js?v=20260911c"></script>
-<script src="assets/js/gen-invoice.js?v=20260911c"></script>
-<script src="assets/js/gen-claim.js?v=20260911c"></script>
-<script src="assets/js/preview.js?v=20260911c"></script>
-<script src="assets/js/auth.js?v=20260911c"></script>
-<script src="assets/js/sync.js?v=20260911c"></script>
-<script src="assets/js/approvals.js?v=20260911c"></script>
-<script src="assets/js/archive.js?v=20260911c"></script>
-<script src="assets/js/app.js?v=20260911c"></script>
+<script src="vendor/jspdf.umd.min.js?v=20260911d"></script>
+<script src="vendor/jspdf.plugin.autotable.min.js?v=20260911d"></script>
+<script src="vendor/carlito.js?v=20260911d"></script>
+<script src="vendor/exceljs.min.js?v=20260911d"></script>
+<script src="vendor/FileSaver.min.js?v=20260911d"></script>
+<script src="vendor/signature_pad.umd.min.js?v=20260911d"></script>
+<script src="vendor/docx.umd.js?v=20260911d"></script>
+<script src="assets/js/state.js?v=20260911d"></script>
+<script src="assets/js/holidays.js?v=20260911d"></script>
+<script src="assets/js/logo.js?v=20260911d"></script>
+<script src="assets/js/timesheet.js?v=20260911d"></script>
+<script src="assets/js/signature.js?v=20260911d"></script>
+<script src="assets/js/gen-invoice.js?v=20260911d"></script>
+<script src="assets/js/gen-claim.js?v=20260911d"></script>
+<script src="assets/js/preview.js?v=20260911d"></script>
+<script src="assets/js/auth.js?v=20260911d"></script>
+<script src="assets/js/sync.js?v=20260911d"></script>
+<script src="assets/js/approvals.js?v=20260911d"></script>
+<script src="assets/js/archive.js?v=20260911d"></script>
+<script src="assets/js/app.js?v=20260911d"></script>
 </body>
 </html>

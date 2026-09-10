@@ -166,8 +166,7 @@ hands it back to the calendar.
 | 👁️ **View before you download** | **View PDF** renders the finished document in the browser's own PDF viewer &mdash; check it, then download from inside the viewer or close and keep editing. Nothing reaches the disk until you say so |
 | 🗂️ **Multiple activity rows** | Eight rows like the original form, each with its own Job ID, allocated days and past claim |
 | 📊 **Totals that add up** | `TOTAL DAYS [A]`, `ALLOCATED [B]`, `PAST CLAIM [C]` and `BALANCE [B-(A+C)]` are computed per row and in aggregate |
-| 💾 **Autosave + profiles** | Everything persists to `localStorage`; save one profile per consultant and switch between them. The profile list gives every profile its own row &mdash; the name opens that profile's details in the form, **Delete** removes that one, and **+ Add new profile** clears the form for another consultant |
-| 📤 **Export / Import JSON** | Real backups you can move between machines — the only way data leaves the browser |
+| 💾 **Autosave + profiles** | Everything persists to `localStorage`; save one profile per consultant and switch between them. **Save Profile** sits at the foot of the details it saves, not in the top bar a screenful away. The profile list gives every profile its own row &mdash; the name opens that profile's details in the form, **Delete** removes that one, and **+ Add new profile** clears the form for another consultant |
 | 🧨 **Reset All** | Two-step confirmation, then every stored key is wiped and the app is empty again |
 | 📱 **Responsive** | Collapses to a single column below 840px; the day grid wraps instead of scrolling |
 
@@ -396,7 +395,9 @@ Worth knowing:
 - It is lost if you clear browsing data, switch browser or machine, or use a private window.
 - The quota is roughly 5–10 MB; signatures (base64 PNG) take the most room. If the quota is
   exceeded the app raises a red warning instead of failing silently — export a JSON backup then.
-- **Export JSON** is the only real backup while the shared database is not yet in place.
+- The shared database is the backup. When it is reachable the draft and every profile are
+  already in `cradle`, and signing in on another machine brings them back; when it is not, this
+  browser is the only copy.
 
 ### The shared database
 
