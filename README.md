@@ -164,7 +164,8 @@ hands it back to the calendar.
 | 💡 **A hint in every box** | Each blank carries an example of what belongs in it, and optional fields say so outright |
 | 📅 **Tickable day grid** | Section B is the real 31-column table — click a cell to cycle `blank → / → PH → PTO → MC → UL`; Saturdays and Sundays label themselves from the calendar |
 | 💰 **Paid days decide the money** | Every day of the month is paid or it is not. Worked `/`, the weekend, `PH`, `PTO` and `MC` are paid and add up to TOTAL DAYS [A]; `UL` is not, and neither is a working day nobody marked — so the month's pay is `rate ÷ days in month × paid days`, and unpaid leave shows up in the figure without anybody working it out |
-| 🧮 **Leave that carries itself forward** | `PTO`, `MC` and `UL` each come out of 12 days a year. Nobody types last month's figure any more: what earlier months used is added up from the months that have actually been submitted, keyed by month so resubmitting a returned claim costs nothing. A row per kind — under the grid, and on the profile card before you open it — shows this month, the year so far and what is left. **An allowance that is spent stops being offered**: the day cell skips straight past it rather than letting somebody claim a thirteenth day and be told afterwards |
+| 🧮 **Leave that carries itself forward** | `PTO` and `MC` are 12 days a year each. `UL` has no allowance — nobody is paid for an unpaid day, so there is nothing to ration — and it is counted and shown but can never be "over". Nobody types last month's figure any more: what earlier months used is added up from the months that have actually been submitted, keyed by month so resubmitting a returned claim costs nothing. A row per kind — under the grid, and on the profile card before you open it — shows this month, the year so far and what is left. **An allowance that is spent stops being offered**: the day cell skips straight past it rather than letting somebody claim a thirteenth day and be told afterwards |
+| 🪪 **Profiles in unique-ID order** | The ones with an ID first, in ID order, and the ones without last. A profile with no ID cannot produce an invoice number, so it is a job still to do — and it belongs where it gets noticed rather than scattered through the alphabet |
 | 📅 **Public holidays it already knows** | The Selangor calendar ships with the app. Fixed dates are worked out for any year; the movable ones — Raya, Thaipusam, Deepavali, the Agong's birthday — are gazetted a year at a time and are written down in [`holidays.js`](assets/js/holidays.js). A year the table does not know still gets its fixed dates and **says so on the page** rather than pretending there are none |
 | 🔢 **Invoice numbers that write themselves** | `2026-01-003` is the year, the person, and the third claim they have sent. The middle is the profile's **Unique ID** — its own field on the Profile step, highlighted, because without it there is no number and the app will not guess a digit that would put two people on one series. The count goes up by one each time a claim is submitted, and follows the person rather than the form. Typing your own number over it is allowed, and the page says so |
 | 🗃️ **The signed copies, on file** | Everything else the app keeps is the claim as software holds it. The **Status** step also takes the paper: upload the signed invoice and the signed time sheet once they come back, and they are filed against that person and that month in the shared database. Any month can then be produced again a year later without hunting through anybody's Downloads folder |
@@ -540,10 +541,13 @@ A claim does not go straight to Finance. It travels:
 ```
   consultant          project manager        HOD              PA to the HOD
   ─────────────────   ────────────────────   ──────────────   ───────────────────
-  fills it in     →   reads and signs    →   approves     →   places the HOD's
-  submits it          REVIEWED BY            it               signature → complete
+  fills it in     →   SIGNS it, then     →   approves     →   SIGNS it → complete
+  submits it          approves               it (no
+                                             signature)
                           │                      │
                           └──── sends back ──────┴──→ returned, with a reason
+
+  signing means either: draw it in the app  ·  or upload the paper you signed
 ```
 
 Each approver reads the document as it will be printed &mdash; the PDF is rebuilt from the
@@ -552,9 +556,19 @@ sent, so an invoice opens as an invoice &mdash; and then signs their own box or 
 **Nothing on that screen edits a claim**: one that came back is fixed by the consultant in the
 form, not by the approver in the queue.
 
-Only the time sheet carries approver signature boxes. An invoice has one signature on it, the
-consultant's, and approving a bill does not sign it &mdash; so approving an invoice is approving,
-with no pad to draw in.
+**Two of the three stages put a name to the document, and neither will pass one on without it.**
+The project manager signs before it reaches the HOD, and the PA places the HOD's signature at the
+end. Both can do it either way: drawn in the app where the document has a box for it, or signed
+on paper and the scan uploaded back. The HOD is the exception &mdash; they approve, and sign
+nothing themselves.
+
+Only the time sheet has a box. An invoice carries one signature, the consultant's, and there is
+nowhere on it for an approver to draw &mdash; so for an invoice the uploaded scan is not an
+alternative but the only thing there is, and the app asks for it before letting the invoice move.
+
+Every scan is kept, labelled with the signing that produced it. The project manager's is a
+*reviewed copy*; the PA's is the finished article, and only that one lights the **On file**
+column.
 
 The last stage is the PA's, and the signature is their whole part in it. They can draw it in the
 app, or &mdash; when it was signed on paper, in a room, with a pen &mdash; upload the finished

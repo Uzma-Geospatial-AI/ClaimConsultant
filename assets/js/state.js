@@ -216,11 +216,18 @@ function splitAddressLines (line1, line2) {
 
 /* ---------------- leave ---------------- */
 
-/* What a day off is called on the sheet, and how many of them a year holds.
-   Only '/' is a day worked and only '/' is claimed; these three say why a day
-   is not, and each is capped. PH is not here: a public holiday is the
-   calendar's doing, not the consultant's, so nothing counts down for it. */
-const LEAVE_LIMITS = { PTO: 12, MC: 12, UL: 12 };
+/* What a day off is called on the sheet. Only '/' is a day worked and only
+   '/' is claimed; these three say why a day is not.
+
+   Two of them come out of an allowance. Unpaid leave does not, and that is
+   the point of it: nobody is being paid for the day, so there is nothing for
+   the company to ration. It is still counted and still shown — a month with
+   nine unpaid days is worth noticing — it just cannot be "over".
+
+   PH is in none of these lists: a public holiday is the calendar's doing,
+   not the consultant's, so nothing counts down for it. */
+const LEAVE_KINDS  = ['PTO', 'MC', 'UL'];
+const LEAVE_LIMITS = { PTO: 12, MC: 12 };                    // UL is uncapped
 const LEAVE_NAMES  = { PTO: 'Paid time off', MC: 'Medical leave', UL: 'Unpaid leave' };
 const LEAVE_KEYS   = { PTO: 'pto', MC: 'mc', UL: 'ul' };     // mark -> where it is carried
 
@@ -236,7 +243,7 @@ function leaveDaysInMonth (ts, mark) {
 /** the leave this month's grid holds, ready to be filed against the year */
 function monthLeaveCounts (ts) {
   const out = {};
-  Object.keys(LEAVE_LIMITS).forEach(mark => {
+  LEAVE_KINDS.forEach(mark => {
     out[LEAVE_KEYS[mark]] = leaveDaysInMonth(ts, mark).length;
   });
   return out;
@@ -286,6 +293,11 @@ function recordLeaveTaken (S) {
 
 /**
  * Where one kind of leave stands for the year the sheet is in.
+ *
+ * `limit` and `left` are null for a kind that has no allowance, which is
+ * unpaid leave — null rather than Infinity because it is printed, and
+ * "Infinity days left" is not a thing anybody wants to read.
+ *
  * @returns {{mark, name, days, month, earlier, taken, limit, left, over}}
  */
 function leaveStanding (S, mark) {
@@ -294,27 +306,34 @@ function leaveStanding (S, mark) {
   const carried = carriedLeave(S, mark);
   const taken = carried + days.length;
   const limit = LEAVE_LIMITS[mark];
+  const capped = typeof limit === 'number';
   return {
     mark: mark, name: LEAVE_NAMES[mark], days: days,
     month: days.length, earlier: carried, taken: taken,
-    limit: limit, left: limit - taken, over: taken > limit
+    limit: capped ? limit : null,
+    left: capped ? limit - taken : null,
+    over: capped ? taken > limit : false
   };
 }
 
 /** every kind of leave, in the order they appear on the sheet */
 function leaveStandings (S) {
-  return Object.keys(LEAVE_LIMITS).map(mark => leaveStanding(S, mark));
+  return LEAVE_KINDS.map(mark => leaveStanding(S, mark));
 }
 
-/** days of this kind still available — never below zero */
-const leaveLeft = (S, mark) => Math.max(0, leaveStanding(S, mark).left);
+/** days of this kind still available — null when there is no allowance */
+function leaveLeft (S, mark) {
+  const L = leaveStanding(S, mark);
+  return L.limit == null ? null : Math.max(0, L.left);
+}
 
 /**
  * May one more day be marked with this? A day already carrying the mark is
  * asking to keep it, not to spend another one, so it always may.
  */
 function canMarkLeave (S, mark, alreadyThisMark) {
-  if (!LEAVE_LIMITS[mark]) return true;          // PH comes out of nobody's allowance
+  // PH comes out of nobody's allowance, and neither does unpaid leave
+  if (typeof LEAVE_LIMITS[mark] !== 'number') return true;
   if (alreadyThisMark) return true;
   return leaveStanding(S, mark).left > 0;
 }

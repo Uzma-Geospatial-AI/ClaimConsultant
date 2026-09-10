@@ -1197,11 +1197,26 @@ function renderProfileCards () {
   if (!host) return;
 
   const all = Store.profiles();
-  const names = Object.keys(all).sort();
+  /* In unique-ID order, and the ones without an ID last. The ID is the middle
+     of every invoice number that person sends, so a profile that has one is
+     ready to send and a profile that has not is a job still to do — which is
+     the order somebody wants to see them in, and it puts the unfinished ones
+     where they get noticed rather than scattered through the alphabet. */
+  const cards = Object.keys(all).map(name => ({ name: name, p: mergeDefaults(all[name]) }));
+  cards.sort((a, b) => {
+    const ia = uniqueIdOf(a.p), ib = uniqueIdOf(b.p);
+    if (!ia !== !ib) return ia ? -1 : 1;
+    if (ia && ib && ia !== ib) {
+      const na = Number(ia), nb = Number(ib);
+      if (!isNaN(na) && !isNaN(nb)) return na - nb;
+      return ia.localeCompare(ib);
+    }
+    return a.name.localeCompare(b.name);
+  });
+  const names = cards.map(c => c.name);
   host.innerHTML = '';
 
-  names.forEach(name => {
-    const p = mergeDefaults(all[name]);
+  cards.forEach(({ name, p }) => {
     const card = document.createElement('button');
     card.className = 'pcard' + (name === activeProfile ? ' on' : '');
     card.type = 'button';
@@ -1229,8 +1244,12 @@ function renderProfileCards () {
     leaveStandings(p).forEach(L => {
       const chip = document.createElement('i');
       chip.className = 'pchip ' + MARKS[L.mark] + (L.over ? ' over' : '');
-      chip.textContent = `${L.mark} ${L.left}`;
-      chip.title = `${L.name}: ${L.taken} of ${L.limit} taken in ${p.timesheet.year}, ${L.left} left`;
+      // a capped kind shows what is left, because that is the question;
+      // an uncapped one has no answer to that, so it shows what was taken
+      chip.textContent = L.limit == null ? `${L.mark} ${L.taken}` : `${L.mark} ${L.left}`;
+      chip.title = L.limit == null
+        ? `${L.name}: ${L.taken} taken in ${p.timesheet.year} — no yearly allowance`
+        : `${L.name}: ${L.taken} of ${L.limit} taken in ${p.timesheet.year}, ${L.left} left`;
       chips.appendChild(chip);
     });
     card.appendChild(chips);

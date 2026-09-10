@@ -80,21 +80,33 @@ async function ensureArchive () {
  * and is counted for both — it was filed for that month, and saying "not on
  * file" about a file that is on file is the worse mistake.
  */
-function archiveFor (consultant, year, month, kind) {
+/* The stage a record with no stage on it is read as. Everything filed before
+   the project manager signed anything was the finished document. */
+const ARCHIVE_FINAL = 'pending_signature';
+const stageOf = r => r.stage || ARCHIVE_FINAL;
+
+/**
+ * One filed record for a person, a month and a document.
+ * @param {string} [stage] which signing it came from; the finished one when
+ *        left out, because that is what "is it on file" nearly always means
+ */
+function archiveFor (consultant, year, month, kind, stage) {
   const who = String(consultant || '').trim();
+  const want = stage || ARCHIVE_FINAL;
   return archive.filter(r =>
     String(r.consultant || '').trim() === who &&
     Number(r.period_year) === Number(year) &&
     Number(r.period_month) === Number(month) + 1 &&
-    (!r.kind || r.kind === kind))[0] || null;
+    (!r.kind || r.kind === kind) &&
+    stageOf(r) === want)[0] || null;
 }
 
-const archiveHas = (consultant, year, month, kind) =>
-  !!archiveFor(consultant, year, month, kind);
+const archiveHas = (consultant, year, month, kind, stage) =>
+  !!archiveFor(consultant, year, month, kind, stage);
 
 /** who uploaded the signed copy back, and when — '' when nobody has */
-function archiveBy (consultant, year, month, kind) {
-  const rec = archiveFor(consultant, year, month, kind);
+function archiveBy (consultant, year, month, kind, stage) {
+  const rec = archiveFor(consultant, year, month, kind, stage);
   if (!rec) return '';
   const when = rec.created_at ? new Date(rec.created_at).toLocaleDateString() : '';
   return (rec.created_by || 'somebody') + (when ? ' on ' + when : '');
@@ -300,6 +312,14 @@ function archiveRow (r, namePerson) {
     tag.textContent = kindLabel(r.kind);
     head.appendChild(tag);
   }
+  // a copy signed by the project manager on the way through is not the
+  // finished article, and a list that did not say so would be misleading
+  if (stageOf(r) !== ARCHIVE_FINAL) {
+    const stage = document.createElement('span');
+    stage.className = 'stagetag';
+    stage.textContent = 'reviewed copy';
+    head.appendChild(stage);
+  }
 
   const meta = document.createElement('span');
   meta.textContent = [
@@ -440,7 +460,7 @@ async function fileSigned (inputs, note, go) {
     for (const one of chosen) {
       const payload = await Sync.readFile(one.file);
       payload.name = kindLabel(one.kind) + ' (signed) — ' + payload.name;
-      await Sync.store(S, [payload], note.value.trim(), one.kind);
+      await Sync.store(S, [payload], note.value.trim(), one.kind, ARCHIVE_FINAL);
     }
     toast(chosen.map(x => kindLabel(x.kind)).join(' and ') + ' filed for ' +
           MONTHS[S.timesheet.month] + ' ' + S.timesheet.year + '.');

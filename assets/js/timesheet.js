@@ -319,16 +319,17 @@ function renderLeave (S, hostId) {
   if (!host) return;
   const ts = S.timesheet;
 
-  const carried = Object.keys(LEAVE_LIMITS)
+  const carried = LEAVE_KINDS
     .map(mark => ({ mark: mark, n: carriedLeave(S, mark) }))
     .filter(x => x.n > 0);
 
   host.innerHTML = `
     <div class="leavehead">
       <b>Leave in ${ts.year}</b>
-      <span>${LEAVE_LIMITS.PTO} days each a year. <b>PTO</b> and <b>MC</b> are paid and
-        counted into [A]; <b>UL</b> is not. A day cannot be marked once its
-        allowance is spent.</span>
+      <span><b>PTO</b> and <b>MC</b> are ${LEAVE_LIMITS.PTO} days each a year, are paid,
+        and count into [A]; a day cannot be marked once its allowance is spent.
+        <b>UL</b> has no allowance &mdash; nobody is paid for it, so there is nothing
+        to ration &mdash; and it does not count into [A].</span>
     </div>
     <table class="leavetable">
       <thead><tr>
@@ -369,10 +370,12 @@ function leaveRow (S, mark) {
   };
 
   tr.appendChild(cell(String(L.month)));
-  tr.appendChild(cell(`${L.taken} of ${L.limit}`));
+  tr.appendChild(cell(L.limit == null ? String(L.taken) : `${L.taken} of ${L.limit}`));
   tr.appendChild(cell(
-    L.over ? `${L.left} — over by ${L.taken - L.limit}` : String(L.left),
-    L.over ? 'bad' : (L.left === 0 ? 'bad' : (L.left <= 2 ? 'low' : ''))
+    L.limit == null ? 'no limit'
+      : L.over ? `${L.left} — over by ${L.taken - L.limit}`
+      : String(L.left),
+    L.limit == null ? 'nolimit' : (L.over || L.left === 0) ? 'bad' : (L.left <= 2 ? 'low' : '')
   ));
   tr.appendChild(cell(L.days.join(', ') || '—', 'daylist'));
 

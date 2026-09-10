@@ -858,3 +858,13 @@ body.locked > .sitefoot{display:none}
   .statustable td.stagecell::before{font-size:9px}
   .brand-text h1{font-size:13.5px}
 }
+
+/* unpaid leave has no allowance, so its "left" cell has nothing to count down */
+.leavetable .nolimit{color:var(--muted);font-style:italic}
+
+/* a copy signed on the way through, rather than the finished article */
+.stagetag{
+  font-size:10.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;
+  color:var(--muted);background:#eef2f6;border-radius:20px;padding:2px 8px;
+}
+.decidefile.required{border-color:var(--orange);background:#fffaf6}

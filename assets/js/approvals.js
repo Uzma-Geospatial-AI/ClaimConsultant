@@ -41,13 +41,21 @@ const STATUS_ROLE = {
 
 /* The three approval stages in order, and what each column is called. */
 const STAGES = [
-  { key: 'pending_manager',   head: 'Reviewed', who: 'manager',
-    does: 'reads it and signs the REVIEWED BY box' },
+  { key: 'pending_manager',   head: 'Reviewed', who: 'manager', filed: 'reviewed',
+    does: 'reads it and signs it before it goes any further' },
   { key: 'pending_boss',      head: 'Approved', who: 'boss',
     does: 'approves it; signs nothing themselves' },
-  { key: 'pending_signature', head: 'Signed',   who: 'pa',
+  { key: 'pending_signature', head: 'Signed',   who: 'pa', filed: 'signed',
     does: 'places the HOD signature, in the app or on paper' }
 ];
+const STAGE_BY_KEY = {};
+STAGES.forEach(st => { STAGE_BY_KEY[st.key] = st; });
+
+/* Two of the three stages put a name to the document, and the HOD's does not
+   — they approve, and their PA places the signature afterwards. A stage that
+   signs cannot be passed on without one: drawn in the app where the document
+   has a box for it, or the document signed on paper and uploaded back. */
+const signingStage = status => !!(STAGE_BY_KEY[status] && STAGE_BY_KEY[status].filed);
 const STAGE_KEYS = STAGES.map(s => s.key);
 
 /* Which box gets signed at which stage — by the stage, not by whoever is
@@ -631,17 +639,28 @@ async function bulk (waiting, action, note) {
     toast('Say why — every one of them gets sent back with this note.', true);
     return;
   }
-  const signing = action === 'approve' && waiting.some(s => signsFor(s));
+  /* A document with a box can be signed in bulk, using the signature this
+     machine remembers. One without — an invoice — needs a scan that only a
+     person can produce, so it is left where it is and said so. */
+  const needsScan = action === 'approve'
+    ? waiting.filter(s => signingStage(s.status) && !signsFor(s)) : [];
+  const canDo = waiting.filter(s => needsScan.indexOf(s) < 0);
+  const signing = action === 'approve' && canDo.some(s => signsFor(s));
   if (signing && !myLastSignature()) {
     toast('Approve one time sheet on its own first, so the app has your signature to place.', true);
     return;
   }
-  if (!confirm(`${action === 'approve' ? 'Approve' : 'Reject'} all ${waiting.length} documents?`)) return;
+  if (!canDo.length) {
+    toast('Every one of these needs a signed file uploaded, which has to be done one at a time.', true);
+    return;
+  }
+  if (!confirm(`${action === 'approve' ? 'Approve' : 'Reject'} ${canDo.length} document${canDo.length > 1 ? 's' : ''}?` +
+    (needsScan.length ? `\n\n${needsScan.length} need a signed file uploaded and are left alone.` : ''))) return;
 
   busy = true;
   let done = 0;
   const failed = [];
-  for (const sub of waiting) {
+  for (const sub of canDo) {
     try {
       const signs = action === 'approve' ? signsFor(sub) : null;
       let data;
@@ -660,9 +679,11 @@ async function bulk (waiting, action, note) {
     }
   }
   busy = false;
+  const left = needsScan.length ? ` ${needsScan.length} still need a signed file.` : '';
   toast(failed.length
     ? `${done} done, ${failed.length} could not be: ${failed[0]}`
-    : `${done} documents ${action === 'approve' ? 'approved' : 'sent back'}.`, !!failed.length);
+    : `${done} documents ${action === 'approve' ? 'approved' : 'sent back'}.` + left,
+    !!failed.length);
   await renderApprovals();
 }
 
@@ -693,7 +714,8 @@ function decideBox (sub) {
   const box = document.createElement('div');
   box.className = 'decidebox';
   const signs = decideAction === 'approve' ? signsFor(sub) : null;
-  const placing = decideAction === 'approve' && sub.status === 'pending_signature';
+  const signing = decideAction === 'approve' && signingStage(sub.status);
+  const stage = STAGE_BY_KEY[sub.status] || {};
 
   const head = document.createElement('p');
   head.className = 'decidehead';
@@ -701,7 +723,7 @@ function decideBox (sub) {
     decideAction === 'return' ? 'Send this document back — say what needs fixing'
     : decideAction === 'resubmit' ? 'Send this document back for approval'
     : signs ? 'Sign and approve'
-    : placing ? 'Finish this document'
+    : signing ? `Sign the ${kindLabel(kindOf(sub)).toLowerCase()} and pass it on`
     : `Approve the ${kindLabel(kindOf(sub)).toLowerCase()}`;
   box.appendChild(head);
 
@@ -715,19 +737,19 @@ function decideBox (sub) {
     pad = makePad(padHost, myLastSignature());
   }
 
-  /* The last stage is the PA's, and their whole job is the signature. Some
-     months that happens in the app; some months it happens on paper, in a
-     room, with a pen. Either way the finished document is what anybody will
-     be asked for a year later, so this is where it comes back in — and it is
-     what lights the "On file" column of the table. */
+  /* Signing happens two ways, and both are real. In the app, where the
+     document has a box to draw in; or on paper, in a room, with a pen, and
+     then scanned back in. A stage that signs will not pass a document on
+     without one of them, and the scan is kept — it is the thing anybody will
+     be asked for a year later. */
   let filed = null;
-  if (placing) {
+  if (signing) {
     const drop = document.createElement('div');
-    drop.className = 'decidefile';
+    drop.className = 'decidefile' + (signs ? '' : ' required');
     const cap = document.createElement('span');
     cap.textContent = signs
-      ? 'Or, if it was signed on paper, upload the finished document:'
-      : 'Upload the finished signed document:';
+      ? `Or, if it was signed on paper, upload the ${stage.filed} document:`
+      : `Upload the ${kindLabel(kindOf(sub)).toLowerCase()} you have signed:`;
     drop.appendChild(cap);
     const inp = document.createElement('input');
     inp.type = 'file';
@@ -735,8 +757,9 @@ function decideBox (sub) {
     drop.appendChild(inp);
     const why = document.createElement('small');
     why.textContent = signs
-      ? 'Either is enough. A file uploaded here lights the "On file" column and joins the Signed copies list.'
-      : 'An invoice carries no approver signature, so the signed file is the only thing to place.';
+      ? 'Either is enough — draw above, or upload here. Whatever is uploaded is kept on file.'
+      : `An ${kindLabel(kindOf(sub)).toLowerCase()} has no box for an approver to sign, so the ` +
+        'signed file is the only thing there is to put your name to.';
     drop.appendChild(why);
     box.appendChild(drop);
     filed = inp;
@@ -755,7 +778,8 @@ function decideBox (sub) {
   const go = button(
     decideAction === 'return' ? 'Send it back'
       : decideAction === 'resubmit' ? 'Resubmit'
-      : placing ? 'Mark it signed' : 'Confirm',
+      : sub.status === 'pending_signature' ? 'Mark it signed'
+      : signing ? 'Sign and pass it on' : 'Confirm',
     decideAction === 'return' ? 'danger' : 'primary',
     () => decide(sub, note.value.trim(), pad, filed, go));
   bar.appendChild(go);
@@ -771,15 +795,18 @@ async function decide (sub, note, pad, filed, go) {
     return;
   }
   const signs = decideAction === 'approve' ? signsFor(sub) : null;
+  const signing = decideAction === 'approve' && signingStage(sub.status);
   const file = filed && filed.files && filed.files[0];
 
-  // the signature is the point of this stage, so one of the two has to exist
-  if (signs && pad.isEmpty() && !file) {
-    toast('Sign the box, or upload the signed document.', true);
+  /* A stage that signs does not pass anything on unsigned. Where the document
+     has a box, drawing in it or uploading a signed scan will both do; where
+     it has none — an invoice — the scan is the only thing there is. */
+  if (signing && signs && pad.isEmpty() && !file) {
+    toast('Sign the box, or upload the document you signed on paper.', true);
     return;
   }
-  if (!signs && sub.status === 'pending_signature' && decideAction === 'approve' && !file) {
-    toast('Upload the signed document before marking it signed.', true);
+  if (signing && !signs && !file) {
+    toast(`Upload the signed ${kindLabel(kindOf(sub)).toLowerCase()} before passing it on.`, true);
     return;
   }
   if (file && file.size > ARCHIVE_MAX_BYTES) {
@@ -829,16 +856,23 @@ async function decide (sub, note, pad, filed, go) {
   }
 }
 
-/** put the finished, signed document into the archive against its month */
+/**
+ * Put a signed document on file, against its month and the stage that signed
+ * it. The stage matters: the project manager's copy is evidence that it was
+ * reviewed, and the PA's is the finished article — only the second one is
+ * what the table's "On file" column is asking about.
+ */
 async function fileFinished (sub, file, note) {
   const full = await Sync.submission(sub.id);
   const state = mergeDefaults((full && full.data) || {});
   const kind = kindOf(sub);
+  const stage = STAGE_BY_KEY[sub.status] || {};
+  const what = stage.filed || 'signed';
   const payload = await Sync.readFile(file);
-  payload.name = `${kindLabel(kind)} (signed) — ${payload.name}`;
+  payload.name = `${kindLabel(kind)} (${what}) — ${payload.name}`;
   await Sync.store(state, [payload],
-    [note, `${kindLabel(kind)} signed by ${(Auth.user() || {}).name || myEmail()}`]
-      .filter(Boolean).join(' · '), kind);
+    [note, `${kindLabel(kind)} ${what} by ${(Auth.user() || {}).name || myEmail()}`]
+      .filter(Boolean).join(' · '), kind, sub.status);
 }
 
 /* -------------------------------------------------------------------

@@ -257,6 +257,7 @@ DELETE /ccs/archive/{id}           → { "ok": true }
   "period_month": 9,
   "period_year":  2026,
   "kind":         "claim",
+  "stage":        "pending_signature",
   "note":         "signed by the HOD on the 3rd",
   "files": [
     { "name": "invoice-signed.pdf", "type": "application/pdf", "size": 184320, "content": "JVBERi0…" }
@@ -268,6 +269,12 @@ DELETE /ccs/archive/{id}           → { "ok": true }
 table lights an *On file* column per document, and needs it to say "the time sheet is back, the
 invoice is not". Store it as `TEXT NULL` and return it on both read endpoints; a null one is read
 as covering both, which is what every record written before this field meant.
+
+`stage` says which signing produced it: `"pending_manager"` for the project manager's reviewed
+copy, `"pending_signature"` for the finished one the PA places. Both are worth keeping and only
+the second is the finished article, which is what the Status table's *On file* column asks about.
+`TEXT NULL`, returned on both read endpoints; a null one is read as the finished article, since
+that is all there was to file before the project manager signed anything.
 
 `content` is the file's bytes, base64, without a `data:` prefix. CCS refuses anything over
 **12 MB** before it reads it, and sends at most two files per record — but the shape is a list, so
@@ -368,6 +375,7 @@ CREATE TABLE ccs.archive (
   id            text        PRIMARY KEY,
   consultant    text        NOT NULL,
   kind          text,                                  -- invoice | claim | null = the month
+  stage         text,                                  -- pending_manager | pending_signature
   unique_id     text,
   invoice_no    text,
   period_month  smallint    CHECK (period_month BETWEEN 1 AND 12),

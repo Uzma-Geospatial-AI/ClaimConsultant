@@ -265,8 +265,14 @@ function readFileForUpload (file) {
  * document rather than per month. A record without one means the month, and
  * is read as covering both — which is what every record written before the
  * archive knew about documents meant.
+ *
+ * `stage` says who signed it: the project manager reviewing, or the PA at the
+ * end. Both are worth keeping, and only the second is the finished article —
+ * which is what the table's "On file" column is asking about. A record
+ * without one is read as the finished article, because that is all there was
+ * to file before the project manager signed anything.
  */
-async function storeSigned (S, files, note, kind) {
+async function storeSigned (S, files, note, kind, stage) {
   if (!syncOn) throw new Error('The shared database is not reachable, so there is nowhere to file them.');
   const body = await ccsFetch('/archive', {
     method: 'POST',
@@ -277,6 +283,7 @@ async function storeSigned (S, files, note, kind) {
       period_month: (Number(S.timesheet.month) || 0) + 1,
       period_year:  Number(S.timesheet.year) || null,
       kind:         SUBMIT_KINDS[kind] ? kind : null,
+      stage:        stage || 'pending_signature',
       note:         note || '',
       files:        files
     })

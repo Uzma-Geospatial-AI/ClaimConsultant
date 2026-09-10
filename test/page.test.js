@@ -116,8 +116,21 @@ check('one submission is sent per document',
 check('only the time sheet gets signed by an approver',
   /kindOf\(sub\) === 'claim' \? STAGE_SIGNS\[sub\.status\] : null/.test(approvals), true);
 check('the stages are drawn in the order they happen',
-  /'pending_manager'[\s\S]{0,120}'pending_boss'[\s\S]{0,120}'pending_signature'/
+  /'pending_manager'[\s\S]{0,200}'pending_boss'[\s\S]{0,200}'pending_signature'/
     .test(approvals), true);
+/* The project manager puts their name to a document before it goes any
+   further — drawn in the app where there is a box, uploaded as a scan where
+   there is not. Approving without either was how a bill reached the HOD with
+   nobody's name on it. */
+check('a stage that signs will not pass anything on unsigned',
+  /if \(signing && signs && pad\.isEmpty\(\) && !file\)/.test(approvals) &&
+  /if \(signing && !signs && !file\)/.test(approvals), true);
+check('and the project manager is one of them',
+  /key: 'pending_manager',[\s\S]{0,120}filed: 'reviewed'/.test(approvals), true);
+check('while the HOD signs nothing',
+  /key: 'pending_boss',[^}]*filed:/.test(approvals), false);
+check('a scan is filed against the signing it came from',
+  /kind, sub\.status\)/.test(approvals), true);
 
 /* -----------------------------------------------------------------------
    The money. A month is paid in full and the days that are not paid for are
@@ -142,7 +155,8 @@ check('a file too big is refused before it is read',
 // Which slot a file was put in is which document it is: two files means two
 // records, so the status table can say the sheet is back and the invoice is not.
 check('a signed copy is filed against its own document',
-  /Sync\.store\(S, \[payload\], note\.value\.trim\(\), one\.kind\)/.test(archivejs), true);
+  /Sync\.store\(S, \[payload\], note\.value\.trim\(\), one\.kind, ARCHIVE_FINAL\)/
+    .test(archivejs), true);
 check('and rows are built as text, never markup',
   /archiveperson[\s\S]{0,200}innerHTML/.test(archivejs), false);
 // Which box is signed follows the stage the claim is at, not the role of
