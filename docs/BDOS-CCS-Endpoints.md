@@ -62,6 +62,7 @@ This matters for the `WHERE` clauses, so it is worth stating plainly:
 
 | Data | Visibility | Why |
 |---|---|---|
+| **Submissions** | shared | Four people move one document between them; an approver who cannot see what they approved last month is not much use |
 | **Profiles** | shared | A consultant's details are reference data all three work from |
 | **Claims history** | shared | The point is that everyone can see what has been submitted |
 | **Draft** | shared — one row | The three of them work on one claim at a time, and picking it up on another machine is the reason this storage exists |
@@ -169,10 +170,16 @@ needed.
 
 Errors: `400` on a missing `consultant` or a non-numeric `amount`.
 
-### Submissions — a claim on its way through the approvals
+### Submissions — a document on its way through the approvals
 
-A claim is prepared, reviewed, approved and then signed, in that order. The order is kept here:
-the client may ask for any move, and only the account whose turn it is can make it.
+A month is **two documents**, and they are not the same document: the invoice is a bill, the time
+sheet is the evidence for it. Each is submitted separately, carries its own status, and is
+approved or sent back on its own — an approver can be happy with the sheet and not with the
+invoice, and say so, without holding up the half that was fine. So one row here is one document,
+not one month.
+
+Each is prepared, reviewed, approved and then signed, in that order. The order is kept here: the
+client may ask for any move, and only the account whose turn it is can make it.
 
 ```
 POST /ccs/submissions              → { "submission": Submission }
@@ -188,6 +195,17 @@ GET  /ccs/me                       → { "email", "name", "role", "acts_on" }
 | `pending_boss` | `boss` | `pending_signature` |
 | `pending_signature` | `pa` | `complete` |
 | `returned` | the consultant who sent it | `pending_manager`, by `resubmit` |
+
+**`kind`** — please add this field. `POST /ccs/submissions` now sends `"kind": "invoice"` or
+`"kind": "claim"`, and it needs to come back on **both** read endpoints, the list included. The
+list is the one that matters: it deliberately returns no `data`, and a table of "whose September
+invoice is where" cannot be drawn from rows that do not say which document they are.
+
+Until that field exists CCS falls back to reading it out of the stored form — `data.submitKind`,
+which it writes as well as sending — one request per row, capped, cached for the session. That
+works, and it is a request per row that the field makes unnecessary. Store it as `TEXT`, default
+`'claim'`: every row written before a month was two documents was the whole claim, and the time
+sheet is the half that carries the signatures.
 
 **`POST /ccs/submissions/{id}/action`** body: `{ "action": "approve" | "return" | "resubmit",
 "note": "…", "data": { … } }`.
@@ -324,6 +342,7 @@ CREATE INDEX ON ccs.claims (period_year DESC, period_month DESC);
 CREATE TABLE ccs.submissions (
   id            text        PRIMARY KEY,
   consultant    text        NOT NULL,
+  kind          text        NOT NULL DEFAULT 'claim',  -- invoice | claim
   period_month  smallint,
   period_year   smallint,
   invoice_no    text,

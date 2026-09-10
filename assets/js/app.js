@@ -545,6 +545,60 @@ function renderGenSummary () {
 /** documents downloaded in this session — what the history row records */
 const generated = new Set();
 
+/* Which of the two documents this submission carries. null means "whatever
+   the chosen mode produces", which is the answer until somebody says
+   otherwise — so choosing Both on step 2 and pressing submit sends both,
+   with nothing to tick. */
+let submitPick = null;
+
+/** the documents that would go if the button were pressed now */
+function pickedKinds () {
+  const available = kindsForMode(S.mode);
+  if (!submitPick) return available.slice();
+  return available.filter(k => submitPick.has(k));
+}
+
+function paintSubmitPick () {
+  const host = document.getElementById('submitPick');
+  if (!host) return;
+  const available = kindsForMode(S.mode);
+  const chosen = pickedKinds();
+  host.innerHTML = '';
+
+  available.forEach(kind => {
+    const label = document.createElement('label');
+    label.className = 'pickone';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.dataset.kind = kind;
+    box.checked = chosen.indexOf(kind) >= 0;
+    box.addEventListener('change', () => {
+      if (!submitPick) submitPick = new Set(available);
+      if (box.checked) submitPick.add(kind); else submitPick.delete(kind);
+      renderSubmitStep();
+    });
+    label.appendChild(box);
+    const name = document.createElement('b');
+    name.textContent = kindLabel(kind);
+    label.appendChild(name);
+    const what = document.createElement('span');
+    what.textContent = kind === 'invoice'
+      ? 'the bill, with the bank details and the amount'
+      : 'the Uzma time sheet, with the day grid and the approval block';
+    label.appendChild(what);
+    host.appendChild(label);
+  });
+
+  if (available.length < 2) {
+    const only = document.createElement('p');
+    only.className = 'pickonly';
+    only.textContent =
+      'Step 2 asked for one document, so that is the one that goes. Go back and ' +
+      'choose Both to send the other one as well.';
+    host.appendChild(only);
+  }
+}
+
 function renderSubmitStep () {
   const facts = document.getElementById('submitFacts');
   const card  = document.getElementById('card_submit');
@@ -554,9 +608,13 @@ function renderSubmitStep () {
 
   const T = invoiceTotals(S);
   const t = timesheetTotals(S.timesheet);
+  paintSubmitPick();
+  const going = pickedKinds();
+
   const rows = [
     ['Consultant', S.consultant.name || '(no name)'],
     ['Month', `${MONTHS[S.timesheet.month]} ${S.timesheet.year}`],
+    ['Going', going.length ? going.map(kindLabel).join(' + ') : 'nothing chosen'],
     ['Invoice No.', S.invoice.no || '(none)'],
     ['Period', fmtPeriod(S.invoice.pStart, S.invoice.pEnd) || '(none)'],
     ['Total days [A]', String(t.A)],
@@ -579,7 +637,10 @@ function renderSubmitStep () {
   if (!String(S.invoice.no || '').trim()) {
     problems.push('there is no invoice number — fill the Unique ID in on the Profile step');
   }
-  if (!S.sig.personnel) problems.push('nobody has signed the PERSONNEL box');
+  if (!going.length) problems.push('no document is ticked, so there is nothing to send');
+  if (going.indexOf('claim') >= 0 && !S.sig.personnel) {
+    problems.push('nobody has signed the PERSONNEL box on the time sheet');
+  }
   const over = leaveStandings(S).filter(L => L.over);
   over.forEach(L => problems.push(
     `${L.name} is over the ${L.limit}-day allowance by ${L.taken - L.limit}`));
@@ -607,15 +668,19 @@ function renderSubmitStep () {
  *
  *   · this month's leave is filed against the year, so the next month opens
  *     with the balance already carried forward
- *   · the claim number goes up, so the next invoice number is the next one
+ *   · this month's claim number is fixed, and the next month starts from the
+ *     one after it — fixed, not incremented, because the second of a month's
+ *     two documents must not arrive under a different number from the first
  *   · the profile keeps both, because they belong to the person and not to
  *     whatever happens to be in the form
  */
 function afterSubmitted () {
   recordLeaveTaken(S);
-  S.consultant.claimSeq = claimSeqOf(S) + 1;
-  S.invoice.autoNo = true;
-  mirror('consultant.claimSeq');
+  const next = assignClaimNo(S);
+  if (next != null) {
+    S.consultant.claimSeq = next;
+    mirror('consultant.claimSeq');
+  }
   syncInvoiceNo();
 
   // one history row per claim sent, listing whatever was downloaded for it
@@ -865,19 +930,49 @@ function boot () {
       toast('The shared database is not reachable, so there is nowhere to send it yet.', true);
       return;
     }
+    const going = pickedKinds();
+    if (!going.length) {
+      toast('Tick at least one document to send.', true);
+      return;
+    }
+
     const btn = document.getElementById('btnSubmitClaim');
     const note = document.getElementById('submitNote');
+    const was = btn.textContent;
     btn.disabled = true;
+    btn.textContent = 'Sending…';
+
+    /* One submission per document, because that is what gets approved. If the
+       second one fails the first has still gone, and saying which went is
+       more use than pretending neither did — the one that did not can be sent
+       again from here without duplicating the one that did. */
+    const sent = [];
+    const failed = [];
     try {
-      await Sync.submit(S, note.value.trim());
-      note.value = '';
-      afterSubmitted();
-      toast('Sent to the project manager.');
-      goToStep(activeSteps().findIndex(st => st.id === 'approvals'), true);
-    } catch (err) {
-      toast(err.message || 'Could not send it.', true);
+      for (const kind of going) {
+        try {
+          await Sync.submit(S, note.value.trim(), kind);
+          sent.push(kindLabel(kind));
+        } catch (err) {
+          failed.push(`${kindLabel(kind)}: ${err.message}`);
+        }
+      }
+      if (sent.length) {
+        note.value = '';
+        afterSubmitted();
+        submitPick = null;
+      }
+      if (failed.length) {
+        toast(sent.length
+          ? `${sent.join(' and ')} sent. ${failed[0]}`
+          : failed[0], true);
+      } else {
+        toast(`${sent.join(' and ')} sent to the project manager.`);
+      }
+      if (sent.length) goToStep(activeSteps().findIndex(st => st.id === 'approvals'), true);
     } finally {
       btn.disabled = false;
+      btn.textContent = was;
     }
   });
 

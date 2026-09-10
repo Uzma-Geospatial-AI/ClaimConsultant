@@ -320,8 +320,20 @@ async function whoAmI () {
   return ccsFetch('/me', { method: 'GET' });
 }
 
-/** Send a claim off for approval. */
-async function submitClaim (S, note) {
+/**
+ * Send one document off for approval.
+ *
+ * `kind` is 'invoice' or 'claim'. It travels twice on purpose: as a field of
+ * its own, which is what the list endpoint needs so a table can be drawn
+ * without fetching every form; and inside `data`, which BDOS stores verbatim
+ * and hands back whatever it makes of the rest. The second copy is what makes
+ * this work against a BDOS that has not learned the field yet.
+ */
+async function submitClaim (S, note, kind) {
+  const which = SUBMIT_KINDS[kind] ? kind : 'claim';
+  const payload = JSON.parse(JSON.stringify(S));
+  payload.submitKind = which;
+
   const body = await ccsFetch('/submissions', {
     method: 'POST',
     body: JSON.stringify({
@@ -329,11 +341,29 @@ async function submitClaim (S, note) {
       period_month: (Number(S.timesheet.month) || 0) + 1,
       period_year: Number(S.timesheet.year) || null,
       invoice_no: S.invoice.no || null,
+      kind: which,
       note: note || '',
-      data: S
+      data: payload
     })
   });
   return (body && body.submission) || null;
+}
+
+/**
+ * Which document a submission is.
+ *
+ * Rows sent before a claim was split into two documents were the whole claim,
+ * and the time sheet is the half that carries the signatures, so that is what
+ * an unlabelled row is read as. Returns '' when the row came from the list
+ * endpoint and the field is not there — the caller can then decide whether it
+ * is worth fetching the form to find out.
+ */
+function submissionKind (sub) {
+  if (!sub) return '';
+  if (SUBMIT_KINDS[sub.kind]) return sub.kind;
+  const inData = sub.data && sub.data.submitKind;
+  if (SUBMIT_KINDS[inData]) return inData;
+  return sub.data ? 'claim' : '';
 }
 
 /**
@@ -450,6 +480,7 @@ const Sync = {
   init: initSync,
   me: whoAmI,
   submit: submitClaim,
+  kindOf: submissionKind,
   submissions: listSubmissions,
   submission: getSubmission,
   act: actOnSubmission,

@@ -635,3 +635,83 @@ body.locked > .sitefoot{display:none}
   margin-top:20px;padding-top:16px;border-top:1px solid var(--line);
 }
 .savehint{color:var(--muted);font-size:12.5px}
+
+/* =======================================================================
+   Step 6 — which documents go
+   ======================================================================= */
+.submitpick{border:1px solid var(--line);border-radius:8px;padding:12px 16px 14px;margin:0 0 18px}
+.submitpick legend{
+  font-size:11.5px;letter-spacing:.6px;text-transform:uppercase;
+  color:var(--navy-soft);font-weight:700;padding:0 6px;
+}
+.pickone{
+  display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:baseline;
+  padding:7px 0;cursor:pointer;
+}
+.pickone+.pickone{border-top:1px solid #eef2f6}
+.pickone input{grid-row:span 2;align-self:center;width:16px;height:16px}
+.pickone b{font-size:13.5px}
+.pickone span{font-size:12.5px;color:var(--muted)}
+.pickonly{margin:8px 0 0;font-size:12.5px;color:var(--muted)}
+
+/* =======================================================================
+   The status table — one row per document, a light per stage
+   ======================================================================= */
+.statusbar{
+  display:flex;flex-wrap:wrap;align-items:center;gap:16px;
+  margin-bottom:12px;font-size:12.5px;
+}
+.statuscount{color:var(--navy-soft);font-weight:600}
+.statustoggle{display:inline-flex;align-items:center;gap:6px;color:var(--muted);cursor:pointer}
+
+.statuswrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:#fff}
+.statustable{width:100%;border-collapse:collapse;font-size:12.5px;min-width:760px}
+.statustable th{
+  text-align:left;padding:9px 12px;background:#f7fafd;border-bottom:1px solid var(--line);
+  font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--navy-soft);
+  white-space:nowrap;
+}
+.statustable th.stagecol{text-align:center}
+.statustable td{padding:9px 12px;border-bottom:1px solid #eef2f6;vertical-align:middle}
+.statustable tr:last-child td{border-bottom:none}
+.statustable .who{font-weight:600;white-space:nowrap}
+.statustable .when,.statustable .invno{white-space:nowrap;color:var(--muted)}
+.statusrow.urgent{background:#fffaf6}
+.statusrow.done{color:var(--muted)}
+.statusrow.back{background:#fdf3f2}
+
+.doctag{
+  display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;
+  letter-spacing:.3px;white-space:nowrap;
+}
+.doctag.invoice{background:#e8eef8;color:var(--doc-bar)}
+.doctag.claim{background:var(--orange-soft);color:#b3480f}
+
+.stagecell{text-align:center}
+.lamp{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:20px;height:20px;border-radius:50%;font-size:11px;font-weight:700;
+  border:1px solid var(--line);background:#f0f3f7;color:transparent;
+}
+.lamp.done{background:#e3f4ec;border-color:#9ed3ba;color:var(--ok)}
+.lamp.waiting{background:#fff0e4;border-color:#f3b183;color:var(--orange)}
+.lamp.returned{background:#fbe4e1;border-color:#e5a79f;color:var(--danger)}
+.lamp.todo{color:transparent}
+
+.statusacts{white-space:nowrap;text-align:right}
+.statusacts .btn{margin-left:6px}
+.decidetr td{background:#f7fafd;padding:0}
+.decidetr .decidebox{margin:0;border-radius:0;border-left:none;border-right:none}
+
+.statuslegend{
+  display:flex;flex-wrap:wrap;gap:18px;padding:10px 12px;
+  border-top:1px solid var(--line);background:#fcfdfe;font-size:12px;color:var(--muted);
+}
+.statuslegend span{display:inline-flex;align-items:center;gap:7px}
+
+.decidefile{
+  display:flex;flex-direction:column;gap:5px;margin:0 0 12px;
+  padding:12px;border:1px dashed var(--navy-soft);border-radius:7px;background:#fff;
+}
+.decidefile span{font-size:12.5px;font-weight:600;color:var(--navy-soft)}
+.decidefile small{font-size:11.5px;color:var(--muted)}

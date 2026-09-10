@@ -53,6 +53,14 @@ const ROLE_NAMES = {
 const prepares = r => r === 'consultant' || r === 'admin';
 const isAdmin  = r => r === 'admin';
 
+/* Placing the HOD's signature is the PA's whole part in this, and some
+   months it happens on paper rather than in the app — so the account that
+   places it is also the account that puts the finished document on file.
+   Asked as "does this account place signatures", never as "is this the PA":
+   comparing to a role name is how the admin ended up with less access than
+   the people it administers. */
+const places = r => r === 'pa' || r === 'admin';
+
 const TOKEN_KEY = 'ccs.token';
 const USER_KEY  = 'ccs.user';
 
@@ -302,6 +310,7 @@ const Auth = {
   role: currentRole,
   roleName: r => ROLE_NAMES[r || currentRole()] || '',
   prepares: () => prepares(currentRole()),
+  places: () => places(currentRole()),
   isAdmin: () => isAdmin(currentRole()),
   BASE: BDOS_BASE
 };

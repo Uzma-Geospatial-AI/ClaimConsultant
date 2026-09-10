@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Consultant Claim System</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20260911e">
+<link rel="stylesheet" href="assets/css/style.css?v=20260911f">
 </head>
 <body class="locked">
 
@@ -389,11 +389,19 @@
 <!-- ============ STEP 6: SUBMIT ============ -->
 <section class="panel" id="p-submit" data-step="submit">
   <h2>Send it for approval</h2>
-  <p class="lead">The claim goes to the project manager first, then to the HOD, and the
-    HOD&rsquo;s signature is placed by their PA. Once it has gone you can follow it on the
-    next step.</p>
+  <p class="lead">Each document goes to the project manager first, then to the HOD, and the
+    HOD&rsquo;s signature is placed by their PA. They travel separately, so each one has its
+    own status &mdash; follow them on the next step.</p>
 
   <div class="submitcard" id="card_submit">
+    <!-- Two documents, two approvals. Send one, or both — a time sheet that
+         is ready need not wait for an invoice that is still being argued
+         about. -->
+    <fieldset class="submitpick">
+      <legend>Which documents go?</legend>
+      <div id="submitPick"></div>
+    </fieldset>
+
     <div class="submitfacts" id="submitFacts"></div>
     <p class="submitwarn" id="submitWarn" hidden></p>
     <label class="submitnote">Anything the project manager should know <span class="hint">(optional)</span>
@@ -465,25 +473,25 @@
      fetches the page again but keeps the old JavaScript for up to ten minutes
      — which reads as "the fix did not work". Bump this stamp whenever
      anything under assets/ changes and a reload picks it all up at once. -->
-<script src="vendor/jspdf.umd.min.js?v=20260911e"></script>
-<script src="vendor/jspdf.plugin.autotable.min.js?v=20260911e"></script>
-<script src="vendor/carlito.js?v=20260911e"></script>
-<script src="vendor/exceljs.min.js?v=20260911e"></script>
-<script src="vendor/FileSaver.min.js?v=20260911e"></script>
-<script src="vendor/signature_pad.umd.min.js?v=20260911e"></script>
-<script src="vendor/docx.umd.js?v=20260911e"></script>
-<script src="assets/js/state.js?v=20260911e"></script>
-<script src="assets/js/holidays.js?v=20260911e"></script>
-<script src="assets/js/logo.js?v=20260911e"></script>
-<script src="assets/js/timesheet.js?v=20260911e"></script>
-<script src="assets/js/signature.js?v=20260911e"></script>
-<script src="assets/js/gen-invoice.js?v=20260911e"></script>
-<script src="assets/js/gen-claim.js?v=20260911e"></script>
-<script src="assets/js/preview.js?v=20260911e"></script>
-<script src="assets/js/auth.js?v=20260911e"></script>
-<script src="assets/js/sync.js?v=20260911e"></script>
-<script src="assets/js/approvals.js?v=20260911e"></script>
-<script src="assets/js/archive.js?v=20260911e"></script>
-<script src="assets/js/app.js?v=20260911e"></script>
+<script src="vendor/jspdf.umd.min.js?v=20260911f"></script>
+<script src="vendor/jspdf.plugin.autotable.min.js?v=20260911f"></script>
+<script src="vendor/carlito.js?v=20260911f"></script>
+<script src="vendor/exceljs.min.js?v=20260911f"></script>
+<script src="vendor/FileSaver.min.js?v=20260911f"></script>
+<script src="vendor/signature_pad.umd.min.js?v=20260911f"></script>
+<script src="vendor/docx.umd.js?v=20260911f"></script>
+<script src="assets/js/state.js?v=20260911f"></script>
+<script src="assets/js/holidays.js?v=20260911f"></script>
+<script src="assets/js/logo.js?v=20260911f"></script>
+<script src="assets/js/timesheet.js?v=20260911f"></script>
+<script src="assets/js/signature.js?v=20260911f"></script>
+<script src="assets/js/gen-invoice.js?v=20260911f"></script>
+<script src="assets/js/gen-claim.js?v=20260911f"></script>
+<script src="assets/js/preview.js?v=20260911f"></script>
+<script src="assets/js/auth.js?v=20260911f"></script>
+<script src="assets/js/sync.js?v=20260911f"></script>
+<script src="assets/js/approvals.js?v=20260911f"></script>
+<script src="assets/js/archive.js?v=20260911f"></script>
+<script src="assets/js/app.js?v=20260911f"></script>
 </body>
 </html>

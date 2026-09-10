@@ -61,6 +61,11 @@ async function renderArchive (force) {
   paintArchive();
 }
 
+/** may the account that is signed in put documents on file? */
+function canFileSigned () {
+  return !Auth.role() || Auth.prepares() || Auth.places();
+}
+
 /** the names anybody has filed something under, plus whoever is in the form */
 function archiveNames () {
   const names = new Set(archive.map(r => String(r.consultant || '').trim()).filter(Boolean));
@@ -90,8 +95,11 @@ function paintArchive () {
 
   host.innerHTML = '';
 
-  // whoever prepares claims is the one holding the signed paper
-  if (!Auth.role() || Auth.prepares()) host.appendChild(archiveUploadCard());
+  /* Whoever is holding the signed paper. That is usually the consultant who
+     prepared it — and it is always the PA at the end, because placing the
+     signature is their whole part in this and some months it happens on
+     paper rather than in the app. */
+  if (canFileSigned()) host.appendChild(archiveUploadCard());
 
   const rows = archive
     .filter(r => !archiveWho || String(r.consultant || '').trim() === archiveWho)

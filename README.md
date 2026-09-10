@@ -103,11 +103,17 @@ Step 1  Profile ──▶ Step 2  Pick a document ──┬─▶ A    Invoice �
 | **B** Claim Form | Claim Form · Generate · Submit · Status | PDF + Word |
 | **A + B** Both | Invoice · Claim Form · Generate · Submit · Status | PDF + Excel + Word |
 
-**Generate** downloads the files and nothing else. **Submit** sends the claim away. They used to
-be one screen, and they are two different decisions: generating happens several times while a
-month is still being argued about, submitting happens once and cannot be taken back. The Submit
-step is a summary of what is about to go — who, which month, which invoice number, how much, and
-anything wrong with it — and then one button.
+**Generate** downloads the files and nothing else. **Submit** sends them away. They used to be one
+screen, and they are two different decisions: generating happens several times while a month is
+still being argued about, submitting happens once and cannot be taken back. The Submit step is a
+summary of what is about to go — who, which month, which invoice number, how much, and anything
+wrong with it — and then one button.
+
+**A month is two documents, and they go separately.** The invoice is a bill; the time sheet is
+the evidence for it. Submit asks which of them goes, so a sheet that is ready need not wait for
+an invoice still being argued about, and each carries its own status the whole way — the project
+manager can be happy with one and not the other, and say so. Both halves of one month carry the
+**same** invoice number: it identifies the claim, not the document.
 
 Step 3 onwards is not a form *about* the document — it **is** the document. The invoice step
 draws the invoice with its navy band, BILL TO bar, item table and totals; the Claim step draws
@@ -160,7 +166,9 @@ hands it back to the calendar.
 | 🗃️ **The signed copies, on file** | Everything else the app keeps is the claim as software holds it. The **Status** step also takes the paper: upload the signed invoice and the signed time sheet once they come back, and they are filed against that person and that month in the shared database. Any month can then be produced again a year later without hunting through anybody's Downloads folder |
 | 🧮 **Three ways to price a period** | Monthly rate prorated by calendar days, daily rate × days ticked, or a fixed amount you type yourself — the live formula shows its working |
 | ✍️ **Sign in the signature box** | The four pads (Personnel, Project Manager, HOD, Verified By) sit inside Section C where the pen would go; blank space around the stroke is trimmed before it is embedded |
-| ✅ **Two approvals, in order** | A submitted claim goes to the project manager, then to the HOD, and the HOD's signature is placed by their PA. Each approver reads the sheet as it will be printed, signs their own box or sends it back with a reason, and every move is recorded against a name and a time |
+| ✅ **Three stages, in order** | A submitted document goes to the project manager, then to the HOD, and the HOD's signature is placed by their PA. Each approver reads it as it will be printed, signs their own box or sends it back with a reason, and every move is recorded against a name and a time |
+| 🚦 **A status table, a light per stage** | One row per document, three columns — **Reviewed**, **Approved**, **Signed** — and a light in each: green done, amber waiting here now, red sent back from here, blank not reached. "Where is Amila's September invoice" is answered by looking, not by opening anything. The admin sees every person's; everybody sees where everything is |
+| 🖊️ **The PA signs, on screen or on paper** | The last stage is the PA's, and their whole job is the signature. Draw it in the app, or — when it was signed on paper, in a room, with a pen — upload the finished document instead. Either finishes the month, and the uploaded one goes straight onto the Signed copies list |
 | 🖋️ **Approval block starts filled** | Section C opens with the usual names and today's date already in place — every one is a normal field, so type over it when somebody else signs |
 | 🏷️ **Official artwork, placed to the millimetre** | The Uzma wordmark ships with the app and is positioned from proportions measured off the printed form, not eyeballed |
 | 👁️ **View before you download** | **View PDF** renders the finished document in the browser's own PDF viewer &mdash; check it, then download from inside the viewer or close and keep editing. Nothing reaches the disk until you say so |
@@ -261,22 +269,47 @@ Then open <http://127.0.0.1:8000/>.
 
 ## How the Amount Is Calculated
 
+A month on a monthly rate is paid **in full**, and the days that are not paid for are taken off
+it — which is how payroll states it, and how somebody reading the invoice checks it:
+
+```
+deduction = unpaid days ÷ days in the month × monthly rate
+amount    = monthly rate − deduction
+```
+
+The divisor is the **calendar month** — 28, 30 or 31 — never a count of weekdays. A consultant on
+a monthly rate is paid for the Sunday as much as for the Tuesday, so taking the weekend out of the
+divisor would quietly cut the rate by three tenths. Which days are unpaid is the sheet's answer,
+not the formula's: unpaid leave and a working day nobody marked are the only two that cost
+anything (see `PAID_MARKS`). A month with nothing unpaid deducts nothing and pays the rate.
+
+
 Pick a method on the **Invoice** step; the formula line updates as you type.
 
 | Method | Formula |
 |---|---|
-| **Monthly rate** (default) | `monthly rate ÷ days in month × calendar days in period` |
+| **Monthly rate** (default), with a time sheet | `monthly rate − (unpaid days ÷ days in month × monthly rate)` |
+| **Monthly rate**, invoice on its own | `monthly rate ÷ days in month × calendar days in period` |
 | **Daily rate** | `daily rate × days ticked "/"` |
 | **Fixed amount** | whatever you type in the item table |
 
-Worked example, matching a real invoice:
+There are two monthly cases because there are two situations. With a time sheet the sheet says
+which days were paid for, so the deduction is real and is taken off the whole month. Without one
+— an invoice sent alone, for a part month — there is nothing to deduct from and the period is all
+there is, so the rate is spread across the calendar days it covers.
+
+Worked examples, both from real invoices:
 
 ```
-RM 3,500.00 ÷ 31 days (August 2026) × 8 calendar days (24–31 Aug) = RM 903.23
+RM 3,500.00 − nothing to deduct: all 30 days of September 2026 are paid      = RM 3,500.00
+RM 3,500.00 − (2 unpaid days ÷ 30 × RM 3,500.00) = RM 3,500.00 − RM 233.33   = RM 3,266.67
+RM 3,500.00 ÷ 31 days (August 2026) × 8 calendar days (24–31 Aug)            = RM   903.23
 ```
 
-While the method is not *Fixed amount*, the first item's amount is read-only so it can never
-drift out of step with the formula. Switch to **Fixed amount** to type your own.
+The figure the sum arrives at is the starting point, not the last word: type over the first
+item's amount and the app keeps what you typed, says it has been typed over, and offers the
+calculated one back. A month settled at something else is a decision, and the form should not
+argue with it.
 
 Long values wrap rather than collide: an address wider than its column continues on the next
 line and pushes the block down, instead of running into the Period column beside it.
@@ -481,10 +514,15 @@ A claim does not go straight to Finance. It travels:
                           └──── sends back ──────┴──→ returned, with a reason
 ```
 
-Each approver reads the sheet as it will be printed &mdash; the PDF is rebuilt from the submitted
-form and opened in the same viewer the consultant used &mdash; and then signs their own box or
-sends it back. **Nothing on that screen edits a claim**: a claim that came back is fixed by the
-consultant in the form, not by the approver in the queue.
+Each approver reads the document as it will be printed &mdash; the PDF is rebuilt from the
+submitted form and opened in the same viewer the consultant used, and it is the document that was
+sent, so an invoice opens as an invoice &mdash; and then signs their own box or sends it back.
+**Nothing on that screen edits a claim**: one that came back is fixed by the consultant in the
+form, not by the approver in the queue.
+
+Only the time sheet carries approver signature boxes. An invoice has one signature on it, the
+consultant's, and approving a bill does not sign it &mdash; so approving an invoice is approving,
+with no pad to draw in. The screen itself is a table: one row per document, a light per stage.
 
 Who may move a claim is decided by the stage it is at, and decided in BDOS, not here: the project
 manager cannot approve in the HOD's place, nobody can approve twice, and the row is locked while

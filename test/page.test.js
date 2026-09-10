@@ -55,6 +55,7 @@ console.log('\nOverlays can actually be hidden');
 console.log('\nThe profile list');
 
 const appjs = fs.readFileSync(path.join(ROOT, 'assets/js/app.js'), 'utf8');
+const archivejs = fs.readFileSync(path.join(ROOT, 'assets/js/archive.js'), 'utf8');
 check('the menu is in the page', /id="profileMenu"/.test(html), true);
 check('its rows are built as text, never innerHTML',
   /menu\.innerHTML\s*=\s*['"]{2}/.test(appjs) &&
@@ -93,12 +94,48 @@ check('nor offers "Generate All"', /id="btnAll"/.test(html + appjs), false);
 check('the card waits for the database', /card.hidden = !canSend/.test(appjs), true);
 
 /* -----------------------------------------------------------------------
+   A month is two documents, and they are not the same document. The invoice
+   is a bill; the time sheet is the evidence for it. Each goes for approval
+   on its own, so an approver can be happy with one and not the other.
+   ----------------------------------------------------------------------- */
+console.log('\nTwo documents, two approvals');
+
+const statejs = fs.readFileSync(path.join(ROOT, 'assets/js/state.js'), 'utf8');
+const syncjs  = fs.readFileSync(path.join(ROOT, 'assets/js/sync.js'), 'utf8');
+
+check('the Submit step asks which ones go', /id="submitPick"/.test(html), true);
+check('and a submission says which one it is', /kind:\s*which/.test(syncjs), true);
+// The list endpoint hands back no `data`, so the kind has to be a field of
+// its own for a table to be drawn without fetching every stored form.
+check('the kind is also kept inside the form it stores',
+  /payload\.submitKind\s*=\s*which/.test(syncjs), true);
+check('one submission is sent per document',
+  /for \(const kind of going\)/.test(appjs), true);
+// Only the time sheet carries approver signature boxes. An invoice has one
+// signature on it, the consultant's, and approving a bill does not sign it.
+check('only the time sheet gets signed by an approver',
+  /kindOf\(sub\) === 'claim' \? STAGE_SIGNS\[sub\.status\] : null/.test(approvals), true);
+check('the stages are drawn in the order they happen',
+  /'pending_manager'[\s\S]{0,120}'pending_boss'[\s\S]{0,120}'pending_signature'/
+    .test(approvals), true);
+
+/* -----------------------------------------------------------------------
+   The money. A month is paid in full and the days that are not paid for are
+   taken off it — the denominator is the calendar month, never a count of
+   weekdays, because a monthly rate pays for the weekend too.
+   ----------------------------------------------------------------------- */
+console.log('\nThe calendar-month prorate');
+
+check('the deduction is worked out over the calendar month',
+  /rate \/ dim \* unpaid/.test(statejs), true);
+check('and taken off the whole month', /rate - deduction/.test(statejs), true);
+
+/* -----------------------------------------------------------------------
    Signed copies. The upload sends bytes somebody chose off their own disk,
    so the size is checked in the browser before any of it is read.
    ----------------------------------------------------------------------- */
 console.log('\nThe archive');
 
-const archivejs = fs.readFileSync(path.join(ROOT, 'assets/js/archive.js'), 'utf8');
 check('the list is in the page', /id="archiveList"/.test(html), true);
 check('a file too big is refused before it is read',
   /f\.size > ARCHIVE_MAX_BYTES/.test(archivejs), true);
@@ -122,7 +159,14 @@ check('the wizard is hidden by what an account prepares, not by its role name',
 // it is called. Comparing to a role name is how the admin ended up with less
 // access than the people it administers.
 check('nothing decides access by comparing to a role name',
-  /Auth\.role\(\)\s*===/.test(appjs + approvals), false);
+  /Auth\.role\(\)\s*===/.test(appjs + approvals + archivejs), false);
+// The PA places the HOD's signature, and some months that happens on paper —
+// so the account that places it is the one that files the finished document.
+check('placing a signature is a capability, not a name',
+  /places:\s*\(\)\s*=>\s*places\(currentRole\(\)\)/
+    .test(fs.readFileSync(path.join(ROOT, 'assets/js/auth.js'), 'utf8')), true);
+check('and filing a signed copy asks for it',
+  /Auth\.places\(\)/.test(archivejs), true);
 check('a claim waits on the manager, then the HOD, then the PA',
   /pending_manager:\s*'manager'[\s\S]{0,160}pending_boss:\s*'boss'[\s\S]{0,160}pending_signature:\s*'pa'/
     .test(approvals), true);

@@ -21,6 +21,12 @@ function defaultState () {
          which is where "everybody starts at 1" is decided. */
       uniqueId: '',
       claimSeq: null,
+      /* Which number each month's claim was given, once it has been sent:
+         { '2026-09': 3 }. A month is two documents and they are one claim, so
+         the number is fixed when the first of them goes and the second finds
+         it already there — otherwise the invoice and the time sheet backing
+         it would arrive at Finance under different numbers. */
+      claimNos: {},
       bank: '', accName: '', accNo: ''
     },
     company: {
@@ -400,6 +406,43 @@ function timesheetMarked (ts) {
   return (ts.activities || []).some(a => Object.keys(a.days || {}).length > 0);
 }
 
+/**
+ * A month's pay, prorated across the calendar month.
+ *
+ * The month is paid in full and the days that are not paid for are taken off
+ * it — which is how payroll states it, and how somebody reading an invoice
+ * checks it:
+ *
+ *     deduction = unpaid days ÷ days in the month × monthly rate
+ *     amount    = monthly rate − deduction
+ *
+ * The denominator is the calendar month, 28, 30 or 31, not a count of
+ * weekdays: a consultant on a monthly rate is paid for the weekend as much as
+ * for the Tuesday, so the weekend cannot be missing from the divisor without
+ * quietly cutting the rate. Which days are unpaid is the sheet's answer, not
+ * this function's — see PAID_MARKS.
+ *
+ * @returns {{dim, paid, unpaid, rate, deduction, amount, formula}}
+ */
+function prorateMonth (S) {
+  const ts = S.timesheet;
+  const rate = Number(S.invoice.monthlyRate) || 0;
+  const dim = daysInMonth(ts.year, ts.month);
+  const paid = paidDays(ts);
+  const unpaid = Math.max(0, dim - paid);
+  const deduction = round2(rate / dim * unpaid);
+  const amount = round2(rate - deduction);
+
+  const formula = unpaid
+    ? `RM ${money(rate)} − (${unpaid} unpaid day${unpaid > 1 ? 's' : ''} ÷ ${dim} days ` +
+      `(${MONTHS[ts.month]} ${ts.year}) × RM ${money(rate)}) = RM ${money(rate)} − ` +
+      `RM ${money(deduction)} = RM ${money(amount)}`
+    : `RM ${money(rate)} − nothing to deduct: all ${dim} days of ` +
+      `${MONTHS[ts.month]} ${ts.year} are paid = RM ${money(amount)}`;
+
+  return { dim, paid, unpaid, rate, deduction, amount, formula };
+}
+
 function computeAmount (S) {
   const inv = S.invoice, ts = S.timesheet;
   if (inv.mode === 'daily') {
@@ -416,11 +459,8 @@ function computeAmount (S) {
        the figure — that is what makes unpaid leave show up in the money
        without anybody working it out by hand. */
     if (timesheetMarked(ts)) {
-      const dim = daysInMonth(ts.year, ts.month);
-      const paid = paidDays(ts);
-      const amt = round2(rate / dim * paid);
-      return { amount: amt,
-               formula: `RM ${money(rate)} ÷ ${dim} days (${MONTHS[ts.month]} ${ts.year}) × ${paid} paid days = RM ${money(amt)}` };
+      const pr = prorateMonth(S);
+      return { amount: pr.amount, formula: pr.formula, prorate: pr };
     }
     // nothing ticked — an invoice on its own, where the period is all there is
     const ref = periodMonth(inv.pStart) || { y: ts.year, m: ts.month };
@@ -440,6 +480,27 @@ function invoiceTotals (S, items) {
   return { sub, tax, total: round2(sub + tax) };
 }
 
+/* ---------------- what is being sent for approval ---------------- */
+
+/* A month is two documents, and they are not the same document. The invoice
+   is a bill; the time sheet is the evidence for it. An approver can be happy
+   with one and not the other, so each goes for approval on its own and
+   carries its own status the whole way. */
+const SUBMIT_KINDS = {
+  invoice: { label: 'Invoice',    short: 'INV',   mode: 'invoice' },
+  claim:   { label: 'Time sheet', short: 'CLAIM', mode: 'claim' }
+};
+
+/** the documents the chosen mode produces, in the order they are listed */
+function kindsForMode (mode) {
+  if (mode === 'invoice') return ['invoice'];
+  if (mode === 'claim') return ['claim'];
+  return ['invoice', 'claim'];
+}
+
+/** what one document is called where somebody has to read it */
+const kindLabel = k => (SUBMIT_KINDS[k] && SUBMIT_KINDS[k].label) || 'Document';
+
 /* ---------------- the invoice number ---------------- */
 
 /* 2026-01-003 reads as: the year, the person, and the third claim they have
@@ -456,13 +517,47 @@ const CLAIM_SEQ_START = [
   [/adlishah\s+hakimi/i, 2]
 ];
 
-/** the number this claim is: what the profile carries, or where they start */
-function claimSeqOf (S) {
+/** where this person's numbering begins: what they typed, or the seed */
+function startingSeq (S) {
   const saved = S.consultant.claimSeq;
   if (saved != null && Number(saved) >= 1) return Math.floor(Number(saved));
   const name = String(S.consultant.name || '');
   const seed = CLAIM_SEQ_START.find(([re]) => re.test(name));
   return seed ? seed[1] : 1;
+}
+
+/**
+ * The number this claim is.
+ *
+ * A month that has already been sent keeps the number it was sent under —
+ * including when the second of its two documents goes days later, and
+ * including when one comes back and is sent again. Only a month that has
+ * never gone takes the next number.
+ */
+function claimSeqOf (S) {
+  const nos = S.consultant.claimNos;
+  const key = monthKey(S.timesheet.year, S.timesheet.month);
+  const already = nos && Number(nos[key]);
+  if (already >= 1) return Math.floor(already);
+  return startingSeq(S);
+}
+
+/**
+ * Fix this month's number, if it does not have one yet, and say what the next
+ * month should start from. Called when a claim is first sent.
+ *
+ * @returns {number|null} the number to put in the profile's "next" box, or
+ *          null when this month already had one and nothing moves.
+ */
+function assignClaimNo (S) {
+  if (!S.consultant.claimNos || typeof S.consultant.claimNos !== 'object') {
+    S.consultant.claimNos = {};
+  }
+  const key = monthKey(S.timesheet.year, S.timesheet.month);
+  if (Number(S.consultant.claimNos[key]) >= 1) return null;    // the other document
+  const used = claimSeqOf(S);
+  S.consultant.claimNos[key] = used;
+  return used + 1;
 }
 
 /** the profile's unique ID, as it is printed: two digits, '01' not '1' */
@@ -540,6 +635,9 @@ function mergeDefaults (saved) {
     out.timesheet.activities = [ newActivity('') ];
   }
   if (!out.leave.counted || typeof out.leave.counted !== 'object') out.leave.counted = {};
+  if (!out.consultant.claimNos || typeof out.consultant.claimNos !== 'object') {
+    out.consultant.claimNos = {};
+  }
 
   /* An address longer than the invoice can print is reflowed here as well as
      while it is typed. Everything saved before that rule existed — every
