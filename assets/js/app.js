@@ -49,9 +49,11 @@ let stepIndex = 0;
 let activeProfile = '';          // the saved profile the form was opened from
 
 function activeSteps () {
-  // An approver does not fill a claim in — they read one and sign it. The
-  // wizard is the consultant's; theirs is the queue, and it is all they get.
-  if (Auth.role() && Auth.role() !== 'consultant') {
+  /* An approver does not fill a claim in — they read one and sign it, so the
+     wizard is not drawn for them at all. The admin is not an approver in that
+     sense: they prepare claims like a consultant as well, and get everything.
+     "Prepares" is the question, not "is a consultant". */
+  if (Auth.role() && !Auth.prepares()) {
     return STEPS.filter(s => s.id === 'approvals');
   }
   const approvals = STEPS.filter(s => s.id === 'approvals');

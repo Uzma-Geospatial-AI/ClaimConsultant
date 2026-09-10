@@ -82,6 +82,12 @@ check("the HOD's box is signed at the PA's step, by whoever is there",
   /pending_signature:\s*\{\s*sig:\s*'hod'/.test(approvals), true);
 check('nothing is signed while it sits with the HOD',
   /pending_boss:\s*\{\s*sig:/.test(approvals), false);
+// The admin fills claims in as well as approving them, so the wizard has to
+// be drawn for them — the test is "does this account prepare claims", never
+// "is it a consultant", which left the admin with an approvals screen and
+// nothing else.
+check('the wizard is hidden by what an account prepares, not by its role name',
+  /Auth\.role\(\)\s*&&\s*!Auth\.prepares\(\)/.test(appjs), true);
 check('a claim waits on the manager, then the HOD, then the PA',
   /pending_manager:\s*'manager'[\s\S]{0,160}pending_boss:\s*'boss'[\s\S]{0,160}pending_signature:\s*'pa'/
     .test(approvals), true);
