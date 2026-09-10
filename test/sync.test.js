@@ -67,9 +67,10 @@ const ctx = vm.createContext({
   // without the suite sitting through its five-second delay.
   setTimeout: fn => { fn(); return 0; },
   clearTimeout: () => {},
-  confirm: () => ctx.confirmAnswer,
+  confirm: () => { ctx.confirmCalls++; return ctx.confirmAnswer; },
   Auth: { token: () => 'stub-token', BASE: 'https://bdos.uzmadigitalearth.app' },
-  confirmAnswer: false
+  confirmAnswer: false,
+  confirmCalls: 0
 });
 
 vm.runInContext(fs.readFileSync(path.join(ROOT, 'assets/js/state.js'), 'utf8'), ctx, { filename: 'state.js' });
@@ -206,6 +207,44 @@ const adopting = () => {
   check('the total is computed, not typed', claim.amount, 903.23);
   check('the documents are listed',       claim.documents.join(', '), 'Invoice PDF, Claim Word');
   check('the whole form is kept with it', claim.data.consultant.name, 'Ahmad bin Abdullah');
+
+  /* The two clocks are not the same clock. This browser records when it last
+     sent the draft up, and compares that against the stamp the server put on
+     it — so the time it records has to be the server's, or a server a few
+     seconds ahead makes every reload look like somebody else saved something
+     newer, and the app offers to replace your form with your own work. */
+  console.log('\nWhose clock the draft is timed by');
+  reset({
+    'GET /ccs/draft': { status: 200, body: { draft: null } },
+    'GET /ccs/profiles': { status: 200, body: { profiles: [] } },
+    'PUT /ccs/draft': { status: 200, body: { ok: true, updated_at: '2030-01-01T00:00:00Z' } }
+  });
+  ctx.S = filledState();
+  await run('Sync.init(S, adopt)');
+  run('Sync.pushDraft(S)');
+  await new Promise(res => setImmediate(res));
+  check("the server's time is what gets remembered",
+        store.get('ccs.syncedAt'), '2030-01-01T00:00:00Z');
+
+  // ...and a stored draft that is the form already on screen is not a choice
+  // anybody needs to make, so it is not put to them
+  console.log('\nA draft that is not actually different');
+  reset({
+    'GET /ccs/draft': { status: 200,
+      body: { draft: { data: filledState(), updated_at: '2999-01-01T00:00:00Z',
+                       updated_by: 'me@example.com' } } },
+    'GET /ccs/profiles': { status: 200, body: { profiles: [] } },
+    'PUT /ccs/draft': { status: 200, body: { ok: true } }
+  });
+  store.set('ccs.syncedAt', '2020-01-01T00:00:00Z');     // long out of date
+  ctx.confirmCalls = 0;
+  ctx.confirmAnswer = true;
+  ctx.S = filledState();
+  const r2 = await run('Sync.init(S, adopt)');
+  check('nothing is asked when there is nothing to choose', ctx.confirmCalls, 0);
+  check('and nothing is replaced', r2.adopted, false);
+  check('the browser stops thinking it is behind',
+        store.get('ccs.syncedAt'), '2999-01-01T00:00:00Z');
 
   console.log('\nThe draft goes up as you work');
   run('Sync.pushDraft(S)');

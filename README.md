@@ -395,6 +395,12 @@ without a word, and the app saves to `localStorage` exactly as it always has. Th
 happens on a plane. Nothing in the app ever waits on a sync response, so a slow or broken
 database cannot interrupt somebody filling in a form.
 
+The time this browser last sent the draft up is recorded as **the server timed it**, not as this
+machine did. The two clocks are not the same clock, and comparing one against the other made a
+server a few seconds ahead look like somebody else had saved something newer — so the app offered
+to replace your form with your own work, on every reload. A stored draft that is the form already
+on screen is not put to anybody either: there is nothing to choose between.
+
 When a draft is found in the database, it is adopted only when it cannot cost you anything:
 silently if the form on screen is untouched, and otherwise only after asking, and only when the
 stored draft is demonstrably newer than the last one this browser sent up. Work on your screen

@@ -51,12 +51,33 @@ async function ccsFetch (path, opts) {
   return res.status === 204 ? null : res.json();
 }
 
-function markSynced () {
-  try { localStorage.setItem(SYNCED_KEY, new Date().toISOString()); } catch (e) {}
+/**
+ * Remember when this browser last sent the draft up — as the server timed it,
+ * not as this machine did.
+ *
+ * The two clocks are not the same clock. Storing our own and comparing it
+ * against the server's stamp on the very same write meant that a server a few
+ * seconds ahead made every reload look like somebody else had saved something
+ * newer — and the app dutifully offered to replace your form with your own
+ * work. Server time against server time cannot drift.
+ */
+function markSynced (serverTime) {
+  try {
+    localStorage.setItem(SYNCED_KEY, serverTime || new Date().toISOString());
+  } catch (e) {}
 }
 
 function lastSynced () {
   try { return localStorage.getItem(SYNCED_KEY); } catch (e) { return null; }
+}
+
+/** Is the stored draft the same work as the form on screen? */
+function sameDraft (S, stored) {
+  try {
+    return JSON.stringify(mergeDefaults(stored)) === JSON.stringify(mergeDefaults(S));
+  } catch (e) {
+    return false;                 // unreadable either side: better to ask
+  }
 }
 
 /** Is this form still untouched? Then adopting a saved draft costs nothing. */
@@ -79,8 +100,8 @@ async function flushDraft () {
   const payload = pendingPush;
   pendingPush = null;
   try {
-    await ccsFetch('/draft', { method: 'PUT', body: JSON.stringify({ data: payload }) });
-    markSynced();
+    const body = await ccsFetch('/draft', { method: 'PUT', body: JSON.stringify({ data: payload }) });
+    markSynced(body && body.updated_at);
   } catch (err) {
     if (err.status === 404 || err.status === 403) syncOn = false;
     console.warn(err.message || err);
@@ -301,6 +322,10 @@ async function initSync (S, adopt) {
     if (isBlankForm(S)) {
       adopt(mergeDefaults(draft.data));
       result.adopted = true;
+    } else if (sameDraft(S, draft.data)) {
+      // the stored draft is the form already on screen — there is nothing to
+      // choose between, so there is nothing to ask about
+      markSynced(draft.updated_at);
     } else if (mine && draft.updated_at && draft.updated_at > mine) {
       const when = new Date(draft.updated_at).toLocaleString();
       const who = draft.updated_by ? ' by ' + draft.updated_by : '';
