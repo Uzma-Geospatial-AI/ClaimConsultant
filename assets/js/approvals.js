@@ -1,17 +1,21 @@
 /* =======================================================================
-   approvals.js — a claim on its way through the people who sign it
+   approvals.js — a month, and how far each document of it has got
 
-   A month is two documents, and they are not the same document. The invoice
-   is a bill; the time sheet is the evidence for it. Each goes for approval
-   on its own and carries its own status the whole way, so the project
-   manager can be happy with the sheet and not with the invoice, and say so,
-   without holding up the half that was fine.
+   A month is two documents, and they are not the same document. The time
+   sheet is the evidence; the invoice is the bill that follows from it. Each
+   goes for approval on its own and carries its own status the whole way, so
+   the project manager can be happy with the sheet and not with the invoice,
+   and say so, without holding up the half that was fine.
 
-   Each document is prepared by a consultant, reviewed by the project
-   manager, approved by the HOD, and then the HOD's signature is placed on
-   it by their PA. Four people, three stages, and this screen is what each
-   of them sees: a table of everything, a light per stage, and the two
-   things they can do about the rows that are theirs.
+   The table is the point of this screen, and it starts from the people
+   rather than from the submissions. Everybody who has a profile gets a row
+   per document for the month being looked at, whether or not they have sent
+   anything — because "has Amila sent September yet" is the question that
+   gets asked, and a list of what was sent can never answer it.
+
+   Then five lights, left to right, in the order they happen:
+
+     Sent → Reviewed (PM) → Approved (HOD) → Signed (PA) → On file
 
    Nothing here edits a claim. An approver reads the document as it will be
    printed — the PDF is rebuilt from the submitted form and shown in the
@@ -35,10 +39,7 @@ const STATUS_ROLE = {
   pending_signature: 'pa'
 };
 
-/* The three stages in order, and what each column of the table is called.
-   `role` is who it waits on; `sign` is the box that gets filled there, and
-   nothing is signed while a document merely sits with the HOD — they
-   approve, and their PA places the signature afterwards. */
+/* The three approval stages in order, and what each column is called. */
 const STAGES = [
   { key: 'pending_manager',   head: 'Reviewed', who: 'manager' },
   { key: 'pending_boss',      head: 'Approved', who: 'boss' },
@@ -71,6 +72,7 @@ let subs = [];                 // what the last load returned
 let openRow = '';              // the submission whose panel is expanded
 let busy = false;
 let onlyMine = false;          // the "waiting on me" filter
+let statusMonth = null;        // { y, m } — the month the table is showing
 const kindCache = new Map();   // submission id → 'invoice' | 'claim'
 
 /* -------------------------------------------------------------------
@@ -153,7 +155,7 @@ function myEmail () { return String((Auth.user() || {}).email || '').toLowerCase
 
 /** can the account that is signed in move this document on? */
 function waitingOnMe (sub) {
-  if (!STATUS_ROLE[sub.status]) return false;          // finished, or sent back
+  if (!sub || !STATUS_ROLE[sub.status]) return false;   // finished, or sent back
   return Auth.isAdmin() || STATUS_ROLE[sub.status] === myRole();
 }
 
@@ -179,10 +181,11 @@ function signsFor (sub) {
 }
 
 /**
- * Where one stage stands for one document.
+ * Where one approval stage stands for one document.
  * @returns {'done'|'waiting'|'returned'|'todo'}
  */
 function stageState (sub, stageKey) {
+  if (!sub) return 'todo';
   const at = STAGE_KEYS.indexOf(stageKey);
 
   if (sub.status === 'complete') return 'done';
@@ -205,7 +208,7 @@ function stageState (sub, stageKey) {
 }
 
 /* -------------------------------------------------------------------
-   The list
+   Loading
    ------------------------------------------------------------------- */
 
 async function renderApprovals () {
@@ -222,8 +225,8 @@ async function renderApprovals () {
   if (head) head.textContent = prepares ? 'Status' : 'Approvals';
   if (lead) {
     lead.textContent = prepares
-      ? 'Every document you have sent, and where each one has got to.'
-      : 'What is waiting on you, and where everything else has got to.';
+      ? 'Everybody, and how far each of their two documents has got this month.'
+      : 'What is waiting on you, and how far everything else has got.';
   }
 
   if (!Sync.on) {
@@ -243,6 +246,8 @@ async function renderApprovals () {
     return;
   }
   await learnKinds();
+  // the last column is "is the signed paper on file", which lives over there
+  if (typeof ensureArchive === 'function') await ensureArchive();
   paintApprovals();
 }
 
@@ -267,43 +272,84 @@ async function learnKinds () {
   }));
 }
 
+/* -------------------------------------------------------------------
+   Who is in the table
+
+   Everybody with a profile, plus anybody who has sent something, plus
+   whoever is in the form right now. Profiles are shared through BDOS, so
+   this is the same five people on every machine.
+   ------------------------------------------------------------------- */
+function everybody () {
+  const names = new Set();
+  Object.keys(Store.profiles()).forEach(n => names.add(n.trim()));
+  subs.forEach(s => { const n = String(s.consultant || '').trim(); if (n) names.add(n); });
+  const here = String(S.consultant.name || '').trim();
+  if (here) names.add(here);
+  return [...names].filter(Boolean).sort();
+}
+
+/** every month anybody has sent something for, plus the one on the sheet */
+function monthsSeen () {
+  const keys = new Set();
+  subs.forEach(s => {
+    if (s.period_year && s.period_month) {
+      keys.add(monthKey(Number(s.period_year), Number(s.period_month) - 1));
+    }
+  });
+  keys.add(monthKey(S.timesheet.year, S.timesheet.month));
+  return [...keys].sort().reverse();
+}
+
+/** the submission for one person, one month, one document — or null */
+function submissionFor (name, when, kind) {
+  return subs.filter(s =>
+    String(s.consultant || '').trim() === name &&
+    Number(s.period_year) === when.y &&
+    Number(s.period_month) === when.m + 1 &&
+    kindOf(s) === kind)[0] || null;
+}
+
 function paintApprovals () {
   const host = document.getElementById('approvalList');
   if (!host) return;
 
+  if (!statusMonth) statusMonth = { y: S.timesheet.year, m: S.timesheet.month };
   host.innerHTML = '';
 
-  if (!subs.length) {
-    host.innerHTML = (!Auth.role() || Auth.prepares())
-      ? '<p class="emptynote">Nothing submitted yet. Fill the claim in, then send it from the Submit step.</p>'
-      : '<p class="emptynote">Nothing has been sent for approval yet.</p>';
-    return;
-  }
-
-  const mine = subs.filter(waitingOnMe);
-  const rows = onlyMine ? mine : subs;
-
-  host.appendChild(filterBar(mine.length));
+  const waiting = subs.filter(waitingOnMe);
+  host.appendChild(filterBar(waiting.length));
 
   /* The admin stands in at every stage, so they are the one who can end up
      with a pile. Clearing it one row at a time is the same decision made over
      and over, so they can make it once. */
-  if (Auth.isAdmin() && mine.length > 1) host.appendChild(bulkBar(mine));
+  if (Auth.isAdmin() && waiting.length > 1) host.appendChild(bulkBar(waiting));
 
-  if (!rows.length) {
-    const none = document.createElement('p');
-    none.className = 'emptynote';
-    none.textContent = 'Nothing is waiting on you.';
-    host.appendChild(none);
-    return;
-  }
-
-  host.appendChild(statusTable(rows));
+  host.appendChild(statusTable());
 }
 
 function filterBar (waiting) {
   const bar = document.createElement('div');
   bar.className = 'statusbar';
+
+  const pick = document.createElement('label');
+  pick.className = 'statuspick';
+  pick.appendChild(document.createTextNode('Month '));
+  const sel = document.createElement('select');
+  monthsSeen().forEach(key => {
+    const y = Number(key.slice(0, 4)), m = Number(key.slice(5)) - 1;
+    const o = document.createElement('option');
+    o.value = key;
+    o.textContent = `${MONTHS[m]} ${y}`;
+    sel.appendChild(o);
+  });
+  sel.value = monthKey(statusMonth.y, statusMonth.m);
+  sel.addEventListener('change', () => {
+    statusMonth = { y: Number(sel.value.slice(0, 4)), m: Number(sel.value.slice(5)) - 1 };
+    openRow = '';
+    paintApprovals();
+  });
+  pick.appendChild(sel);
+  bar.appendChild(pick);
 
   const count = document.createElement('span');
   count.className = 'statuscount';
@@ -327,14 +373,9 @@ function filterBar (waiting) {
 
 /* -------------------------------------------------------------------
    The table
-
-   One row per document, because that is what gets approved. The three
-   stage columns are the whole point of the screen: a light each, so
-   "where is Amila's September invoice" is answered by looking rather than
-   by opening anything.
    ------------------------------------------------------------------- */
 
-function statusTable (rows) {
+function statusTable () {
   const wrap = document.createElement('div');
   wrap.className = 'statuswrap';
 
@@ -343,25 +384,42 @@ function statusTable (rows) {
 
   const thead = document.createElement('thead');
   const hr = document.createElement('tr');
-  ['Consultant', 'Month', 'Document', 'Invoice No.']
-    .forEach(h => hr.appendChild(th(h)));
-  STAGES.forEach(st => {
-    const cell = th(st.head);
-    cell.className = 'stagecol';
-    cell.title = 'Waiting on the ' + Auth.roleName(st.who);
-    hr.appendChild(cell);
-  });
+  hr.appendChild(th('Consultant'));
+  hr.appendChild(th('Document'));
+  hr.appendChild(lampHead('Sent', 'the consultant has submitted it'));
+  STAGES.forEach(st => hr.appendChild(
+    lampHead(st.head, 'waiting on the ' + Auth.roleName(st.who))));
+  hr.appendChild(lampHead('On file', 'the signed copy has been uploaded back'));
   hr.appendChild(th(''));
   thead.appendChild(hr);
   table.appendChild(thead);
 
   const tbody = document.createElement('tbody');
-  sortRows(rows).forEach(sub => {
-    tbody.appendChild(statusRow(sub));
-    if (openRow === sub.id) tbody.appendChild(decideRow(sub));
-  });
-  table.appendChild(tbody);
+  let drawn = 0;
 
+  everybody().forEach(name => {
+    KIND_ORDER.forEach((kind, i) => {
+      const sub = submissionFor(name, statusMonth, kind);
+      if (onlyMine && !waitingOnMe(sub)) return;
+      tbody.appendChild(statusRow(name, kind, sub, i === 0));
+      drawn++;
+      if (sub && openRow === sub.id) tbody.appendChild(decideRow(sub));
+    });
+  });
+
+  if (!drawn) {
+    const tr = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 8;
+    cell.className = 'statusempty';
+    cell.textContent = onlyMine
+      ? 'Nothing in this month is waiting on you.'
+      : 'Nobody has a profile yet — save one on the Profile step and they appear here.';
+    tr.appendChild(cell);
+    tbody.appendChild(tr);
+  }
+
+  table.appendChild(tbody);
   wrap.appendChild(table);
   wrap.appendChild(legend());
   return wrap;
@@ -373,75 +431,113 @@ function th (text) {
   return cell;
 }
 
-/** newest month first, then by person, then invoice before time sheet */
-function sortRows (rows) {
-  const order = { invoice: 0, claim: 1 };
-  return rows.slice().sort((a, b) =>
-    (b.period_year - a.period_year) ||
-    (b.period_month - a.period_month) ||
-    String(a.consultant || '').localeCompare(String(b.consultant || '')) ||
-    (order[kindOf(a)] - order[kindOf(b)]));
+function lampHead (text, why) {
+  const cell = th(text);
+  cell.className = 'stagecol';
+  cell.title = why;
+  return cell;
 }
 
-function statusRow (sub) {
+/**
+ * One person, one document, one month.
+ * @param {boolean} first is this the first of the person's two rows? only
+ *        that one carries the name, so a person reads as one block
+ */
+function statusRow (name, kind, sub, first) {
   const tr = document.createElement('tr');
   tr.className = 'statusrow'
+    + (first ? ' firstof' : '')
     + (waitingOnMe(sub) ? ' urgent' : '')
-    + (sub.status === 'complete' ? ' done' : '')
-    + (sub.status === 'returned' ? ' back' : '');
+    + (sub && sub.status === 'complete' ? ' done' : '')
+    + (sub && sub.status === 'returned' ? ' back' : '')
+    + (sub ? '' : ' unsent');
 
-  tr.appendChild(td(sub.consultant || '(no name)', 'who'));
-  tr.appendChild(td(periodOf(sub), 'when'));
+  const who = document.createElement('td');
+  who.className = 'who';
+  if (first) {
+    const b = document.createElement('b');
+    b.textContent = name;
+    who.appendChild(b);
+    if (sub && sub.invoice_no) {
+      const no = document.createElement('small');
+      no.textContent = sub.invoice_no;
+      who.appendChild(no);
+    }
+  }
+  tr.appendChild(who);
 
-  const doc = td('', 'doc');
+  const doc = document.createElement('td');
+  doc.className = 'doc';
   const tag = document.createElement('span');
-  tag.className = 'doctag ' + kindOf(sub);
-  tag.textContent = kindLabel(kindOf(sub));
+  tag.className = 'doctag ' + kind;
+  tag.textContent = kindLabel(kind);
   doc.appendChild(tag);
   tr.appendChild(doc);
 
-  tr.appendChild(td(sub.invoice_no || '—', 'invno'));
+  // Sent
+  tr.appendChild(lampCell(sub ? 'done' : 'todo', 'Sent',
+    sub ? sentWhen(sub) : 'not sent yet'));
 
+  // the three approval stages
   STAGES.forEach(st => {
     const state = stageState(sub, st.key);
-    const cell = document.createElement('td');
-    cell.className = 'stagecell';
-    const lamp = document.createElement('span');
-    lamp.className = 'lamp ' + state;
-    lamp.textContent = state === 'done' ? '✓'
-      : state === 'returned' ? '✕'
-      : state === 'waiting' ? '●' : '';
-    lamp.title = `${st.head} — ` + (
-      state === 'done' ? 'done'
+    tr.appendChild(lampCell(state, st.head,
+      !sub ? 'nothing sent yet'
+      : state === 'done' ? 'done'
       : state === 'waiting' ? 'waiting on the ' + Auth.roleName(st.who)
       : state === 'returned' ? 'sent back by the ' + Auth.roleName(st.who)
-      : 'not reached yet');
-    cell.appendChild(lamp);
-    tr.appendChild(cell);
+      : 'not reached yet'));
   });
+
+  // On file — the signed paper, uploaded back by the PA
+  const onFile = typeof archiveHas === 'function' &&
+                 archiveHas(name, statusMonth.y, statusMonth.m, kind);
+  tr.appendChild(lampCell(onFile ? 'done' : 'todo', 'On file',
+    onFile ? 'the signed copy is on file'
+    : (typeof Sync !== 'undefined' && Sync.archiveOn === false)
+      ? 'the archive is not switched on yet'
+      : 'not uploaded back yet'));
 
   const acts = document.createElement('td');
   acts.className = 'statusacts';
-  acts.appendChild(button('Read', 'ghost small', () => reviewSubmission(sub.id)));
-
-  if (waitingOnMe(sub)) {
-    const verb = sub.status === 'pending_signature' ? 'Sign' : 'Approve';
-    acts.appendChild(button(verb, 'small', () => toggleDecide(sub.id, 'approve')));
-    acts.appendChild(button('Reject', 'ghost small danger', () => toggleDecide(sub.id, 'return')));
-  }
-  if (sub.status === 'returned' && (sub.created_by === myEmail() || Auth.isAdmin())) {
-    acts.appendChild(button('Open', 'ghost small', () => loadIntoForm(sub.id)));
-    acts.appendChild(button('Resubmit', 'small', () => toggleDecide(sub.id, 'resubmit')));
+  if (sub) {
+    acts.appendChild(button('Read', 'ghost small', () => reviewSubmission(sub.id)));
+    if (waitingOnMe(sub)) {
+      const verb = sub.status === 'pending_signature' ? 'Sign' : 'Approve';
+      acts.appendChild(button(verb, 'small', () => toggleDecide(sub.id, 'approve')));
+      acts.appendChild(button('Reject', 'ghost small danger', () => toggleDecide(sub.id, 'return')));
+    }
+    if (sub.status === 'returned' && (sub.created_by === myEmail() || Auth.isAdmin())) {
+      acts.appendChild(button('Open', 'ghost small', () => loadIntoForm(sub.id)));
+      acts.appendChild(button('Resubmit', 'small', () => toggleDecide(sub.id, 'resubmit')));
+    }
+  } else {
+    const nothing = document.createElement('span');
+    nothing.className = 'statusnone';
+    nothing.textContent = 'not sent';
+    acts.appendChild(nothing);
   }
   tr.appendChild(acts);
   return tr;
 }
 
-function td (text, cls) {
+function lampCell (state, head, why) {
   const cell = document.createElement('td');
-  if (cls) cell.className = cls;
-  cell.textContent = text;                 // names arrive from other people
+  cell.className = 'stagecell';
+  const lamp = document.createElement('span');
+  lamp.className = 'lamp ' + state;
+  lamp.textContent = state === 'done' ? '✓'
+    : state === 'returned' ? '✕'
+    : state === 'waiting' ? '●' : '';
+  lamp.title = `${head} — ${why}`;
+  cell.appendChild(lamp);
   return cell;
+}
+
+function sentWhen (sub) {
+  const first = (sub.history || [])[0];
+  const when = first && first.at ? new Date(first.at).toLocaleDateString() : '';
+  return when ? 'sent ' + when : 'sent';
 }
 
 function legend () {
@@ -450,7 +546,7 @@ function legend () {
   [['done', '✓', 'done'],
    ['waiting', '●', 'waiting here now'],
    ['returned', '✕', 'sent back from here'],
-   ['todo', '', 'not reached yet']
+   ['todo', '', 'not yet']
   ].forEach(([cls, mark, text]) => {
     const item = document.createElement('span');
     const lamp = document.createElement('i');
@@ -579,15 +675,16 @@ function decideBox (sub) {
   /* The last stage is the PA's, and their whole job is the signature. Some
      months that happens in the app; some months it happens on paper, in a
      room, with a pen. Either way the finished document is what anybody will
-     be asked for a year later, so this is where it is put on file. */
+     be asked for a year later, so this is where it comes back in — and it is
+     what lights the "On file" column of the table. */
   let filed = null;
   if (placing) {
     const drop = document.createElement('div');
     drop.className = 'decidefile';
     const cap = document.createElement('span');
     cap.textContent = signs
-      ? 'Or, if it was signed on paper, put the finished document on file:'
-      : 'Put the finished signed document on file:';
+      ? 'Or, if it was signed on paper, upload the finished document:'
+      : 'Upload the finished signed document:';
     drop.appendChild(cap);
     const inp = document.createElement('input');
     inp.type = 'file';
@@ -595,8 +692,8 @@ function decideBox (sub) {
     drop.appendChild(inp);
     const why = document.createElement('small');
     why.textContent = signs
-      ? 'Either is enough. A file filed here is what the Signed copies list shows.'
-      : 'An invoice carries no approver signature, so a file is the only thing to place.';
+      ? 'Either is enough. A file uploaded here lights the "On file" column and joins the Signed copies list.'
+      : 'An invoice carries no approver signature, so the signed file is the only thing to place.';
     drop.appendChild(why);
     box.appendChild(drop);
     filed = inp;
@@ -635,11 +732,11 @@ async function decide (sub, note, pad, filed, go) {
 
   // the signature is the point of this stage, so one of the two has to exist
   if (signs && pad.isEmpty() && !file) {
-    toast('Sign the box, or put the signed document on file.', true);
+    toast('Sign the box, or upload the signed document.', true);
     return;
   }
   if (!signs && sub.status === 'pending_signature' && decideAction === 'approve' && !file) {
-    toast('Put the signed document on file before marking it signed.', true);
+    toast('Upload the signed document before marking it signed.', true);
     return;
   }
   if (file && file.size > ARCHIVE_MAX_BYTES) {
@@ -648,6 +745,7 @@ async function decide (sub, note, pad, filed, go) {
   }
 
   busy = true;
+  const was = go && go.textContent;
   if (go) { go.disabled = true; go.textContent = 'Working…'; }
   try {
     let data;
@@ -676,15 +774,15 @@ async function decide (sub, note, pad, filed, go) {
         : decideAction === 'resubmit' ? 'Sent for approval again.'
         : sub.status === 'pending_signature' ? 'Signed and filed.'
         : 'Approved.');
-    await renderApprovals();
     if (typeof renderArchive === 'function' && file) await renderArchive(true);
+    await renderApprovals();
   } catch (err) {
     // 403 and 409 are the interesting ones: somebody else moved it first,
     // or this account was never the one to move it
     toast(err.message || 'Could not record that.', true);
   } finally {
     busy = false;
-    if (go) { go.disabled = false; }
+    if (go) { go.disabled = false; if (was) go.textContent = was; }
   }
 }
 
@@ -692,11 +790,12 @@ async function decide (sub, note, pad, filed, go) {
 async function fileFinished (sub, file, note) {
   const full = await Sync.submission(sub.id);
   const state = mergeDefaults((full && full.data) || {});
+  const kind = kindOf(sub);
   const payload = await Sync.readFile(file);
-  payload.name = `${kindLabel(kindOf(sub))} (signed) — ${payload.name}`;
+  payload.name = `${kindLabel(kind)} (signed) — ${payload.name}`;
   await Sync.store(state, [payload],
-    [note, `${kindLabel(kindOf(sub))} signed by ${(Auth.user() || {}).name || myEmail()}`]
-      .filter(Boolean).join(' · '));
+    [note, `${kindLabel(kind)} signed by ${(Auth.user() || {}).name || myEmail()}`]
+      .filter(Boolean).join(' · '), kind);
 }
 
 /* -------------------------------------------------------------------

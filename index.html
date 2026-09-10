@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Consultant Claim System</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20260911f">
+<link rel="stylesheet" href="assets/css/style.css?v=20260912a">
 </head>
 <body class="locked">
 
@@ -126,25 +126,25 @@
   <p class="lead">Pick one. The next step becomes a fillable copy of that exact document, so you can see where every entry lands.</p>
 
   <div class="choices" id="choices">
-    <button type="button" class="choice" data-mode="invoice">
-      <span class="choice-tag">A</span>
-      <h3>Invoice Timesheet</h3>
-      <p>Your invoice to the company, with the bank details and the amount for the period.</p>
-      <span class="choice-out">PDF + Excel</span>
-    </button>
-
     <button type="button" class="choice" data-mode="claim">
-      <span class="choice-tag">B</span>
+      <span class="choice-tag">A</span>
       <h3>Claim Form</h3>
       <p>The Uzma Personnel Time Sheet, with the day grid ticked and the approval block.</p>
       <span class="choice-out">PDF + Word</span>
     </button>
 
+    <button type="button" class="choice" data-mode="invoice">
+      <span class="choice-tag">B</span>
+      <h3>Invoice Timesheet</h3>
+      <p>Your invoice to the company, with the bank details and the amount for the period.</p>
+      <span class="choice-out">PDF + Excel</span>
+    </button>
+
     <button type="button" class="choice" data-mode="both">
       <span class="choice-tag">A + B</span>
       <h3>Both</h3>
-      <p>The usual monthly submission &mdash; invoice plus the signed timesheet that backs it.</p>
-      <span class="choice-out">PDF + Excel + Word</span>
+      <p>The usual monthly submission &mdash; the signed timesheet and the invoice it backs.</p>
+      <span class="choice-out">PDF + Word + Excel</span>
     </button>
   </div>
 </section>
@@ -363,22 +363,22 @@
   <h2>Generate Documents</h2>
 
   <div class="gencards">
-    <div class="gencard" id="card_inv">
-      <h3>A &mdash; Invoice Timesheet</h3>
-      <p id="gsum_inv" class="gsum"></p>
-      <div class="btnrow">
-        <button class="btn ghost" id="btnInvPreview">View PDF</button>
-        <button class="btn" id="btnInvPdf">Download PDF</button>
-        <button class="btn" id="btnInvXlsx">Download Excel</button>
-      </div>
-    </div>
     <div class="gencard" id="card_claim">
-      <h3>B &mdash; Claim / Personnel Time Sheet</h3>
+      <h3>A &mdash; Claim / Personnel Time Sheet</h3>
       <p id="gsum_claim" class="gsum"></p>
       <div class="btnrow">
         <button class="btn ghost" id="btnClaimPreview">View PDF</button>
         <button class="btn" id="btnClaimPdf">Download PDF</button>
         <button class="btn" id="btnClaimDocx">Download Word</button>
+      </div>
+    </div>
+    <div class="gencard" id="card_inv">
+      <h3>B &mdash; Invoice Timesheet</h3>
+      <p id="gsum_inv" class="gsum"></p>
+      <div class="btnrow">
+        <button class="btn ghost" id="btnInvPreview">View PDF</button>
+        <button class="btn" id="btnInvPdf">Download PDF</button>
+        <button class="btn" id="btnInvXlsx">Download Excel</button>
       </div>
     </div>
   </div>
@@ -422,6 +422,9 @@
 <section class="panel" id="p-approvals" data-step="approvals">
   <h2 id="approvalHead">Status</h2>
   <p class="lead" id="approvalLead">Where every claim has got to, and what is waiting on you.</p>
+  <!-- The month, and whether to show only what is waiting on you, are built
+       by approvals.js — they are part of the table rather than a toolbar
+       above it. Refresh reloads both the approvals and the signed copies. -->
   <div class="btnrow">
     <button class="btn ghost small" id="btnRefreshApprovals">Refresh</button>
   </div>
@@ -434,7 +437,6 @@
     They are kept against the person and the month, so any month can be produced again
     later without hunting through anybody&rsquo;s downloads.</p>
   <div class="btnrow">
-    <button class="btn ghost small" id="btnRefreshArchive">Refresh</button>
     <label class="archivefilter">Show
       <select id="archiveWho"><option value="">everybody</option></select>
     </label>
@@ -473,25 +475,25 @@
      fetches the page again but keeps the old JavaScript for up to ten minutes
      — which reads as "the fix did not work". Bump this stamp whenever
      anything under assets/ changes and a reload picks it all up at once. -->
-<script src="vendor/jspdf.umd.min.js?v=20260911f"></script>
-<script src="vendor/jspdf.plugin.autotable.min.js?v=20260911f"></script>
-<script src="vendor/carlito.js?v=20260911f"></script>
-<script src="vendor/exceljs.min.js?v=20260911f"></script>
-<script src="vendor/FileSaver.min.js?v=20260911f"></script>
-<script src="vendor/signature_pad.umd.min.js?v=20260911f"></script>
-<script src="vendor/docx.umd.js?v=20260911f"></script>
-<script src="assets/js/state.js?v=20260911f"></script>
-<script src="assets/js/holidays.js?v=20260911f"></script>
-<script src="assets/js/logo.js?v=20260911f"></script>
-<script src="assets/js/timesheet.js?v=20260911f"></script>
-<script src="assets/js/signature.js?v=20260911f"></script>
-<script src="assets/js/gen-invoice.js?v=20260911f"></script>
-<script src="assets/js/gen-claim.js?v=20260911f"></script>
-<script src="assets/js/preview.js?v=20260911f"></script>
-<script src="assets/js/auth.js?v=20260911f"></script>
-<script src="assets/js/sync.js?v=20260911f"></script>
-<script src="assets/js/approvals.js?v=20260911f"></script>
-<script src="assets/js/archive.js?v=20260911f"></script>
-<script src="assets/js/app.js?v=20260911f"></script>
+<script src="vendor/jspdf.umd.min.js?v=20260912a"></script>
+<script src="vendor/jspdf.plugin.autotable.min.js?v=20260912a"></script>
+<script src="vendor/carlito.js?v=20260912a"></script>
+<script src="vendor/exceljs.min.js?v=20260912a"></script>
+<script src="vendor/FileSaver.min.js?v=20260912a"></script>
+<script src="vendor/signature_pad.umd.min.js?v=20260912a"></script>
+<script src="vendor/docx.umd.js?v=20260912a"></script>
+<script src="assets/js/state.js?v=20260912a"></script>
+<script src="assets/js/holidays.js?v=20260912a"></script>
+<script src="assets/js/logo.js?v=20260912a"></script>
+<script src="assets/js/timesheet.js?v=20260912a"></script>
+<script src="assets/js/signature.js?v=20260912a"></script>
+<script src="assets/js/gen-invoice.js?v=20260912a"></script>
+<script src="assets/js/gen-claim.js?v=20260912a"></script>
+<script src="assets/js/preview.js?v=20260912a"></script>
+<script src="assets/js/auth.js?v=20260912a"></script>
+<script src="assets/js/sync.js?v=20260912a"></script>
+<script src="assets/js/approvals.js?v=20260912a"></script>
+<script src="assets/js/archive.js?v=20260912a"></script>
+<script src="assets/js/app.js?v=20260912a"></script>
 </body>
 </html>

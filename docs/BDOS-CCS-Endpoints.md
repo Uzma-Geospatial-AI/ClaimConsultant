@@ -256,12 +256,18 @@ DELETE /ccs/archive/{id}           → { "ok": true }
   "invoice_no":   "2026-09-003",
   "period_month": 9,
   "period_year":  2026,
+  "kind":         "claim",
   "note":         "signed by the HOD on the 3rd",
   "files": [
     { "name": "invoice-signed.pdf", "type": "application/pdf", "size": 184320, "content": "JVBERi0…" }
   ]
 }
 ```
+
+`kind` is `"invoice"`, `"claim"`, or `null` for a record that covers the whole month — the Status
+table lights an *On file* column per document, and needs it to say "the time sheet is back, the
+invoice is not". Store it as `TEXT NULL` and return it on both read endpoints; a null one is read
+as covering both, which is what every record written before this field meant.
 
 `content` is the file's bytes, base64, without a `data:` prefix. CCS refuses anything over
 **12 MB** before it reads it, and sends at most two files per record — but the shape is a list, so
@@ -361,6 +367,7 @@ CREATE INDEX ON ccs.submissions (status);
 CREATE TABLE ccs.archive (
   id            text        PRIMARY KEY,
   consultant    text        NOT NULL,
+  kind          text,                                  -- invoice | claim | null = the month
   unique_id     text,
   invoice_no    text,
   period_month  smallint    CHECK (period_month BETWEEN 1 AND 12),

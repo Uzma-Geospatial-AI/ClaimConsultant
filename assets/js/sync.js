@@ -258,8 +258,15 @@ function readFileForUpload (file) {
   });
 }
 
-/** File the signed copies of one month's claim. */
-async function storeSigned (S, files, note) {
+/**
+ * File the signed copy of one document of one month.
+ *
+ * `kind` says which document, so the status table can light "on file" per
+ * document rather than per month. A record without one means the month, and
+ * is read as covering both — which is what every record written before the
+ * archive knew about documents meant.
+ */
+async function storeSigned (S, files, note, kind) {
   if (!syncOn) throw new Error('The shared database is not reachable, so there is nowhere to file them.');
   const body = await ccsFetch('/archive', {
     method: 'POST',
@@ -269,6 +276,7 @@ async function storeSigned (S, files, note) {
       invoice_no:   S.invoice.no || null,
       period_month: (Number(S.timesheet.month) || 0) + 1,
       period_year:  Number(S.timesheet.year) || null,
+      kind:         SUBMIT_KINDS[kind] ? kind : null,
       note:         note || '',
       files:        files
     })

@@ -487,15 +487,21 @@ function invoiceTotals (S, items) {
    with one and not the other, so each goes for approval on its own and
    carries its own status the whole way. */
 const SUBMIT_KINDS = {
-  invoice: { label: 'Invoice',    short: 'INV',   mode: 'invoice' },
-  claim:   { label: 'Time sheet', short: 'CLAIM', mode: 'claim' }
+  claim:   { label: 'Time sheet', short: 'CLAIM', mode: 'claim' },
+  invoice: { label: 'Invoice',    short: 'INV',   mode: 'invoice' }
 };
 
-/** the documents the chosen mode produces, in the order they are listed */
+/* The time sheet comes first, everywhere. It is the evidence, and the invoice
+   is the bill that follows from it: the days are counted, then they are
+   charged for. Filling the invoice in first meant working out the amount from
+   a grid that had not been ticked yet. */
+const KIND_ORDER = ['claim', 'invoice'];
+
+/** the documents the chosen mode produces, in the order they are worked on */
 function kindsForMode (mode) {
   if (mode === 'invoice') return ['invoice'];
   if (mode === 'claim') return ['claim'];
-  return ['invoice', 'claim'];
+  return KIND_ORDER.slice();
 }
 
 /** what one document is called where somebody has to read it */

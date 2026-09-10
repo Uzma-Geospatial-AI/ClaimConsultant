@@ -17,9 +17,11 @@
    is refused rather than uploaded. Base64 adds about a third on the way. */
 const ARCHIVE_MAX_BYTES = 12 * 1024 * 1024;
 
+/* The time sheet first, as everywhere else: it is the evidence, and the
+   invoice is the bill that follows from it. */
 const ARCHIVE_SLOTS = [
-  { key: 'invoice', label: 'Signed invoice' },
-  { key: 'claim',   label: 'Signed time sheet' }
+  { key: 'claim',   label: 'Signed time sheet' },
+  { key: 'invoice', label: 'Signed invoice' }
 ];
 
 let archive = [];
@@ -59,6 +61,33 @@ async function renderArchive (force) {
     return;
   }
   paintArchive();
+}
+
+/**
+ * Load the archive once, quietly, for anything that only wants to read it —
+ * the status table asks whether a signed copy has come back yet, and that
+ * question should not depend on somebody having opened this list first.
+ */
+async function ensureArchive () {
+  if (!Sync.on || archiveLoaded) return;
+  archive = await Sync.stored('', '');
+  archiveLoaded = true;
+}
+
+/**
+ * Has the signed copy of one person's document for one month come back?
+ *
+ * A record written before the archive knew about documents carries no kind
+ * and is counted for both — it was filed for that month, and saying "not on
+ * file" about a file that is on file is the worse mistake.
+ */
+function archiveHas (consultant, year, month, kind) {
+  const who = String(consultant || '').trim();
+  return archive.some(r =>
+    String(r.consultant || '').trim() === who &&
+    Number(r.period_year) === Number(year) &&
+    Number(r.period_month) === Number(month) + 1 &&
+    (!r.kind || r.kind === kind));
 }
 
 /** may the account that is signed in put documents on file? */
@@ -250,7 +279,15 @@ function archiveUploadCard () {
 
 async function fileSigned (inputs, note, go) {
   if (archiveBusy) return;
-  const chosen = inputs.map(i => i.files && i.files[0]).filter(Boolean);
+
+  /* Which slot a file was put in is which document it is, and that is the
+     whole of it — there is nothing to type and nothing to get wrong. Two
+     files means two records, one per document, so the status table can say
+     "the time sheet is back, the invoice is not". */
+  const chosen = ARCHIVE_SLOTS
+    .map((slot, i) => ({ kind: slot.key, file: inputs[i].files && inputs[i].files[0] }))
+    .filter(x => x.file);
+
   if (!chosen.length) {
     toast('Choose the signed documents first.', true);
     return;
@@ -259,9 +296,9 @@ async function fileSigned (inputs, note, go) {
     toast('Pick a profile first — the copies are filed against a person.', true);
     return;
   }
-  const tooBig = chosen.filter(f => f.size > ARCHIVE_MAX_BYTES)[0];
+  const tooBig = chosen.filter(x => x.file.size > ARCHIVE_MAX_BYTES)[0];
   if (tooBig) {
-    toast(tooBig.name + ' is ' + Math.round(tooBig.size / 1048576) + ' MB — ' +
+    toast(tooBig.file.name + ' is ' + Math.round(tooBig.file.size / 1048576) + ' MB — ' +
           Math.round(ARCHIVE_MAX_BYTES / 1048576) + ' MB is the limit.', true);
     return;
   }
@@ -271,12 +308,15 @@ async function fileSigned (inputs, note, go) {
   const was = go.textContent;
   go.textContent = 'Filing…';
   try {
-    const files = [];
-    for (const f of chosen) files.push(await Sync.readFile(f));
-    await Sync.store(S, files, note.value.trim());
-    toast(files.length + ' document' + (files.length > 1 ? 's' : '') + ' filed for ' +
+    for (const one of chosen) {
+      const payload = await Sync.readFile(one.file);
+      payload.name = kindLabel(one.kind) + ' (signed) — ' + payload.name;
+      await Sync.store(S, [payload], note.value.trim(), one.kind);
+    }
+    toast(chosen.map(x => kindLabel(x.kind)).join(' and ') + ' filed for ' +
           MONTHS[S.timesheet.month] + ' ' + S.timesheet.year + '.');
     await renderArchive(true);
+    if (typeof renderApprovals === 'function') await renderApprovals();
   } catch (err) {
     toast(err.message || 'Could not file them.', true);
   } finally {

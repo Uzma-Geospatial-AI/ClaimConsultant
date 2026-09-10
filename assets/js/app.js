@@ -39,8 +39,11 @@ function toast (msg, bad) {
 const STEPS = [
   { id: 'consultant', label: 'Profile' },
   { id: 'choose',     label: 'Document' },
-  { id: 'invoice',    label: 'Invoice',    modes: ['invoice', 'both'] },
+  /* The time sheet before the invoice: the days are counted first, and the
+     amount follows from them. The other way round asked somebody to price a
+     month before saying which days of it they had worked. */
   { id: 'claim',      label: 'Claim Form', modes: ['claim', 'both'] },
+  { id: 'invoice',    label: 'Invoice',    modes: ['invoice', 'both'] },
   { id: 'generate',   label: 'Generate' },
   /* Downloading the documents and sending the claim away are two different
      decisions, and they were on one screen. Generating is something you do
@@ -480,7 +483,13 @@ function syncAutoAmount () {
     const overridden = S.invoice.override != null && S.invoice.override !== '';
     it.amount = overridden ? Number(S.invoice.override) : (calc.amount || 0);
     if (!it.desc) it.desc = 'Consultancy Service Fee';
-    if (!it.position) it.position = S.consultant.position;
+    /* The position and the period on the first line are the profile's and the
+       period's, not a copy taken once when the row was made. Filling them in
+       only when they were empty meant a row created before a profile was
+       opened kept whatever it had — usually nothing — and no amount of
+       editing the profile afterwards would move it. Line 2 onwards is yours
+       to write; this one follows what it is a line about. */
+    it.position = S.consultant.position;
     it.period = fmtPeriodShort(S.invoice.pStart, S.invoice.pEnd);
     paintOverride(calc, overridden);
   } else {
@@ -920,9 +929,11 @@ function boot () {
   wire('btnClaimDocx', generateClaimDOCX,   'Claim Word');
 
   /* --- sending the claim off to be approved --- */
-  document.getElementById('btnRefreshApprovals').addEventListener('click', renderApprovals);
-  const btnArch = document.getElementById('btnRefreshArchive');
-  if (btnArch) btnArch.addEventListener('click', () => renderArchive(true));
+  // one Refresh for the whole step: the table reads both
+  document.getElementById('btnRefreshApprovals').addEventListener('click', async () => {
+    await renderArchive(true);
+    await renderApprovals();
+  });
 
   document.getElementById('btnSubmitClaim').addEventListener('click', async () => {
     if (!validate()) return;

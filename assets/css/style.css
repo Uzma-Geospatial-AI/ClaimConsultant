@@ -715,3 +715,13 @@ body.locked > .sitefoot{display:none}
 }
 .decidefile span{font-size:12.5px;font-weight:600;color:var(--navy-soft)}
 .decidefile small{font-size:11.5px;color:var(--muted)}
+
+/* the month picker that decides what the status table is showing */
+.statuspick{display:inline-flex;align-items:center;gap:8px;color:var(--muted)}
+.statuspick select{min-width:150px}
+.statustable .who small{display:block;font-weight:400;color:var(--muted);font-size:11.5px}
+.statusrow.firstof td{border-top:1px solid var(--line)}
+.statusrow.unsent{color:var(--muted)}
+.statusrow.unsent .doctag{opacity:.55}
+.statusnone{color:var(--muted);font-size:12px;font-style:italic}
+.statusempty{padding:22px 14px;text-align:center;color:var(--muted)}

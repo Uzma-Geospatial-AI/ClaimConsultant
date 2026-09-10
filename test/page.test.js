@@ -138,7 +138,11 @@ console.log('\nThe archive');
 
 check('the list is in the page', /id="archiveList"/.test(html), true);
 check('a file too big is refused before it is read',
-  /f\.size > ARCHIVE_MAX_BYTES/.test(archivejs), true);
+  /\.size > ARCHIVE_MAX_BYTES/.test(archivejs), true);
+// Which slot a file was put in is which document it is: two files means two
+// records, so the status table can say the sheet is back and the invoice is not.
+check('a signed copy is filed against its own document',
+  /Sync\.store\(S, \[payload\], note\.value\.trim\(\), one\.kind\)/.test(archivejs), true);
 check('and rows are built as text, never markup',
   /archiveperson[\s\S]{0,200}innerHTML/.test(archivejs), false);
 // Which box is signed follows the stage the claim is at, not the role of

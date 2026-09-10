@@ -38,8 +38,8 @@ the app works with the network unplugged.
 
 | # | Document | Formats | Output file name |
 |---|---|---|---|
-| 1 | **Invoice Timesheet** | PDF · Excel | `INV-2026-08-026 - Name.pdf` / `.xlsx` |
-| 2 | **Claim** — Uzma Personnel Time Sheet | PDF · Word | `Claim Aug 2026 - Name.pdf` / `.docx` |
+| 1 | **Claim** — Uzma Personnel Time Sheet | PDF · Word | `Claim Aug 2026 - Name.pdf` / `.docx` |
+| 2 | **Invoice Timesheet** | PDF · Excel | `2026-01-003 - Name.pdf` / `.xlsx` |
 
 Both PDFs are laid out to match the official templates: the invoice in portrait with the navy
 header band, the time sheet in landscape with Sections A, B and C, the notes block and the
@@ -92,16 +92,20 @@ confirms, so an account that is not on the list cannot get in with a valid passw
 ## The Flow
 
 ```
-Step 1  Profile ──▶ Step 2  Pick a document ──┬─▶ A    Invoice ──────────────┐
-                                              ├─▶ B    Claim Form ───────────┤─▶ Generate ─▶ Submit ─▶ Status
-                                              └─▶ A+B  Invoice + Claim Form ─┘
+Step 1  Profile ──▶ Step 2  Pick a document ──┬─▶ A    Claim Form ───────────┐
+                                              ├─▶ B    Invoice ──────────────┤─▶ Generate ─▶ Submit ─▶ Status
+                                              └─▶ A+B  Claim Form + Invoice ─┘
 ```
 
 | Choice | Steps you see | You get |
 |---|---|---|
-| **A** Invoice Timesheet | Invoice · Generate · Submit · Status | PDF + Excel |
-| **B** Claim Form | Claim Form · Generate · Submit · Status | PDF + Word |
-| **A + B** Both | Invoice · Claim Form · Generate · Submit · Status | PDF + Excel + Word |
+| **A** Claim Form | Claim Form · Generate · Submit · Status | PDF + Word |
+| **B** Invoice Timesheet | Invoice · Generate · Submit · Status | PDF + Excel |
+| **A + B** Both | Claim Form · Invoice · Generate · Submit · Status | PDF + Word + Excel |
+
+**The time sheet comes before the invoice**, everywhere. It is the evidence and the invoice is
+the bill that follows from it: the days are counted, then they are charged for. The other order
+asked somebody to price a month before saying which days of it they had worked.
 
 **Generate** downloads the files and nothing else. **Submit** sends them away. They used to be one
 screen, and they are two different decisions: generating happens several times while a month is
@@ -167,7 +171,7 @@ hands it back to the calendar.
 | 🧮 **Three ways to price a period** | Monthly rate prorated by calendar days, daily rate × days ticked, or a fixed amount you type yourself — the live formula shows its working |
 | ✍️ **Sign in the signature box** | The four pads (Personnel, Project Manager, HOD, Verified By) sit inside Section C where the pen would go; blank space around the stroke is trimmed before it is embedded |
 | ✅ **Three stages, in order** | A submitted document goes to the project manager, then to the HOD, and the HOD's signature is placed by their PA. Each approver reads it as it will be printed, signs their own box or sends it back with a reason, and every move is recorded against a name and a time |
-| 🚦 **A status table, a light per stage** | One row per document, three columns — **Reviewed**, **Approved**, **Signed** — and a light in each: green done, amber waiting here now, red sent back from here, blank not reached. "Where is Amila's September invoice" is answered by looking, not by opening anything. The admin sees every person's; everybody sees where everything is |
+| 🚦 **A status table that starts from the people** | Everybody with a profile gets a row per document for the month you are looking at, **whether or not they have sent anything** — because "has Amila sent September yet" is the question that gets asked, and a list of what was sent can never answer it. Then five lights, in the order they happen: **Sent · Reviewed · Approved · Signed · On file**. Green done, amber waiting here now, red sent back from here, blank not yet. Pick another month from the same row of controls |
 | 🖊️ **The PA signs, on screen or on paper** | The last stage is the PA's, and their whole job is the signature. Draw it in the app, or — when it was signed on paper, in a room, with a pen — upload the finished document instead. Either finishes the month, and the uploaded one goes straight onto the Signed copies list |
 | 🖋️ **Approval block starts filled** | Section C opens with the usual names and today's date already in place — every one is a normal field, so type over it when somebody else signs |
 | 🏷️ **Official artwork, placed to the millimetre** | The Uzma wordmark ships with the app and is positioned from proportions measured off the printed form, not eyeballed |
@@ -522,7 +526,13 @@ form, not by the approver in the queue.
 
 Only the time sheet carries approver signature boxes. An invoice has one signature on it, the
 consultant's, and approving a bill does not sign it &mdash; so approving an invoice is approving,
-with no pad to draw in. The screen itself is a table: one row per document, a light per stage.
+with no pad to draw in.
+
+The last stage is the PA's, and the signature is their whole part in it. They can draw it in the
+app, or &mdash; when it was signed on paper, in a room, with a pen &mdash; upload the finished
+document instead. Either finishes the month; the uploaded one also lights the **On file** column
+and joins the Signed copies list, which is the record somebody actually needs when Finance asks
+about September a year later.
 
 Who may move a claim is decided by the stage it is at, and decided in BDOS, not here: the project
 manager cannot approve in the HOD's place, nobody can approve twice, and the row is locked while
