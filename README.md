@@ -61,8 +61,11 @@ const ROLES = {
 };
 ```
 
-A consultant fills claims in; the other three only read and sign them, so the wizard is not even
-drawn for those accounts — they get the Approvals queue and nothing else.
+A consultant fills claims in; the manager, the HOD and the PA only read and sign, so the wizard is
+not even drawn for those accounts — they get the Approvals queue and nothing else. The `admin`
+prepares claims like a consultant **and** can move any claim at any stage, including approving or
+rejecting everything waiting in one go: somebody has to be able to finish a month when the project
+manager is on leave and the HOD is on a plane.
 
 | | |
 |---|---|
@@ -128,8 +131,9 @@ unless you have already ticked days, in which case your ticks win.
 | 🧭 **Guided, branching flow** | Fill your details once, then pick **A** (Invoice), **B** (Claim) or **both** — the remaining steps rearrange so you only ever see the document you asked for |
 | 📄 **You fill the real document** | Steps 3 and 4 are pixel-shaped copies of the invoice and the Uzma time sheet, so every value is typed exactly where it prints |
 | 💡 **A hint in every box** | Each blank carries an example of what belongs in it, and optional fields say so outright |
-| 📅 **Tickable day grid** | Section B is the real 31-column table — click a cell to cycle `blank → / → PH → PTO → MC → UL`; Saturdays and Sundays label themselves from the calendar. `/` is a day worked and the only mark counted into TOTAL DAYS [A]; `PH`, `PTO` (paid time off), `MC` (medical leave) and `UL` (unpaid leave) say why a day is not claimed |
-| 🧮 **Leave against the year** | `PTO`, `MC` and `UL` each come out of 12 days a year. Under the grid, a row per kind shows what this month holds, what was taken earlier in the year (typed once, the way PAST CLAIM [C] is), what is left, and colours the row when it goes over. `PH` counts against nothing — a public holiday is the calendar's doing |
+| 📅 **Tickable day grid** | Section B is the real 31-column table — click a cell to cycle `blank → / → PH → PTO → MC → UL`; Saturdays and Sundays label themselves from the calendar |
+| 💰 **Paid days decide the money** | Every day of the month is paid or it is not. Worked `/`, the weekend, `PH`, `PTO` and `MC` are paid and add up to TOTAL DAYS [A]; `UL` is not, and neither is a working day nobody marked — so the month's pay is `rate ÷ days in month × paid days`, and unpaid leave shows up in the figure without anybody working it out |
+| 🧮 **Leave against the year** | `PTO`, `MC` and `UL` each come out of 12 days a year. Under the grid — and on the profile card before you even open it — a row per kind shows what this month holds, what was taken earlier in the year (typed once, the way PAST CLAIM [C] is), what is left, and colours the row when it goes over |
 | 🧮 **Three ways to price a period** | Monthly rate prorated by calendar days, daily rate × days ticked, or a fixed amount you type yourself — the live formula shows its working |
 | ✍️ **Sign in the signature box** | The four pads (Personnel, Project Manager, HOD, Verified By) sit inside Section C where the pen would go; blank space around the stroke is trimmed before it is embedded |
 | ✅ **Two approvals, in order** | A submitted claim goes to the project manager, then to the HOD, and the HOD's signature is placed by their PA. Each approver reads the sheet as it will be printed, signs their own box or sends it back with a reason, and every move is recorded against a name and a time |
@@ -396,6 +400,15 @@ silently if the form on screen is untouched, and otherwise only after asking, an
 stored draft is demonstrably newer than the last one this browser sent up. Work on your screen
 wins by default. Because the draft is shared, the question names whoever saved it &mdash; it may
 be one of the other two rather than your own other laptop.
+
+### Where a claim starts
+
+Step 1 is not a form, it is a question: whose claim is this. Each saved profile is a card carrying
+the year's leave balance, so **`PTO 7` `MC 10` `UL 12`** is readable before anything is opened.
+Opening one fills in everything downstream — the details, the bank account, the rate — and the
+month's pay is worked out from that rate and the days that are paid for. That figure can be typed
+over when a month is settled at something else; the app says so, and offers the calculated one
+back.
 
 ### Approvals
 

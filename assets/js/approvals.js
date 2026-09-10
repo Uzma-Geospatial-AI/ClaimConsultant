@@ -29,12 +29,13 @@ const STATUS_ROLE = {
   pending_signature: 'pa'
 };
 
-/* Where each role's signature lands on the sheet, and the name and date
-   beside it. The HOD's box is filled by the PA, not by the HOD — placing
-   that signature is the PA's whole part in this. */
-const ROLE_SIGNS = {
-  manager: { sig: 'pm',  name: 'reviewName', date: 'reviewDate' },
-  pa:      { sig: 'hod', name: 'apprName',   date: 'apprDate' }
+/* Which box gets signed at which stage — by the stage, not by whoever is
+   signing, because the admin can stand in at any of them. The HOD's box is
+   filled when it reaches the PA: placing that signature is the PA's whole
+   part in this, and the HOD signs nothing themselves. */
+const STAGE_SIGNS = {
+  pending_manager:   { sig: 'pm',  name: 'reviewName', date: 'reviewDate' },
+  pending_signature: { sig: 'hod', name: 'apprName',   date: 'apprDate' }
 };
 
 const LAST_SIG_KEY = 'ccs.mysignature';      // this approver's own, on this machine
@@ -121,9 +122,15 @@ function rememberSignature (png) {
 function myRole () { return Auth.role(); }
 function myEmail () { return String((Auth.user() || {}).email || '').toLowerCase(); }
 
-/** is this claim waiting on the account that is signed in? */
+/** can the account that is signed in move this claim on? */
 function waitingOnMe (sub) {
-  return STATUS_ROLE[sub.status] === myRole();
+  if (!STATUS_ROLE[sub.status]) return false;          // finished, or sent back
+  return Auth.isAdmin() || STATUS_ROLE[sub.status] === myRole();
+}
+
+/** whose turn it is, said plainly */
+function waitingOnWhom (sub) {
+  return Auth.roleName(STATUS_ROLE[sub.status]) || '';
 }
 
 function periodOf (sub) {
@@ -147,7 +154,7 @@ async function renderApprovals () {
 
   host.innerHTML = '<p class="emptynote">Loading…</p>';
   try {
-    subs = await Sync.submissions('', myRole() === 'consultant' ? 0 : 0);
+    subs = await Sync.submissions('');
   } catch (err) {
     host.innerHTML = `<p class="emptynote">Could not read the approvals: ${err.message}</p>`;
     return;
@@ -172,12 +179,77 @@ function paintApprovals () {
 
   if (mine.length) {
     host.appendChild(groupHead(`Waiting on you (${mine.length})`));
+    // The admin stands in at every stage, so they are the one who can end up
+    // with a pile. Clearing it one row at a time is the same decision made
+    // over and over, so they can make it once.
+    if (Auth.isAdmin() && mine.length > 1) host.appendChild(bulkBar(mine));
     mine.forEach(s => host.appendChild(subRow(s, true)));
   }
   if (rest.length) {
     host.appendChild(groupHead(mine.length ? 'Everything else' : 'All claims'));
     rest.forEach(s => host.appendChild(subRow(s, false)));
   }
+}
+
+/** approve or reject everything that is waiting, in one go */
+function bulkBar (waiting) {
+  const bar = document.createElement('div');
+  bar.className = 'bulkbar';
+
+  const said = document.createElement('span');
+  said.textContent = `${waiting.length} claims are waiting on you.`;
+  bar.appendChild(said);
+
+  const note = document.createElement('input');
+  note.className = 'dinput';
+  note.placeholder = 'Reason — needed to reject';
+  bar.appendChild(note);
+
+  bar.appendChild(button('Approve all', 'small', () => bulk(waiting, 'approve', note.value.trim())));
+  bar.appendChild(button('Reject all', 'ghost small danger',
+                         () => bulk(waiting, 'return', note.value.trim())));
+  return bar;
+}
+
+async function bulk (waiting, action, note) {
+  if (busy) return;
+  if (action === 'return' && !note) {
+    toast('Say why — every one of them gets sent back with this note.', true);
+    return;
+  }
+  const signing = action === 'approve' && waiting.some(s => STAGE_SIGNS[s.status]);
+  if (signing && !myLastSignature()) {
+    toast('Approve one claim on its own first, so the app has your signature to place.', true);
+    return;
+  }
+  if (!confirm(`${action === 'approve' ? 'Approve' : 'Reject'} all ${waiting.length} claims?`)) return;
+
+  busy = true;
+  let done = 0;
+  const failed = [];
+  for (const sub of waiting) {
+    try {
+      const signs = action === 'approve' ? STAGE_SIGNS[sub.status] : null;
+      let data;
+      if (signs) {
+        const full = await Sync.submission(sub.id);
+        data = mergeDefaults((full && full.data) || {});
+        data.sig[signs.sig] = myLastSignature();
+        data.timesheet[signs.name] = (Auth.user() || {}).name || data.timesheet[signs.name] || '';
+        data.timesheet[signs.date] = todayDotted();
+      }
+      await Sync.act(sub.id, action, note, data);
+      done++;
+    } catch (err) {
+      // one that somebody else moved first must not stop the rest
+      failed.push(`${sub.consultant || sub.id}: ${err.message}`);
+    }
+  }
+  busy = false;
+  toast(failed.length
+    ? `${done} done, ${failed.length} could not be: ${failed[0]}`
+    : `${done} claims ${action === 'approve' ? 'approved' : 'sent back'}.`, !!failed.length);
+  await renderApprovals();
 }
 
 function groupHead (text) {
@@ -205,6 +277,7 @@ function subRow (sub, urgent) {
   const pill = document.createElement('span');
   pill.className = 'pill ' + sub.status;
   pill.textContent = STATUS_TEXT[sub.status] || sub.status;
+  pill.title = waitingOnWhom(sub) ? 'Waiting on the ' + waitingOnWhom(sub) : '';
   top.appendChild(pill);
 
   const acts = document.createElement('div');
@@ -213,11 +286,11 @@ function subRow (sub, urgent) {
   acts.appendChild(button('Review', 'ghost small', () => reviewSubmission(sub.id)));
 
   if (waitingOnMe(sub)) {
-    const verb = myRole() === 'pa' ? 'Place signature' : 'Approve';
+    const verb = sub.status === 'pending_signature' ? 'Place signature' : 'Approve';
     acts.appendChild(button(verb, 'small', () => toggleDecide(sub.id, 'approve')));
-    acts.appendChild(button('Send back', 'ghost small danger', () => toggleDecide(sub.id, 'return')));
+    acts.appendChild(button('Reject', 'ghost small danger', () => toggleDecide(sub.id, 'return')));
   }
-  if (sub.status === 'returned' && sub.created_by === myEmail()) {
+  if (sub.status === 'returned' && (sub.created_by === myEmail() || Auth.isAdmin())) {
     acts.appendChild(button('Open in the form', 'ghost small', () => loadIntoForm(sub.id)));
     acts.appendChild(button('Resubmit', 'small', () => toggleDecide(sub.id, 'resubmit')));
   }
@@ -269,8 +342,7 @@ function toggleDecide (id, action) {
 function decideBox (sub) {
   const box = document.createElement('div');
   box.className = 'decidebox';
-  const role = myRole();
-  const signs = decideAction === 'approve' ? ROLE_SIGNS[role] : null;
+  const signs = decideAction === 'approve' ? STAGE_SIGNS[sub.status] : null;
 
   const head = document.createElement('p');
   head.className = 'decidehead';
@@ -317,7 +389,7 @@ async function decide (sub, note, pad) {
     toast('Say what needs fixing — the consultant only sees this note.', true);
     return;
   }
-  const signs = decideAction === 'approve' ? ROLE_SIGNS[myRole()] : null;
+  const signs = decideAction === 'approve' ? STAGE_SIGNS[sub.status] : null;
   if (signs && pad.isEmpty()) {
     toast('Sign the box before approving.', true);
     return;
@@ -333,8 +405,9 @@ async function decide (sub, note, pad) {
       data = mergeDefaults((full && full.data) || {});
       const png = pad.value();
       data.sig[signs.sig] = png;
-      data.timesheet[signs.name] = data.timesheet[signs.name] ||
-        (Auth.user() || {}).name || '';
+      // whoever actually signed is the name that goes beside the signature,
+      // even when it is the admin standing in for somebody away
+      data.timesheet[signs.name] = (Auth.user() || {}).name || data.timesheet[signs.name] || '';
       data.timesheet[signs.date] = todayDotted();
       rememberSignature(png);
     }

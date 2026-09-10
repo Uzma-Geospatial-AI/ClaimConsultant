@@ -144,6 +144,21 @@ vm.runInContext(`
   globalThis.__addrJoin = splitAddressLines(
     'No 5, Lorong Solok Imam Tahir, Kg Solok Duku, 78300', 'Melaka');
   globalThis.__al   = dayValue(S.timesheet, S.timesheet.activities[0], 20);
+  globalThis.__worked = workedDays(S.timesheet);
+  globalThis.__unmarked = unmarkedDays(S.timesheet);
+  globalThis.__ulDay  = dayMarkOf(S.timesheet, 19);
+  globalThis.__satDay = dayMarkOf(S.timesheet, 29);
+  globalThis.__daily  = computeAmount(Object.assign({}, S, {
+    invoice: Object.assign({}, S.invoice, { mode: 'daily', dailyRate: 200 })
+  }));
+
+  /* A second activity row must not make the weekend count twice: the days
+     belong to the month, and the rows have to keep adding up to the total. */
+  const two = mergeDefaults(JSON.parse(JSON.stringify(S)));
+  two.timesheet.activities.push(newActivity('Something else'));
+  two.timesheet.activities[1].days[18] = '/';        // a Tuesday nobody had marked
+  globalThis.__twoTotal = timesheetTotals(two.timesheet).A;
+  globalThis.__twoRows  = rowPaidDays(two.timesheet, 0) + rowPaidDays(two.timesheet, 1);
   globalThis.__pto  = leaveStanding(S, 'PTO');
   globalThis.__mc   = leaveStanding(S, 'MC');
   globalThis.__ul   = leaveStanding(S, 'UL');
@@ -158,10 +173,20 @@ vm.runInContext(`
 (async () => {
   console.log('\nCalculations');
   // RM 3500 / 31 days in August x 8 calendar days (24-31) = RM 903.23
-  check('invoice amount (RM)', ctx.__calc.amount, 903.23);
-  // 20 and 21 August are marked AL and UL: leave says why a day is not
-  // claimed, so it must stay out of [A] the way PH does
-  check('TOTAL DAYS [A] counts only the ticks', ctx.__tot.A, 4);
+  /* A month's pay is the month less what is not paid for. August 2026 holds
+     10 weekend days; the sheet adds 4 worked, 2 public holidays, 1 PTO and
+     1 MC, and leaves one day to unpaid leave and the rest of the first three
+     weeks unmarked. 18 days are paid, and the money follows them. */
+  check('invoice amount (RM)', ctx.__calc.amount, 2032.26);
+  check('TOTAL DAYS [A] counts every paid day', ctx.__tot.A, 18);
+  check('a daily rate buys days worked, not weekends', ctx.__worked, 4);
+  check('and is what a daily invoice multiplies', ctx.__daily.amount, 800);
+  check('unpaid leave is not a paid day', ctx.__ulDay, 'UL');
+  check('the weekend fills itself in', ctx.__satDay, 'SAT');
+  check('a working day nobody marked is unpaid', ctx.__unmarked.includes(18), true);
+  check('and there are 12 of them here', ctx.__unmarked.length, 12);
+  check('a second activity row does not double the weekend', ctx.__twoTotal, 19);
+  check('and the rows still add up to the total', ctx.__twoRows, ctx.__twoTotal);
   check('20 Aug 2026 leave mark', ctx.__al, 'PTO');
 
   /* Leave comes out of a yearly allowance: what the grid holds this month
@@ -176,7 +201,7 @@ vm.runInContext(`
   check('and says by how much',             ctx.__mc.left, -1);
   check('leave never taken starts at zero', ctx.__ul.earlier, 0);
   check('a balance from another year is not this one', ctx.__lastYear.earlier, 0);
-  check('BALANCE [B-(A+C)]', ctx.__tot.balance, -4);
+  check('BALANCE [B-(A+C)]', ctx.__tot.balance, -18);
   check('29 Aug 2026 auto-label', ctx.__sat, 'SAT');
   check('30 Aug 2026 auto-label', ctx.__sun, 'SUN');
 

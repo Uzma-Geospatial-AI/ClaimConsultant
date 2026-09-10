@@ -64,10 +64,10 @@ function claimMatrix (S) {
   const dim = daysInMonth(ts.year, ts.month);
   const body = [];
 
-  ts.activities.forEach(act => {
+  ts.activities.forEach((act, i) => {
     const days = [];
     for (let d = 1; d <= 31; d++) days.push(d <= dim ? dayValue(ts, act, d) : '');
-    const A = activityTotal(act);
+    const A = rowPaidDays(ts, i);
     const B = Number(act.allocated) || 0;
     const Cv = Number(act.pastClaim) || 0;
     body.push([act.name || '', act.jobId || '', ...days, A, B, Cv, round2(B - (A + Cv))]);

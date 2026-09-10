@@ -74,11 +74,14 @@ console.log('\nThe approvals screen');
 const approvals = fs.readFileSync(path.join(ROOT, 'assets/js/approvals.js'), 'utf8');
 check('the panel is in the page', /id="p-approvals"/.test(html), true);
 check('the submit card starts hidden', /id="card_submit"[^>]*hidden/.test(html), true);
-check('the project manager signs the REVIEWED BY box',
-  /manager:\s*\{\s*sig:\s*'pm'/.test(approvals), true);
-check("the PA places the HOD's signature, not their own",
-  /pa:\s*\{\s*sig:\s*'hod'/.test(approvals), true);
-check('the HOD signs nothing themselves', /boss:\s*\{\s*sig:/.test(approvals), false);
+// Which box is signed follows the stage the claim is at, not the role of
+// whoever is looking — the admin stands in at any of them.
+check('the REVIEWED BY box is signed when it is with the manager',
+  /pending_manager:\s*\{\s*sig:\s*'pm'/.test(approvals), true);
+check("the HOD's box is signed at the PA's step, by whoever is there",
+  /pending_signature:\s*\{\s*sig:\s*'hod'/.test(approvals), true);
+check('nothing is signed while it sits with the HOD',
+  /pending_boss:\s*\{\s*sig:/.test(approvals), false);
 check('a claim waits on the manager, then the HOD, then the PA',
   /pending_manager:\s*'manager'[\s\S]{0,160}pending_boss:\s*'boss'[\s\S]{0,160}pending_signature:\s*'pa'/
     .test(approvals), true);

@@ -28,6 +28,11 @@ function defaultState () {
     invoice: {
       no: '', date: '', due: '', pStart: '', pEnd: '',
       taxPct: 0, mode: 'monthly', monthlyRate: 3500, dailyRate: 0,
+      /* The pay is worked out from the rate and the days that are paid for.
+         Typing over it puts the figure here, so the calculation stops
+         overwriting it — a month can be settled at something else, and the
+         form should not argue. null means "whatever the sum says". */
+      override: null,
       items: [],
       note: 'Invoice submitted with original timesheet signed by Consultant as per Clause 7.1 of the Service Agreement.',
       showSig: false
@@ -190,39 +195,120 @@ function leaveStandings (S) {
 
 /* ---------------- timesheet totals ---------------- */
 
-/** number of days ticked '/' for one activity */
+/* Which days are paid. A day is claimed when it was worked, and also when it
+   was a day off that is paid: the weekend, a public holiday, paid time off or
+   medical leave. Two things are not — unpaid leave, and a working day nobody
+   marked at all, which is somebody who was not there and did not say why. */
+const PAID_MARKS = { '/': 1, SAT: 1, SUN: 1, PH: 1, PTO: 1, MC: 1 };
+
+/**
+ * What one day of the month is, taken across the whole sheet: a mark anybody
+ * made, or else what the calendar says. The mark wins — a Saturday worked is
+ * a Saturday worked.
+ */
+function dayMarkOf (ts, d) {
+  for (const act of ts.activities || []) {
+    if (act.days && act.days[d]) return act.days[d];
+  }
+  const w = dowOf(ts.year, ts.month, d);
+  return w === 6 ? 'SAT' : w === 0 ? 'SUN' : '';
+}
+
+/** the days of this month that are paid — this is TOTAL DAYS [A] */
+function paidDays (ts) {
+  let n = 0;
+  for (let d = 1, dim = daysInMonth(ts.year, ts.month); d <= dim; d++) {
+    if (PAID_MARKS[dayMarkOf(ts, d)]) n++;
+  }
+  return n;
+}
+
+/** the days actually worked — what a daily rate multiplies */
+function workedDays (ts) {
+  const days = new Set();
+  (ts.activities || []).forEach(a => Object.keys(a.days || {}).forEach(d => {
+    if (a.days[d] === '/') days.add(Number(d));
+  }));
+  return days.size;
+}
+
+/** working days nobody marked at all: not worked, and no reason given */
+function unmarkedDays (ts) {
+  const out = [];
+  for (let d = 1, dim = daysInMonth(ts.year, ts.month); d <= dim; d++) {
+    if (dayMarkOf(ts, d) === '') out.push(d);
+  }
+  return out;
+}
+
+/** the paid days one activity row carries in its own cells */
 function activityTotal (act) {
-  return Object.values(act.days || {}).filter(v => v === '/').length;
+  return Object.values(act.days || {}).filter(v => PAID_MARKS[v]).length;
+}
+
+/**
+ * The days a row is worth on the printed sheet. Weekends belong to the month
+ * rather than to any one activity, so they are counted once, against the
+ * first row — which keeps the rows adding up to the TOTAL beneath them.
+ */
+function rowPaidDays (ts, index) {
+  const own = activityTotal(ts.activities[index] || {});
+  if (index !== 0) return own;
+  let weekends = 0;
+  for (let d = 1, dim = daysInMonth(ts.year, ts.month); d <= dim; d++) {
+    const m = dayMarkOf(ts, d);
+    if (m === 'SAT' || m === 'SUN') weekends++;
+  }
+  return own + weekends;
 }
 
 /** totals across every activity */
 function timesheetTotals (ts) {
-  let a = 0, b = 0, c = 0;
+  let b = 0, c = 0;
   ts.activities.forEach(act => {
-    a += activityTotal(act);
     b += Number(act.allocated) || 0;
     c += Number(act.pastClaim) || 0;
   });
+  const a = paidDays(ts);
   return { A: a, B: b, C: c, balance: round2(b - (a + c)) };
 }
 
 /* ---------------- invoice amount ---------------- */
 
+/** has anybody marked anything on the sheet? then it is the sheet that decides */
+function timesheetMarked (ts) {
+  return (ts.activities || []).some(a => Object.keys(a.days || {}).length > 0);
+}
+
 function computeAmount (S) {
   const inv = S.invoice, ts = S.timesheet;
   if (inv.mode === 'daily') {
-    const days = timesheetTotals(ts).A;
+    // a daily rate buys days of work, so it is the ticks it multiplies —
+    // not the weekend, which nobody worked
+    const days = workedDays(ts);
     return { amount: round2((Number(inv.dailyRate) || 0) * days),
-             formula: `RM ${money(inv.dailyRate)} × ${days} days ticked = RM ${money((Number(inv.dailyRate) || 0) * days)}` };
+             formula: `RM ${money(inv.dailyRate)} × ${days} days worked = RM ${money((Number(inv.dailyRate) || 0) * days)}` };
   }
   if (inv.mode === 'monthly') {
-    // the period itself decides the month, so an invoice-only run never needs the timesheet tab
+    const rate = Number(inv.monthlyRate) || 0;
+    /* A month's pay is the month, less the days that are not paid. The sheet
+       already says which those are, so when it has been filled in it decides
+       the figure — that is what makes unpaid leave show up in the money
+       without anybody working it out by hand. */
+    if (timesheetMarked(ts)) {
+      const dim = daysInMonth(ts.year, ts.month);
+      const paid = paidDays(ts);
+      const amt = round2(rate / dim * paid);
+      return { amount: amt,
+               formula: `RM ${money(rate)} ÷ ${dim} days (${MONTHS[ts.month]} ${ts.year}) × ${paid} paid days = RM ${money(amt)}` };
+    }
+    // nothing ticked — an invoice on its own, where the period is all there is
     const ref = periodMonth(inv.pStart) || { y: ts.year, m: ts.month };
     const dim = daysInMonth(ref.y, ref.m);
     const cal = calendarDays(inv.pStart, inv.pEnd);
-    const amt = round2((Number(inv.monthlyRate) || 0) / dim * cal);
+    const amt = round2(rate / dim * cal);
     return { amount: amt,
-             formula: `RM ${money(inv.monthlyRate)} ÷ ${dim} days (${MONTHS[ref.m]} ${ref.y}) × ${cal} calendar days = RM ${money(amt)}` };
+             formula: `RM ${money(rate)} ÷ ${dim} days (${MONTHS[ref.m]} ${ref.y}) × ${cal} calendar days = RM ${money(amt)}` };
   }
   return { amount: null, formula: 'Fixed amount — enter it yourself in the item table below.' };
 }

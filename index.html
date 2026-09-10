@@ -71,9 +71,17 @@
 
 <!-- ============ STEP 1: DETAILS ============ -->
 <section class="panel active" id="p-consultant" data-step="consultant">
-  <h2>Step 1 &mdash; Your Details</h2>
-  <p class="lead">Fill this in once. It flows into every document and is saved for next month.</p>
-  <div class="grid2">
+  <h2>Step 1 &mdash; Whose claim is this?</h2>
+  <p class="lead">Pick a profile. Everything after this &mdash; the invoice, the time sheet, the
+    pay &mdash; fills itself in from what is saved here, and stays editable.</p>
+
+  <!-- a card each, with the year's leave on it, so the balance is visible
+       before anybody opens anything -->
+  <div class="profilecards" id="profileCards"></div>
+
+  <div id="detailsBox" hidden>
+    <h3 id="detailsHead">The details on this profile <span class="hint">(edit anything &mdash; Save Profile keeps it)</span></h3>
+    <div class="grid2">
     <label>Full Name <span class="req">required</span><input id="c_name" data-bind="consultant.name" placeholder="e.g. Ahmad bin Abdullah"></label>
     <label>IC No.<input data-bind="consultant.ic" placeholder="e.g. 010203-04-0567"></label>
     <label>Address (Line 1) <span class="hint">(runs on to line 2)</span><input data-bind="consultant.addr1" placeholder="e.g. No 12, Jalan Contoh 1,"></label>
@@ -84,11 +92,20 @@
     <label>Employee / BP Code No. <span class="hint">(SAP usage only)</span><input data-bind="consultant.empCode" placeholder="leave blank if none"></label>
   </div>
 
-  <h3>Bank Details <span class="hint">(printed on the Invoice)</span></h3>
-  <div class="grid2">
-    <label>Bank Name<input data-bind="consultant.bank" placeholder="RHB BANK Berhad"></label>
-    <label>Account Name<input data-bind="consultant.accName" placeholder="name as it appears on the account"></label>
-    <label>Account No.<input data-bind="consultant.accNo" placeholder="e.g. 1-23456-0001234-5"></label>
+    <h3>Bank Details <span class="hint">(printed on the Invoice)</span></h3>
+    <div class="grid2">
+      <label>Bank Name<input data-bind="consultant.bank" placeholder="RHB BANK Berhad"></label>
+      <label>Account Name<input data-bind="consultant.accName" placeholder="name as it appears on the account"></label>
+      <label>Account No.<input data-bind="consultant.accNo" placeholder="e.g. 1-23456-0001234-5"></label>
+    </div>
+
+    <h3>Pay <span class="hint">(the invoice starts from this, and can be typed over)</span></h3>
+    <div class="grid2">
+      <label>Monthly Rate (RM)<input type="number" data-bind="invoice.monthlyRate" data-type="num" step="0.01"></label>
+      <label>Daily Rate (RM) <span class="hint">(only for a daily-rate month)</span><input type="number" data-bind="invoice.dailyRate" data-type="num" step="0.01"></label>
+    </div>
+
+    <div class="leavebox" id="leaveBoxProfile"></div>
   </div>
 </section>
 
@@ -211,6 +228,7 @@
       <label id="wrapDaily" class="hidden">Daily Rate (RM)<input type="number" data-bind="invoice.dailyRate" data-type="num" step="0.01"></label>
     </div>
     <p class="formula" id="calcFormula">&nbsp;</p>
+    <p class="overridenote" id="amountOverride" hidden></p>
     <p class="warn hidden" id="dailyWarn">The daily rate multiplies the days you tick on the Claim form — add the Claim in step 2, or pick another method.</p>
     <label class="check"><input type="checkbox" id="i_showsig" data-bind="invoice.showSig" data-type="bool"> Print my signature on the invoice</label>
   </div>
@@ -275,6 +293,7 @@
       <button class="btn ghost small" id="btnResetDays">Clear all ticks</button>
     </div>
     <div class="summary" id="tsSummary"></div>
+    <p class="warn" id="tsWarn" hidden></p>
     <div class="leavebox" id="leaveBox"></div>
 
     <p class="uz-tip mt">Names and dates are pre-filled with the usual approvers &mdash; type over any of them if somebody else signs this month.</p>

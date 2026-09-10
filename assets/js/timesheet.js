@@ -85,7 +85,7 @@ function renderTimesheet (S, onChange) {
           const nextVal = CYCLE[(CYCLE.indexOf(cur) + 1) % CYCLE.length];
           if (nextVal) act.days[d] = nextVal; else delete act.days[d];
           paintDay(td, ts, act, d);
-          updateRow(tr, S, act);
+          updateRow(tr, S, act, ai);
           onChange();
         });
         paintDay(td, ts, act, d);
@@ -102,7 +102,7 @@ function renderTimesheet (S, onChange) {
     tdB.innerHTML = '<input class="dinput" type="number" step="0.5" placeholder="0">';
     tdB.querySelector('input').value = act.allocated || '';
     tdB.querySelector('input').addEventListener('input', e => {
-      act.allocated = Number(e.target.value) || 0; updateRow(tr, S, act); onChange();
+      act.allocated = Number(e.target.value) || 0; updateRow(tr, S, act, ai); onChange();
     });
     tr.appendChild(tdB);
 
@@ -111,7 +111,7 @@ function renderTimesheet (S, onChange) {
     tdC.innerHTML = '<input class="dinput" type="number" step="0.5" placeholder="0">';
     tdC.querySelector('input').value = act.pastClaim || '';
     tdC.querySelector('input').addEventListener('input', e => {
-      act.pastClaim = Number(e.target.value) || 0; updateRow(tr, S, act); onChange();
+      act.pastClaim = Number(e.target.value) || 0; updateRow(tr, S, act, ai); onChange();
     });
     tr.appendChild(tdC);
 
@@ -130,7 +130,7 @@ function renderTimesheet (S, onChange) {
     });
     tr.appendChild(tdDel);
 
-    updateRow(tr, S, act);
+    updateRow(tr, S, act, ai);
     tbody.appendChild(tr);
   });
 
@@ -162,8 +162,8 @@ function paintDay (td, ts, act, d) {
   td.title = `${d} ${MONTHS[ts.month]} ${ts.year}` + (what ? ` — ${what}` : '') + '  (click to change)';
 }
 
-function updateRow (tr, S, act) {
-  const a = activityTotal(act);
+function updateRow (tr, S, act, index) {
+  const a = rowPaidDays(S.timesheet, index == null ? S.timesheet.activities.indexOf(act) : index);
   const bal = round2((Number(act.allocated) || 0) - (a + (Number(act.pastClaim) || 0)));
   tr.querySelector('.cellA').textContent = a;
   tr.querySelector('.cellBal').textContent = bal;
@@ -185,14 +185,31 @@ function renderSummary (S) {
   const t = timesheetTotals(S.timesheet);
   const ts = S.timesheet;
 
-  const ph = leaveDaysInMonth(ts, 'PH');
+  /* Every day of the month is either paid for or not, so the bar says which:
+     what is claimed, what was worked inside that, and what is not being paid
+     — separating the days somebody accounted for from the ones nobody did. */
+  const dim = daysInMonth(ts.year, ts.month);
+  const blank = unmarkedDays(ts);
   document.getElementById('tsSummary').innerHTML = `
     <div>Month<b>${MONTHS[ts.month]} ${ts.year}</b></div>
-    <div>Total Days [A]<b>${t.A}</b></div>
+    <div>Paid days [A]<b>${t.A} <small>of ${dim}</small></b></div>
+    <div>Worked<b>${workedDays(ts)}</b></div>
+    <div>Not paid<b>${dim - t.A}</b></div>
     <div>Allocated [B]<b>${t.B}</b></div>
-    <div>Past Claim [C]<b>${t.C}</b></div>
-    <div>Balance<b>${t.balance}</b></div>
-    <div>Public Holiday<b>${ph.join(', ') || '—'}</b></div>`;
+    <div>Balance<b>${t.balance}</b></div>`;
+
+  const warn = document.getElementById('tsWarn');
+  if (warn) {
+    // an unmarked working day is not paid, and that is almost never what
+    // somebody meant — it is a day they forgot to account for
+    warn.hidden = !blank.length;
+    if (blank.length) {
+      warn.textContent =
+        `${blank.length} working day${blank.length > 1 ? 's are' : ' is'} unmarked ` +
+        `(${blank.join(', ')}) — unmarked days are not paid. Tick “/” for a day worked, ` +
+        `or say why it was not.`;
+    }
+  }
 
   renderLeave(S);
 }
@@ -203,15 +220,18 @@ function renderSummary (S) {
  * figure is typed, the way PAST CLAIM [C] is, so the balance is right without
  * needing every earlier sheet to hand.
  */
-function renderLeave (S) {
-  const host = document.getElementById('leaveBox');
+function renderLeave (S, hostId) {
+  // the same table appears twice: under the grid, and on the profile step
+  // where somebody is choosing whose claim this is
+  const host = document.getElementById(hostId || 'leaveBox');
   if (!host) return;
   const ts = S.timesheet;
 
   host.innerHTML = `
     <div class="leavehead">
       <b>Leave taken in ${ts.year}</b>
-      <span>${LEAVE_LIMITS.PTO} days each a year. Only the days ticked <b>/</b> are claimed.</span>
+      <span>${LEAVE_LIMITS.PTO} days each a year. <b>PTO</b> and <b>MC</b> are paid and
+        counted into [A]; <b>UL</b> is not.</span>
     </div>
     <table class="leavetable">
       <thead><tr>
@@ -274,115 +294,4 @@ function leaveRow (S, mark) {
 
   paint();
   return tr;
-}
-
-function paintDay (td, ts, act, d) {
-  const manual = act.days[d] || '';
-  const shown = dayValue(ts, act, d);
-  td.className = 'c-day dcell';
-  if (manual === '/') td.classList.add('work');
-  else if (MARKS[manual]) td.classList.add(MARKS[manual]);
-  else if (shown === 'SAT' || shown === 'SUN') td.classList.add('we');
-  td.textContent = manual || shown || '';
-  const what = MARK_NAMES[manual] || (manual === '/' ? 'worked' : shown);
-  td.title = `${d} ${MONTHS[ts.month]} ${ts.year}` + (what ? ` — ${what}` : '') + '  (click to change)';
-}
-
-function updateRow (tr, S, act) {
-  const a = activityTotal(act);
-  const bal = round2((Number(act.allocated) || 0) - (a + (Number(act.pastClaim) || 0)));
-  tr.querySelector('.cellA').textContent = a;
-  tr.querySelector('.cellBal').textContent = bal;
-
-  // keep the printed TOTAL row and the summary bar in step
-  const totalRow = tr.parentNode && tr.parentNode.querySelector('.totalrow');
-  if (totalRow) {
-    const t = timesheetTotals(S.timesheet);
-    const cells = totalRow.querySelectorAll('.c-tot');
-    if (cells.length === 4) {
-      cells[0].textContent = t.A; cells[1].textContent = t.B;
-      cells[2].textContent = t.C; cells[3].textContent = t.balance;
-    }
-  }
-  renderSummary(S);
-}
-
-function renderSummary (S) {
-  const t = timesheetTotals(S.timesheet);
-  const ts = S.timesheet;
-
-  const ph = leaveDaysInMonth(ts, 'PH');
-  document.getElementById('tsSummary').innerHTML = `
-    <div>Month<b>${MONTHS[ts.month]} ${ts.year}</b></div>
-    <div>Total Days [A]<b>${t.A}</b></div>
-    <div>Allocated [B]<b>${t.B}</b></div>
-    <div>Past Claim [C]<b>${t.C}</b></div>
-    <div>Balance<b>${t.balance}</b></div>
-    <div>Public Holiday<b>${ph.join(', ') || '—'}</b></div>`;
-
-  renderLeave(S);
-}
-
-/**
- * The year's leave, one row per kind: what this month's grid holds, what was
- * taken before it, and what is left of the allowance. The "before this month"
- * figure is typed, the way PAST CLAIM [C] is, so the balance is right without
- * needing every earlier sheet to hand.
- */
-function renderLeave (S) {
-  const host = document.getElementById('leaveBox');
-  if (!host) return;
-  const ts = S.timesheet;
-
-  host.innerHTML = `
-    <div class="leavehead">
-      <b>Leave taken in ${ts.year}</b>
-      <span>${LEAVE_LIMITS.PTO} days each a year. Only the days ticked <b>/</b> are claimed.</span>
-    </div>
-    <table class="leavetable">
-      <thead><tr>
-        <th>Leave</th><th>Earlier in ${ts.year}</th>
-        <th>${MONTHS[ts.month]}</th><th>Taken</th><th>Left</th><th>Days this month</th>
-      </tr></thead>
-      <tbody></tbody>
-    </table>`;
-
-  const tbody = host.querySelector('tbody');
-  leaveStandings(S).forEach(L => {
-    const tr = document.createElement('tr');
-    if (L.over) tr.className = 'over';
-
-    const name = document.createElement('td');
-    name.innerHTML = `<span class="lmark ${MARKS[L.mark]}">${L.mark}</span> ${L.name}`;
-    tr.appendChild(name);
-
-    // what was taken before this sheet is the one figure nobody can derive
-    const earlier = document.createElement('td');
-    earlier.innerHTML = '<input class="dinput ta-c" type="number" min="0" step="0.5">';
-    const input = earlier.querySelector('input');
-    input.value = L.earlier || '';
-    input.title = `${L.name} taken earlier in ${ts.year}, before ${MONTHS[ts.month]}`;
-    input.addEventListener('input', e => {
-      if (!S.leave || S.leave.year !== ts.year) S.leave = { year: ts.year, pto: 0, mc: 0, ul: 0 };
-      S.leave[LEAVE_KEYS[L.mark]] = Math.max(0, Number(e.target.value) || 0);
-      renderLeave(S);
-      afterTimesheetChange();
-    });
-    tr.appendChild(earlier);
-
-    const cells = [
-      String(L.month),
-      String(L.taken),
-      L.over ? `${L.left} — over by ${L.taken - L.limit}` : String(L.left),
-      L.days.join(', ') || '—'
-    ];
-    cells.forEach((v, i) => {
-      const td = document.createElement('td');
-      td.textContent = v;
-      if (i === 2) td.className = L.over ? 'bad' : (L.left <= 2 ? 'low' : '');
-      if (i === 3) td.className = 'daylist';
-      tr.appendChild(td);
-    });
-    tbody.appendChild(tr);
-  });
 }

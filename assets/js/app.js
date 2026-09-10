@@ -37,7 +37,7 @@ function toast (msg, bad) {
    ======================================================================= */
 
 const STEPS = [
-  { id: 'consultant', label: 'Your Details' },
+  { id: 'consultant', label: 'Profile' },
   { id: 'choose',     label: 'Document' },
   { id: 'invoice',    label: 'Invoice',    modes: ['invoice', 'both'] },
   { id: 'claim',      label: 'Claim Form', modes: ['claim', 'both'] },
@@ -63,7 +63,7 @@ function activeSteps () {
 
 function canLeave (id) {
   if (id === 'consultant' && !S.consultant.name.trim()) {
-    toast('Enter your Full Name before continuing.', true);
+    toast('Pick a profile, or start a new one and give it a name.', true);
     document.getElementById('c_name').focus();
     return false;
   }
@@ -299,13 +299,19 @@ function renderItems () {
     const amtEl = tr.querySelector('[data-f="amount"]');
     amtEl.value = it.amount === '' || it.amount == null ? '' : it.amount;
     if (autoManaged && i === 0) {
-      amtEl.readOnly = true;
-      amtEl.title = 'Worked out automatically — switch the method to "Fixed amount" to type your own.';
+      // The sum is the starting point, not the last word: a month can be
+      // settled at something else, and typing over it says so rather than
+      // being quietly overwritten on the next keystroke elsewhere.
+      amtEl.title = 'Worked out from the rate and the paid days — type over it if this month was agreed at something else.';
     }
 
     tr.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => {
       const f = inp.dataset.f;
       it[f] = f === 'amount' ? (inp.value === '' ? '' : Number(inp.value)) : inp.value;
+      if (f === 'amount' && autoManaged && i === 0) {
+        S.invoice.override = inp.value === '' ? null : Number(inp.value);
+        paintOverride(computeAmount(S), S.invoice.override != null);
+      }
       refreshTotals();
       persist();
     }));
@@ -345,13 +351,37 @@ function syncAutoAmount () {
   }
   if (S.invoice.mode !== 'fixed') {
     const it = S.invoice.items[0];
-    it.amount = calc.amount || 0;
+    const overridden = S.invoice.override != null && S.invoice.override !== '';
+    it.amount = overridden ? Number(S.invoice.override) : (calc.amount || 0);
     if (!it.desc) it.desc = 'Consultancy Service Fee';
     if (!it.position) it.position = S.consultant.position;
     it.period = fmtPeriodShort(S.invoice.pStart, S.invoice.pEnd);
+    paintOverride(calc, overridden);
+  } else {
+    paintOverride(calc, false);
   }
   renderItems();
   refreshTotals();
+}
+
+/** say so when the figure on the invoice is not the one the sum arrived at */
+function paintOverride (calc, overridden) {
+  const box = document.getElementById('amountOverride');
+  if (!box) return;
+  box.hidden = !overridden;
+  if (!overridden) return;
+  box.innerHTML = '<span></span> ';
+  box.querySelector('span').textContent =
+    `Typed over. The days on the sheet come to RM ${money(calc.amount || 0)}.`;
+  const undo = document.createElement('button');
+  undo.className = 'btn ghost small';
+  undo.textContent = 'Use the calculated amount';
+  undo.addEventListener('click', () => {
+    S.invoice.override = null;
+    syncAutoAmount();
+    persist();
+  });
+  box.appendChild(undo);
 }
 
 /* ---------------- Generate step ---------------- */
@@ -466,6 +496,7 @@ function updateInvSigName () {
 
 function renderAll () {
   writeBindings();
+  renderProfileCards();
   renderTimesheet(S, afterTimesheetChange);
   mountSignatures();
   syncAutoAmount();
@@ -790,12 +821,98 @@ The form open right now is not touched.`)) return;
   toast(`Profile "${name}" deleted.`);
 }
 
+/* =======================================================================
+   Step 1: whose claim is this
+
+   A card each, with the year's leave on it. Everything downstream — the
+   invoice, the sheet, the pay — comes from whichever one is open, so this
+   is the question the app asks first.
+   ======================================================================= */
+
+function renderProfileCards () {
+  const host = document.getElementById('profileCards');
+  const box  = document.getElementById('detailsBox');
+  if (!host) return;
+
+  const all = Store.profiles();
+  const names = Object.keys(all).sort();
+  host.innerHTML = '';
+
+  names.forEach(name => {
+    const p = mergeDefaults(all[name]);
+    const card = document.createElement('button');
+    card.className = 'pcard' + (name === activeProfile ? ' on' : '');
+    card.type = 'button';
+
+    const head = document.createElement('b');
+    head.textContent = name;
+    card.appendChild(head);
+
+    const sub = document.createElement('span');
+    sub.className = 'pcardsub';
+    sub.textContent = p.consultant.position || p.consultant.position2 || 'No position saved';
+    card.appendChild(sub);
+
+    // the balance is the thing people open a profile to find out
+    const chips = document.createElement('span');
+    chips.className = 'pchips';
+    leaveStandings(p).forEach(L => {
+      const chip = document.createElement('i');
+      chip.className = 'pchip ' + MARKS[L.mark] + (L.over ? ' over' : '');
+      chip.textContent = `${L.mark} ${L.left}`;
+      chip.title = `${L.name}: ${L.taken} of ${L.limit} taken in ${p.timesheet.year}, ${L.left} left`;
+      chips.appendChild(chip);
+    });
+    card.appendChild(chips);
+
+    card.addEventListener('click', () => editProfile(name));
+    host.appendChild(card);
+  });
+
+  const add = document.createElement('button');
+  add.className = 'pcard new';
+  add.type = 'button';
+  add.innerHTML = '<b>+ New profile</b>';
+  const addSub = document.createElement('span');
+  addSub.className = 'pcardsub';
+  addSub.textContent = names.length ? 'Start a fresh set of details' : 'Nothing saved yet — start here';
+  add.appendChild(addSub);
+  add.addEventListener('click', startNewProfile);
+  host.appendChild(add);
+
+  // the details only appear once there is something to show them for
+  if (box) {
+    box.hidden = !(activeProfile || String(S.consultant.name || '').trim());
+    const head = document.getElementById('detailsHead');
+    if (head && activeProfile) {
+      head.firstChild.textContent = `The details on ${activeProfile} `;
+    }
+  }
+  renderLeave(S, 'leaveBoxProfile');
+}
+
+function startNewProfile () {
+  if (String(S.consultant.name || '').trim() &&
+      !confirm('Start a new profile? The details on screen stay saved under their own profile.')) return;
+  S = defaultState();
+  activeProfile = '';
+  fillDefaultsForMonth();
+  renderAll();
+  persist();
+  const box = document.getElementById('detailsBox');
+  if (box) box.hidden = false;
+  const name = document.getElementById('c_name');
+  if (name) name.focus();
+  toast('New profile — fill the details in, then press Save Profile.');
+}
+
 function refreshProfileList () {
   const menu  = document.getElementById('profileMenu');
   const label = document.getElementById('profileCurrent');
   const names = Object.keys(Store.profiles()).sort();
 
   if (label) label.textContent = activeProfile || '— Select a profile —';
+  renderProfileCards();
 
   /* With a profile open, saving goes back to it — the button says so, and
      keeps its ellipsis because it still asks for the name, which is the one

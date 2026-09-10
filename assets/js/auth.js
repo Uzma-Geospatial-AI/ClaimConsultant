@@ -29,7 +29,7 @@ const BDOS_BASE = 'https://bdos.uzmadigitalearth.app';
  * there. See docs/BDOS-CCS-Endpoints.md.
  */
 const ROLES = {
-  'adlishah0821@gmail.com':          'consultant',
+  'adlishah0821@gmail.com':          'admin',
   'nuramilazulfa@gmail.com':         'consultant',
   'hanis.rashidan@uzmagroup.com':    'manager',
   'fadhli.jamaluddin@uzmagroup.com': 'boss',
@@ -39,11 +39,19 @@ const ALLOWED_USERS = Object.keys(ROLES);
 
 /** What a role is called where somebody has to read it. */
 const ROLE_NAMES = {
+  admin:      'Administrator',
   consultant: 'Consultant',
   manager:    'Project Manager',
   boss:       'Head of Department',
   pa:         'PA to the HOD'
 };
+
+/* The admin prepares claims like a consultant and can also move any claim at
+   any stage — somebody has to be able to finish a month when the project
+   manager is on leave and the HOD is on a plane. BDOS decides this too; the
+   copy here only decides what the app draws. */
+const prepares = r => r === 'consultant' || r === 'admin';
+const isAdmin  = r => r === 'admin';
 
 const TOKEN_KEY = 'ccs.token';
 const USER_KEY  = 'ccs.user';
@@ -293,5 +301,7 @@ const Auth = {
   isAllowed: isAllowed,
   role: currentRole,
   roleName: r => ROLE_NAMES[r || currentRole()] || '',
+  prepares: () => prepares(currentRole()),
+  isAdmin: () => isAdmin(currentRole()),
   BASE: BDOS_BASE
 };

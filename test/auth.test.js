@@ -121,7 +121,10 @@ const run = expr => vm.runInContext(expr, ctx);
   // A claim is prepared, reviewed, approved and then signed — each account
   // has exactly one part in that, and the list is the roles it comes from.
   console.log('\nWho does what');
-  check('the owner prepares claims',   run("ROLES['adlishah0821@gmail.com']"), 'consultant');
+  check('the owner runs the thing',    run("ROLES['adlishah0821@gmail.com']"), 'admin');
+  check('the second account prepares', run("ROLES['nuramilazulfa@gmail.com']"), 'consultant');
+  check('an admin prepares claims too', run("prepares('admin')"), true);
+  check('an approver does not',        run("prepares('manager')"), false);
   check('Hanis reviews them',          run("ROLES['hanis.rashidan@uzmagroup.com']"), 'manager');
   check('Fadhli approves them',        run("ROLES['fadhli.jamaluddin@uzmagroup.com']"), 'boss');
   check('Fatin signs for him',         run("ROLES['fatin.zaini@uzmagroup.com']"), 'pa');
