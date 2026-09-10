@@ -222,6 +222,92 @@ async function claimHistory (limit) {
 }
 
 /* -----------------------------------------------------------------------
+   The archive — the signed copies
+
+   Everything else here is the form as software holds it. This is the
+   opposite: the paper that came back, scanned. A month is only really
+   finished when the signed invoice and the signed time sheet exist as
+   files somebody can produce a year later, so they are filed against the
+   person and the month and left alone after that.
+
+   Like submissions, and unlike the drafts and profiles, these are not
+   best-effort: a file that silently failed to upload is worse than one
+   never chosen, so they throw and the caller says so.
+   ----------------------------------------------------------------------- */
+
+/* Set when BDOS answers 404 for the archive: it has not been deployed yet.
+   Asking again on every repaint would be a request per click for nothing. */
+let archiveMissing = false;
+
+/** what one file looks like on the way up: bytes as base64, plus its name */
+function readFileForUpload (file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onerror = () => reject(new Error(`Could not read "${file.name}".`));
+    r.onload = () => {
+      const url = String(r.result || '');
+      const comma = url.indexOf(',');
+      resolve({
+        name: file.name,
+        type: file.type || 'application/octet-stream',
+        size: file.size,
+        content: comma >= 0 ? url.slice(comma + 1) : ''
+      });
+    };
+    r.readAsDataURL(file);
+  });
+}
+
+/** File the signed copies of one month's claim. */
+async function storeSigned (S, files, note) {
+  if (!syncOn) throw new Error('The shared database is not reachable, so there is nowhere to file them.');
+  const body = await ccsFetch('/archive', {
+    method: 'POST',
+    body: JSON.stringify({
+      consultant:   String(S.consultant.name || '').trim(),
+      unique_id:    uniqueIdOf(S) || null,
+      invoice_no:   S.invoice.no || null,
+      period_month: (Number(S.timesheet.month) || 0) + 1,
+      period_year:  Number(S.timesheet.year) || null,
+      note:         note || '',
+      files:        files
+    })
+  });
+  return (body && body.record) || null;
+}
+
+/**
+ * What has been filed. Both filters are optional: no consultant means
+ * everybody, no year means every year.
+ *
+ * A 404 here means BDOS has not shipped the archive yet, and — unlike every
+ * other endpoint in this file — that must not switch syncing off. Drafts,
+ * profiles and approvals are a working system without it; taking them down
+ * because one newer feature is missing would be the archive breaking the
+ * app it was added to.
+ */
+async function storedClaims (consultant, year) {
+  if (!syncOn || archiveMissing) return [];
+  const q = [];
+  if (consultant) q.push('consultant=' + encodeURIComponent(consultant));
+  if (year) q.push('year=' + encodeURIComponent(year));
+  try {
+    const body = await ccsFetch('/archive' + (q.length ? '?' + q.join('&') : ''), { method: 'GET' });
+    return (body && body.records) || [];
+  } catch (err) {
+    if (err.status === 404) archiveMissing = true;      // asked once, that is enough
+    console.warn(err.message || err);
+    return [];
+  }
+}
+
+/** One filed month, with the files themselves. */
+async function storedClaim (id) {
+  const body = await ccsFetch('/archive/' + encodeURIComponent(id), { method: 'GET' });
+  return (body && body.record) || null;
+}
+
+/* -----------------------------------------------------------------------
    Submissions — a claim on its way through the approvals
 
    Unlike everything else here, these are not best-effort. A claim that
@@ -355,6 +441,7 @@ async function initSync (S, adopt) {
 function forgetSync () {
   try { localStorage.removeItem(SYNCED_KEY); } catch (e) {}
   profileIds.clear();
+  archiveMissing = false;
   pendingPush = null;
   clearTimeout(pushTimer);
 }
@@ -371,6 +458,12 @@ const Sync = {
   deleteProfile: deleteProfile,
   recordClaim: recordClaim,
   history: claimHistory,
+  readFile: readFileForUpload,
+  store: storeSigned,
+  stored: storedClaims,
+  storedOne: storedClaim,
   forget: forgetSync,
-  get on () { return syncOn; }
+  get on () { return syncOn; },
+  /** is there an archive to file into? false while BDOS has not shipped one */
+  get archiveOn () { return syncOn && !archiveMissing; }
 };

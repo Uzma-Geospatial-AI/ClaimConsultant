@@ -14,6 +14,13 @@ function defaultState () {
       name: '', ic: '', addr1: '', addr2: '',
       position: '', position2: '', workLoc: 'UZMA TOWER', empCode: '',
       assignPeriod: '',
+      /* Two numbers that make an invoice number: who this is, and how many
+         claims they have sent. 2026-01-003 is the third claim of 2026 from
+         person 01. Both live on the profile, so they follow the person.
+         `claimSeq` is null until somebody says otherwise — see claimSeqOf(),
+         which is where "everybody starts at 1" is decided. */
+      uniqueId: '',
+      claimSeq: null,
       bank: '', accName: '', accNo: ''
     },
     company: {
@@ -27,6 +34,10 @@ function defaultState () {
     },
     invoice: {
       no: '', date: '', due: '', pStart: '', pEnd: '',
+      /* The number writes itself from the profile's unique ID and the count
+         of claims sent. Typing over it turns that off — for this claim only,
+         and it is said on the page rather than happening silently. */
+      autoNo: true,
       taxPct: 0, mode: 'monthly', monthlyRate: 3500, dailyRate: 0,
       /* The pay is worked out from the rate and the days that are paid for.
          Typing over it puts the figure here, so the calculation stops
@@ -41,17 +52,24 @@ function defaultState () {
       month: now.getMonth(),           // 0-11
       year: now.getFullYear(),
       activities: [ newActivity('') ],
+      /* True while the grid holds nothing but what the calendar put there:
+         every working day ticked, the public holidays marked PH. One click
+         on any cell makes it the consultant's sheet instead, and the month
+         stops being refilled underneath them. */
+      autoFilled: false,
       prepName: '', prepDate: '',
       reviewName: '', reviewDate: '',   // the project manager, who reviews first
       apprName: '', apprDate: '',
       verifName: '', verifDate: ''
     },
     sig: { personnel: '', pm: '', hod: '', verified: '' },
-    /* Leave already taken this year, before the month on the sheet. The form
-       has always worked this way for days claimed — PAST CLAIM [C] is typed
-       in the same way — and it keeps the balance right without needing every
-       earlier month to hand. */
-    leave: { year: now.getFullYear(), pto: 0, mc: 0, ul: 0 }
+    /* Leave already counted this year, one entry per month that has been
+       sent for approval: { '2026-09': { pto: 1, mc: 0, ul: 0 } }. It is
+       written when a claim goes off, so the balance carries forward on its
+       own — nobody types it in, and nobody needs every earlier sheet to
+       hand. Keying it by month is what makes resubmitting a claim that came
+       back cost nothing: the same month is written again, not added again. */
+    leave: { year: now.getFullYear(), pto: 0, mc: 0, ul: 0, counted: {} }
   };
 }
 
@@ -67,6 +85,46 @@ const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
 const dowOf = (y, m, d) => new Date(y, m, d).getDay();
 
 const isWeekend = (y, m, d) => { const w = dowOf(y, m, d); return w === 0 || w === 6; };
+
+/** the key a month is filed under: 2026, 8 -> '2026-09' */
+const monthKey = (y, m) => `${y}-${String(Number(m) + 1).padStart(2, '0')}`;
+
+/** compact month/year label, as the printed form writes it: 'Aug-26' */
+function monthLabel (ts) {
+  return `${MON3[ts.month]}-${String(ts.year).slice(2)}`;
+}
+
+/**
+ * Read a month back out of whatever somebody typed into Assignment Period.
+ * 'Sep-26', 'Sep 2026', 'September 2026' and '2026-09' all mean the same
+ * month, and all of them are things people write in that box.
+ *
+ * @returns {{y: number, m: number}|null} null when it is not a month yet —
+ *          which is most of the time, because it is read on every keystroke.
+ */
+function parseMonthLabel (text) {
+  const str = String(text == null ? '' : text).trim();
+  if (!str) return null;
+
+  // 2026-09 / 2026/9
+  let m = str.match(/^(\d{4})[-/](\d{1,2})$/);
+  if (m) {
+    const mon = Number(m[2]) - 1;
+    return (mon >= 0 && mon <= 11) ? { y: Number(m[1]), m: mon } : null;
+  }
+
+  // Sep-26 / September 2026 / Sep 2026
+  m = str.match(/^([A-Za-z]{3,})[\s\-/,]+(\d{2}|\d{4})$/);
+  if (!m) return null;
+  const name = m[1].toLowerCase();
+  const idx = MONTHS.findIndex(x => x.toLowerCase() === name) >= 0
+    ? MONTHS.findIndex(x => x.toLowerCase() === name)
+    : MON3.findIndex(x => x.toLowerCase() === name.slice(0, 3));
+  if (idx < 0) return null;
+
+  const yr = m[2].length === 2 ? 2000 + Number(m[2]) : Number(m[2]);
+  return (yr >= 2000 && yr <= 2100) ? { y: yr, m: idx } : null;
+}
 
 /** '2026-08-26' -> '26-Aug-26' */
 function fmtDMY (iso) {
@@ -169,6 +227,57 @@ function leaveDaysInMonth (ts, mark) {
   return [...days].sort((x, y) => x - y);
 }
 
+/** the leave this month's grid holds, ready to be filed against the year */
+function monthLeaveCounts (ts) {
+  const out = {};
+  Object.keys(LEAVE_LIMITS).forEach(mark => {
+    out[LEAVE_KEYS[mark]] = leaveDaysInMonth(ts, mark).length;
+  });
+  return out;
+}
+
+/**
+ * How much of one kind of leave this year has already spent, not counting
+ * the month on the sheet — the sheet itself is what is being decided.
+ *
+ * Months are filed one at a time as claims go off for approval, so this is a
+ * sum and never a figure anybody types. A saved form from before that
+ * existed carries three running totals instead, and those are read as the
+ * year's balance so an old profile is not silently reset to zero.
+ */
+function carriedLeave (S, mark) {
+  const ts = S.timesheet;
+  const L = S.leave || {};
+  const here = monthKey(ts.year, ts.month);
+  const counted = L.counted;
+
+  if (counted && typeof counted === 'object' && Object.keys(counted).length) {
+    let n = 0;
+    Object.keys(counted).forEach(k => {
+      if (k === here) return;                                  // not "earlier"
+      if (Number(String(k).slice(0, 4)) !== ts.year) return;   // another year
+      n += Math.max(0, Number((counted[k] || {})[LEAVE_KEYS[mark]]) || 0);
+    });
+    return n;
+  }
+  // a balance carried from another year is not this year's balance
+  return (L.year === ts.year) ? Math.max(0, Number(L[LEAVE_KEYS[mark]]) || 0) : 0;
+}
+
+/**
+ * File this month's leave against the year, so the next month opens with the
+ * balance already carried. Writing the same month twice replaces it rather
+ * than adding it again, which is what makes resubmitting a returned claim
+ * cost nothing.
+ */
+function recordLeaveTaken (S) {
+  const ts = S.timesheet;
+  if (!S.leave || typeof S.leave !== 'object') S.leave = { year: ts.year, pto: 0, mc: 0, ul: 0, counted: {} };
+  if (!S.leave.counted || typeof S.leave.counted !== 'object') S.leave.counted = {};
+  S.leave.counted[monthKey(ts.year, ts.month)] = monthLeaveCounts(ts);
+  return S.leave.counted;
+}
+
 /**
  * Where one kind of leave stands for the year the sheet is in.
  * @returns {{mark, name, days, month, earlier, taken, limit, left, over}}
@@ -176,9 +285,7 @@ function leaveDaysInMonth (ts, mark) {
 function leaveStanding (S, mark) {
   const ts = S.timesheet;
   const days = leaveDaysInMonth(ts, mark);
-  // a balance carried from another year is not this year's balance
-  const carried = (S.leave && S.leave.year === ts.year)
-    ? Math.max(0, Number(S.leave[LEAVE_KEYS[mark]]) || 0) : 0;
+  const carried = carriedLeave(S, mark);
   const taken = carried + days.length;
   const limit = LEAVE_LIMITS[mark];
   return {
@@ -191,6 +298,19 @@ function leaveStanding (S, mark) {
 /** every kind of leave, in the order they appear on the sheet */
 function leaveStandings (S) {
   return Object.keys(LEAVE_LIMITS).map(mark => leaveStanding(S, mark));
+}
+
+/** days of this kind still available — never below zero */
+const leaveLeft = (S, mark) => Math.max(0, leaveStanding(S, mark).left);
+
+/**
+ * May one more day be marked with this? A day already carrying the mark is
+ * asking to keep it, not to spend another one, so it always may.
+ */
+function canMarkLeave (S, mark, alreadyThisMark) {
+  if (!LEAVE_LIMITS[mark]) return true;          // PH comes out of nobody's allowance
+  if (alreadyThisMark) return true;
+  return leaveStanding(S, mark).left > 0;
 }
 
 /* ---------------- timesheet totals ---------------- */
@@ -320,6 +440,49 @@ function invoiceTotals (S, items) {
   return { sub, tax, total: round2(sub + tax) };
 }
 
+/* ---------------- the invoice number ---------------- */
+
+/* 2026-01-003 reads as: the year, the person, and the third claim they have
+   sent. The year comes from the sheet, the person from their profile, and
+   the count goes up by one each time a claim is submitted for approval. */
+
+/**
+ * Where somebody's count starts. Everybody begins at 1 — except the claims
+ * that were already sent on paper before this app existed, which are
+ * written down here so the numbering carries on rather than restarting.
+ * Matched on the name saved in the profile.
+ */
+const CLAIM_SEQ_START = [
+  [/adlishah\s+hakimi/i, 2]
+];
+
+/** the number this claim is: what the profile carries, or where they start */
+function claimSeqOf (S) {
+  const saved = S.consultant.claimSeq;
+  if (saved != null && Number(saved) >= 1) return Math.floor(Number(saved));
+  const name = String(S.consultant.name || '');
+  const seed = CLAIM_SEQ_START.find(([re]) => re.test(name));
+  return seed ? seed[1] : 1;
+}
+
+/** the profile's unique ID, as it is printed: two digits, '01' not '1' */
+function uniqueIdOf (S) {
+  const raw = String(S.consultant.uniqueId || '').trim();
+  if (!raw) return '';
+  return /^\d+$/.test(raw) ? raw.padStart(2, '0') : raw;
+}
+
+/**
+ * The invoice number this claim should carry, or '' when the profile has no
+ * unique ID yet — there is no sensible number without one, and inventing a
+ * digit would put two people on the same series.
+ */
+function invoiceNumberOf (S) {
+  const id = uniqueIdOf(S);
+  if (!id) return '';
+  return `${S.timesheet.year}-${id}-${String(claimSeqOf(S)).padStart(3, '0')}`;
+}
+
 /* ---------------- storage ---------------- */
 
 const STORE_KEY   = 'ccs.current';
@@ -376,6 +539,7 @@ function mergeDefaults (saved) {
   if (!Array.isArray(out.timesheet.activities) || !out.timesheet.activities.length) {
     out.timesheet.activities = [ newActivity('') ];
   }
+  if (!out.leave.counted || typeof out.leave.counted !== 'object') out.leave.counted = {};
 
   /* An address longer than the invoice can print is reflowed here as well as
      while it is typed. Everything saved before that rule existed — every

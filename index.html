@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Consultant Claim System</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20260911b">
+<link rel="stylesheet" href="assets/css/style.css?v=20260911c">
 </head>
 <body class="locked">
 
@@ -90,7 +90,14 @@
     <label>Position <span class="hint">(as on the Claim form)</span><input data-bind="consultant.position2" placeholder="FULL STACK DEVELOPER (CONSULTANT)"></label>
     <label>Work Location<input data-bind="consultant.workLoc" placeholder="UZMA TOWER"></label>
     <label>Employee / BP Code No. <span class="hint">(SAP usage only)</span><input data-bind="consultant.empCode" placeholder="leave blank if none"></label>
+    <label class="keyfield">Unique ID <span class="req">required</span>
+      <span class="hint">two digits, this person's own &mdash; it is the middle of every invoice number they send</span>
+      <input data-bind="consultant.uniqueId" id="c_uniqueId" placeholder="01" maxlength="4" inputmode="numeric"></label>
+    <label class="keyfield">Next claim number
+      <span class="hint">goes up by one each time a claim is submitted</span>
+      <input type="number" min="1" step="1" data-bind="consultant.claimSeq" data-type="num" id="c_claimSeq" placeholder="1"></label>
   </div>
+  <p class="keynote" id="invNoPreview"></p>
 
     <h3>Bank Details <span class="hint">(printed on the Invoice)</span></h3>
     <div class="grid2">
@@ -156,7 +163,7 @@
         <div class="drow"><span class="dlabel"></span><input class="dinput" data-bind="consultant.addr2" placeholder="address line 2"></div>
       </div>
       <div class="doc-col">
-        <div class="drow"><span class="dlabel">Invoice No.:</span><input class="dinput ta-r" data-bind="invoice.no" placeholder="INV-2026-08-026"></div>
+        <div class="drow"><span class="dlabel">Invoice No.:</span><input class="dinput ta-r" data-bind="invoice.no" id="i_no" placeholder="2026-01-001"></div>
         <div class="drow"><span class="dlabel">Invoice Date:</span><input class="dinput ta-r" type="date" data-bind="invoice.date"></div>
         <div class="drow"><span class="dlabel">Period:</span>
           <span class="dpair">
@@ -261,7 +268,7 @@
           <div class="ufield"><span>Name of Personnel</span><b>:</b><input class="dinput up" data-bind="consultant.name" placeholder="your full name"></div>
           <div class="ufield"><span>Position</span><b>:</b><input class="dinput up" data-bind="consultant.position2" placeholder="FULL STACK DEVELOPER (CONSULTANT)"></div>
           <div class="ufield"><span>Work Location</span><b>:</b><input class="dinput up" data-bind="consultant.workLoc" placeholder="UZMA TOWER"></div>
-          <div class="ufield"><span>Assignment Period</span><b>:</b><input class="dinput" data-bind="consultant.assignPeriod" placeholder="Aug-26"></div>
+          <div class="ufield"><span>Assignment Period <i>(follows Month / Year)</i></span><b>:</b><input class="dinput" data-bind="consultant.assignPeriod" id="c_assign" placeholder="Sep-26"></div>
           <div class="ufield"><span>Month / Year</span><b>:</b>
             <span class="dpair">
               <select id="ts_month" data-bind="timesheet.month" data-type="num" class="dinput"></select>
@@ -290,9 +297,11 @@
     <div class="uz-gridwrap" id="activities"></div>
     <div class="doc-underbar">
       <button class="btn ghost small" id="btnAddActivity">+ Add activity row</button>
+      <button class="btn ghost small" id="btnFillDays" title="Tick every working day and mark the Selangor public holidays">Fill the month in</button>
       <button class="btn ghost small" id="btnResetDays">Clear all ticks</button>
     </div>
     <div class="summary" id="tsSummary"></div>
+    <p class="holnote" id="tsHolidays" hidden></p>
     <p class="warn" id="tsWarn" hidden></p>
     <div class="leavebox" id="leaveBox"></div>
 
@@ -368,34 +377,57 @@
         <button class="btn" id="btnClaimDocx">Download Word</button>
       </div>
     </div>
-    <div class="gencard wide" id="card_all">
-      <h3>Everything at once</h3>
-      <p class="gsum" id="gsum_all"></p>
-      <div class="btnrow"><button class="btn primary" id="btnAll">Generate All</button></div>
-    </div>
-
-    <!-- consultants only: the claim leaves here and goes to the approvers -->
-    <div class="gencard wide" id="card_submit" hidden>
-      <h3>Send for approval</h3>
-      <p class="gsum">The claim goes to the project manager first, then to the HOD, and the
-        HOD&rsquo;s signature is placed by their PA. You can follow it on the Approvals step.</p>
-      <textarea class="decidenote" id="submitNote" rows="2"
-                placeholder="Anything the project manager should know (optional)"></textarea>
-      <div class="btnrow"><button class="btn primary" id="btnSubmitClaim">Submit for approval</button></div>
-    </div>
   </div>
 
   <div id="genlog" class="genlog"></div>
 </section>
 
-<!-- ============ STEP 6: APPROVALS ============ -->
+<!-- ============ STEP 6: SUBMIT ============ -->
+<section class="panel" id="p-submit" data-step="submit">
+  <h2>Send it for approval</h2>
+  <p class="lead">The claim goes to the project manager first, then to the HOD, and the
+    HOD&rsquo;s signature is placed by their PA. Once it has gone you can follow it on the
+    next step.</p>
+
+  <div class="submitcard" id="card_submit">
+    <div class="submitfacts" id="submitFacts"></div>
+    <p class="submitwarn" id="submitWarn" hidden></p>
+    <label class="submitnote">Anything the project manager should know <span class="hint">(optional)</span>
+      <textarea class="decidenote" id="submitNote" rows="3"
+                placeholder="e.g. two days of the period were spent at the client site"></textarea>
+    </label>
+    <div class="btnrow"><button class="btn primary" id="btnSubmitClaim">Submit for approval</button></div>
+  </div>
+
+  <p class="emptynote" id="submitOffline" hidden>
+    <b>Not connected to the database.</b> A claim travels between five people on five
+    machines, so it needs the shared database &mdash; which this browser cannot reach right
+    now. Nothing is lost: the form is still saved here, and the documents still download.
+  </p>
+</section>
+
+<!-- ============ STEP 7: STATUS / APPROVALS ============ -->
 <section class="panel" id="p-approvals" data-step="approvals">
-  <h2>Approvals</h2>
+  <h2 id="approvalHead">Status</h2>
   <p class="lead" id="approvalLead">Where every claim has got to, and what is waiting on you.</p>
   <div class="btnrow">
     <button class="btn ghost small" id="btnRefreshApprovals">Refresh</button>
   </div>
   <div id="approvalList" class="approvals"></div>
+
+  <!-- The signed paper, once it exists. Everything above is the form as
+       software holds it; this is what was actually signed. -->
+  <h3 class="archivehead">Signed copies on file</h3>
+  <p class="lead">When a claim comes back signed, file the two finished documents here.
+    They are kept against the person and the month, so any month can be produced again
+    later without hunting through anybody&rsquo;s downloads.</p>
+  <div class="btnrow">
+    <button class="btn ghost small" id="btnRefreshArchive">Refresh</button>
+    <label class="archivefilter">Show
+      <select id="archiveWho"><option value="">everybody</option></select>
+    </label>
+  </div>
+  <div id="archiveList" class="archive"></div>
 </section>
 
 </main>
@@ -429,23 +461,25 @@
      fetches the page again but keeps the old JavaScript for up to ten minutes
      — which reads as "the fix did not work". Bump this stamp whenever
      anything under assets/ changes and a reload picks it all up at once. -->
-<script src="vendor/jspdf.umd.min.js?v=20260911b"></script>
-<script src="vendor/jspdf.plugin.autotable.min.js?v=20260911b"></script>
-<script src="vendor/carlito.js?v=20260911b"></script>
-<script src="vendor/exceljs.min.js?v=20260911b"></script>
-<script src="vendor/FileSaver.min.js?v=20260911b"></script>
-<script src="vendor/signature_pad.umd.min.js?v=20260911b"></script>
-<script src="vendor/docx.umd.js?v=20260911b"></script>
-<script src="assets/js/state.js?v=20260911b"></script>
-<script src="assets/js/logo.js?v=20260911b"></script>
-<script src="assets/js/timesheet.js?v=20260911b"></script>
-<script src="assets/js/signature.js?v=20260911b"></script>
-<script src="assets/js/gen-invoice.js?v=20260911b"></script>
-<script src="assets/js/gen-claim.js?v=20260911b"></script>
-<script src="assets/js/preview.js?v=20260911b"></script>
-<script src="assets/js/auth.js?v=20260911b"></script>
-<script src="assets/js/sync.js?v=20260911b"></script>
-<script src="assets/js/approvals.js?v=20260911b"></script>
-<script src="assets/js/app.js?v=20260911b"></script>
+<script src="vendor/jspdf.umd.min.js?v=20260911c"></script>
+<script src="vendor/jspdf.plugin.autotable.min.js?v=20260911c"></script>
+<script src="vendor/carlito.js?v=20260911c"></script>
+<script src="vendor/exceljs.min.js?v=20260911c"></script>
+<script src="vendor/FileSaver.min.js?v=20260911c"></script>
+<script src="vendor/signature_pad.umd.min.js?v=20260911c"></script>
+<script src="vendor/docx.umd.js?v=20260911c"></script>
+<script src="assets/js/state.js?v=20260911c"></script>
+<script src="assets/js/holidays.js?v=20260911c"></script>
+<script src="assets/js/logo.js?v=20260911c"></script>
+<script src="assets/js/timesheet.js?v=20260911c"></script>
+<script src="assets/js/signature.js?v=20260911c"></script>
+<script src="assets/js/gen-invoice.js?v=20260911c"></script>
+<script src="assets/js/gen-claim.js?v=20260911c"></script>
+<script src="assets/js/preview.js?v=20260911c"></script>
+<script src="assets/js/auth.js?v=20260911c"></script>
+<script src="assets/js/sync.js?v=20260911c"></script>
+<script src="assets/js/approvals.js?v=20260911c"></script>
+<script src="assets/js/archive.js?v=20260911c"></script>
+<script src="assets/js/app.js?v=20260911c"></script>
 </body>
 </html>

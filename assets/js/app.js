@@ -42,7 +42,12 @@ const STEPS = [
   { id: 'invoice',    label: 'Invoice',    modes: ['invoice', 'both'] },
   { id: 'claim',      label: 'Claim Form', modes: ['claim', 'both'] },
   { id: 'generate',   label: 'Generate' },
-  { id: 'approvals',  label: 'Approvals' }
+  /* Downloading the documents and sending the claim away are two different
+     decisions, and they were on one screen. Generating is something you do
+     several times while a month is still being argued about; submitting
+     happens once and cannot be taken back. They are separate steps now. */
+  { id: 'submit',     label: 'Submit' },
+  { id: 'approvals',  label: 'Status' }
 ];
 
 let stepIndex = 0;
@@ -56,9 +61,9 @@ function activeSteps () {
   if (Auth.role() && !Auth.prepares()) {
     return STEPS.filter(s => s.id === 'approvals');
   }
-  const approvals = STEPS.filter(s => s.id === 'approvals');
+  const tail = STEPS.filter(s => s.id === 'approvals');
   if (!S.mode) {
-    return STEPS.filter(s => s.id === 'consultant' || s.id === 'choose').concat(approvals);
+    return STEPS.filter(s => s.id === 'consultant' || s.id === 'choose').concat(tail);
   }
   return STEPS.filter(s => !s.modes || s.modes.includes(S.mode));
 }
@@ -99,12 +104,8 @@ function showStep () {
   if (step.id === 'claim' || step.id === 'invoice') setTimeout(() => Sig.resizeAll(), 30);
   if (step.id === 'generate') renderGenSummary();
   if (step.id === 'choose') paintChoices();
-  if (step.id === 'approvals') renderApprovals();
-  if (step.id === 'generate') {
-    const card = document.getElementById('card_submit');
-    // whoever prepares claims can send one — the admin included
-    if (card) card.hidden = !(Sync.on && (!Auth.role() || Auth.prepares()));
-  }
+  if (step.id === 'submit') renderSubmitStep();
+  if (step.id === 'approvals') { renderApprovals(); renderArchive(); }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -256,19 +257,36 @@ function bindInputs () {
         }
         lastName = el.value;
         updateInvSigName();
+        syncInvoiceNo();          // the seeded starting number follows the name
       }
-      // move the timesheet to the invoice period, but never over existing ticks
-      if (path === 'invoice.pStart' && timesheetUntouched()) {
+      // move the timesheet to the invoice period, but never over a sheet
+      // somebody has actually worked on
+      if (path === 'invoice.pStart' && timesheetIsAuto(S)) {
         const ref = periodMonth(el.value);
         if (ref && (ref.y !== S.timesheet.year || ref.m !== S.timesheet.month)) {
-          S.timesheet.year = ref.y;
-          S.timesheet.month = ref.m;
-          mirror('timesheet.year'); mirror('timesheet.month');
-          renderTimesheet(S, afterTimesheetChange);
+          setTimesheetMonth(ref.y, ref.m, { keepPeriod: true });
         }
       }
       if (path === 'timesheet.month' || path === 'timesheet.year') {
-        renderTimesheet(S, afterTimesheetChange);
+        onMonthChanged();
+      }
+      /* Assignment Period and Month / Year are the same fact written two
+         ways, so each writes the other. Read on every keystroke, which is
+         why parseMonthLabel says no to everything that is not yet a month. */
+      if (path === 'consultant.assignPeriod') {
+        const ref = parseMonthLabel(el.value);
+        if (ref && (ref.y !== S.timesheet.year || ref.m !== S.timesheet.month)) {
+          setTimesheetMonth(ref.y, ref.m, { keepAssign: true });
+        }
+      }
+      if (path === 'consultant.uniqueId' || path === 'consultant.claimSeq') {
+        // changing either half of the number is asking for the number back
+        S.invoice.autoNo = true;
+        syncInvoiceNo();
+      }
+      if (path === 'invoice.no') {
+        S.invoice.autoNo = !el.value.trim() || el.value.trim() === invoiceNumberOf(S);
+        paintInvoiceNo();
       }
       if (path === 'invoice.mode') renderItems();
       syncAutoAmount();
@@ -279,6 +297,111 @@ function bindInputs () {
 
 let lastName = '';
 const afterTimesheetChange = () => { persist(); syncAutoAmount(); };
+
+/* =======================================================================
+   The month, and the three things that follow it
+
+   A claim is for one month, and that month is written in four places: the
+   Month / Year boxes, the Assignment Period line above them, the invoice
+   period, and the year in the invoice number. Keeping them in step by hand
+   is how a sheet ends up dated August with September's days on it, so the
+   month is set in one place here and everything else is derived.
+   ======================================================================= */
+
+/**
+ * Move the whole form to a month.
+ * @param {object} [opts] `keepAssign` when the change came from the
+ *        Assignment Period box, `keepPeriod` when it came from the invoice
+ *        period — the field being typed in is not written back over.
+ */
+function setTimesheetMonth (y, m, opts) {
+  S.timesheet.year = y;
+  S.timesheet.month = m;
+  mirror('timesheet.year');
+  mirror('timesheet.month');
+  onMonthChanged(opts);
+}
+
+function onMonthChanged (opts) {
+  const o = opts || {};
+  const ts = S.timesheet;
+
+  // a month nobody has touched is filled in again for the new month; one
+  // somebody has worked on is theirs, and is left exactly as it is
+  if (timesheetIsAuto(S)) autoFillMonth(S);
+
+  if (!o.keepAssign) {
+    S.consultant.assignPeriod = monthLabel(ts);
+    mirror('consultant.assignPeriod');
+  }
+  if (!o.keepPeriod) movePeriodToMonth();
+
+  syncInvoiceNo();
+  renderTimesheet(S, afterTimesheetChange);
+  syncAutoAmount();
+  persist();
+}
+
+/**
+ * Move the invoice period onto the new month — but only when it was the
+ * whole of the old one. A period somebody narrowed by hand (a consultant
+ * who started on the 24th) is a decision, not a default, and survives.
+ */
+function movePeriodToMonth () {
+  const ts = S.timesheet;
+  const pad = n => String(n).padStart(2, '0');
+  const firstOf = (y, m) => `${y}-${pad(m + 1)}-01`;
+  const lastOf  = (y, m) => `${y}-${pad(m + 1)}-${pad(daysInMonth(y, m))}`;
+
+  const a = periodMonth(S.invoice.pStart);
+  const b = periodMonth(S.invoice.pEnd);
+  const wholeMonth = a && b && a.y === b.y && a.m === b.m &&
+    S.invoice.pStart === firstOf(a.y, a.m) && S.invoice.pEnd === lastOf(b.y, b.m);
+  if (S.invoice.pStart && S.invoice.pEnd && !wholeMonth) return;
+
+  const wasDue = S.invoice.due === S.invoice.pEnd || !S.invoice.due;
+  S.invoice.pStart = firstOf(ts.year, ts.month);
+  S.invoice.pEnd   = lastOf(ts.year, ts.month);
+  if (wasDue) { S.invoice.due = S.invoice.pEnd; mirror('invoice.due'); }
+  mirror('invoice.pStart');
+  mirror('invoice.pEnd');
+}
+
+/**
+ * Write the invoice number the profile says this claim is, unless somebody
+ * has typed their own over it.
+ */
+function syncInvoiceNo () {
+  const auto = invoiceNumberOf(S);
+  if (S.invoice.autoNo !== false && auto && S.invoice.no !== auto) {
+    S.invoice.no = auto;
+    mirror('invoice.no');
+  }
+  paintInvoiceNo();
+  renderGenSummary();
+}
+
+/** say, on the profile step, what number the next claim will carry */
+function paintInvoiceNo () {
+  const box = document.getElementById('invNoPreview');
+  if (!box) return;
+  const auto = invoiceNumberOf(S);
+  if (!auto) {
+    box.className = 'keynote warn';
+    box.textContent =
+      'Give this person a Unique ID and their invoice number writes itself: ' +
+      `${S.timesheet.year}-01-${String(claimSeqOf(S)).padStart(3, '0')} is ` +
+      `claim ${claimSeqOf(S)} of ${S.timesheet.year} from person 01.`;
+    return;
+  }
+  const typed = S.invoice.autoNo === false && S.invoice.no && S.invoice.no !== auto;
+  box.className = 'keynote' + (typed ? ' warn' : '');
+  box.textContent = typed
+    ? `This claim carries "${S.invoice.no}", typed in by hand. The number it would ` +
+      `otherwise have is ${auto}.`
+    : `This claim is ${auto} — claim ${claimSeqOf(S)} of ${S.timesheet.year} ` +
+      `from person ${uniqueIdOf(S)}.`;
+}
 
 /* ---------------- invoice item rows ---------------- */
 
@@ -395,21 +518,116 @@ function renderGenSummary () {
 
   const cInv = document.getElementById('card_inv');
   const cClm = document.getElementById('card_claim');
-  const cAll = document.getElementById('card_all');
   if (cInv) cInv.classList.toggle('hidden', !wantInv);
   if (cClm) cClm.classList.toggle('hidden', !wantClaim);
-  if (cAll) cAll.classList.toggle('hidden', S.mode !== 'both');
 
   const T = invoiceTotals(S);
   const t = timesheetTotals(S.timesheet);
-  document.getElementById('gsum_inv').innerHTML =
+  const gi = document.getElementById('gsum_inv');
+  if (gi) gi.innerHTML =
     `<b>${S.invoice.no || '(no invoice number)'}</b> &middot; ${fmtPeriod(S.invoice.pStart, S.invoice.pEnd) || '(no period)'}<br>
      Total Due: <b>RM ${money(T.total)}</b>`;
-  document.getElementById('gsum_claim').innerHTML =
+  const gc = document.getElementById('gsum_claim');
+  if (gc) gc.innerHTML =
     `${MONTHS[S.timesheet.month]} ${S.timesheet.year} &middot; ${S.consultant.name || '(no name)'}<br>
      Total Days [A]: <b>${t.A}</b> &middot; Balance: <b>${t.balance}</b>`;
-  const all = document.getElementById('gsum_all');
-  if (all) all.textContent = 'Generate all four files in one go (2 PDF + 1 Excel + 1 Word).';
+}
+
+/* =======================================================================
+   Step 6 — sending it
+
+   The one irreversible thing in the app, so the screen before it is a
+   summary rather than a button: what is about to go, to whom, and what is
+   wrong with it if anything is. Everything it lists is fixable on a step
+   that is still there behind you.
+   ======================================================================= */
+
+/** documents downloaded in this session — what the history row records */
+const generated = new Set();
+
+function renderSubmitStep () {
+  const facts = document.getElementById('submitFacts');
+  const card  = document.getElementById('card_submit');
+  const off   = document.getElementById('submitOffline');
+  const warn  = document.getElementById('submitWarn');
+  if (!facts) return;
+
+  const T = invoiceTotals(S);
+  const t = timesheetTotals(S.timesheet);
+  const rows = [
+    ['Consultant', S.consultant.name || '(no name)'],
+    ['Month', `${MONTHS[S.timesheet.month]} ${S.timesheet.year}`],
+    ['Invoice No.', S.invoice.no || '(none)'],
+    ['Period', fmtPeriod(S.invoice.pStart, S.invoice.pEnd) || '(none)'],
+    ['Total days [A]', String(t.A)],
+    ['Total due', 'RM ' + money(T.total)],
+    ['Goes to', S.timesheet.reviewName || 'the project manager']
+  ];
+  facts.innerHTML = '';
+  rows.forEach(([k, v]) => {
+    const d = document.createElement('div');
+    d.innerHTML = '<span></span><b></b>';
+    d.querySelector('span').textContent = k;
+    d.querySelector('b').textContent = v;
+    facts.appendChild(d);
+  });
+
+  /* Not blocking — an approver can still be sent something imperfect, and
+     usually the person submitting knows why. Saying it once is enough. */
+  const problems = [];
+  if (!String(S.consultant.name || '').trim()) problems.push('the profile has no name');
+  if (!String(S.invoice.no || '').trim()) {
+    problems.push('there is no invoice number — fill the Unique ID in on the Profile step');
+  }
+  if (!S.sig.personnel) problems.push('nobody has signed the PERSONNEL box');
+  const over = leaveStandings(S).filter(L => L.over);
+  over.forEach(L => problems.push(
+    `${L.name} is over the ${L.limit}-day allowance by ${L.taken - L.limit}`));
+  const blank = unmarkedDays(S.timesheet);
+  if (blank.length) {
+    problems.push(`${blank.length} working day${blank.length > 1 ? 's are' : ' is'} unmarked, ` +
+                  'and unmarked days are not paid');
+  }
+
+  if (warn) {
+    warn.hidden = !problems.length;
+    warn.textContent = problems.length
+      ? 'Before you send it: ' + problems.join('; ') + '.'
+      : '';
+  }
+
+  const canSend = Sync.on;
+  if (card) card.hidden = !canSend;
+  if (off)  off.hidden = canSend;
+}
+
+/**
+ * A claim has gone. Three things follow, and all three are the kind nobody
+ * should have to remember:
+ *
+ *   · this month's leave is filed against the year, so the next month opens
+ *     with the balance already carried forward
+ *   · the claim number goes up, so the next invoice number is the next one
+ *   · the profile keeps both, because they belong to the person and not to
+ *     whatever happens to be in the form
+ */
+function afterSubmitted () {
+  recordLeaveTaken(S);
+  S.consultant.claimSeq = claimSeqOf(S) + 1;
+  S.invoice.autoNo = true;
+  mirror('consultant.claimSeq');
+  syncInvoiceNo();
+
+  // one history row per claim sent, listing whatever was downloaded for it
+  Sync.recordClaim(S, [...generated]);
+  generated.clear();
+
+  if (activeProfile) {
+    Store.saveProfile(activeProfile, S);
+    Sync.pushProfile(activeProfile, S);
+  }
+  renderProfileCards();
+  persist();
 }
 
 /* ---------------- persistence ---------------- */
@@ -442,8 +660,15 @@ function fillDefaultsForMonth () {
     const now = new Date();
     S.invoice.date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   }
-  if (!S.invoice.no) S.invoice.no = `INV-${ts.year}-${pad(ts.month + 1)}-001`;
-  if (!S.consultant.assignPeriod) S.consultant.assignPeriod = monthLabel(ts);
+  /* Assignment Period is Month / Year said another way, so a saved profile
+     opened in a new month is moved on rather than left dated to the month it
+     was saved in. Anything that is not a month — somebody who wrote
+     "Aug-Sep 26" on purpose — is left exactly as they wrote it. */
+  const assigned = parseMonthLabel(S.consultant.assignPeriod);
+  if (!String(S.consultant.assignPeriod || '').trim() ||
+      (assigned && (assigned.y !== ts.year || assigned.m !== ts.month))) {
+    S.consultant.assignPeriod = monthLabel(ts);
+  }
   if (!S.timesheet.prepName) S.timesheet.prepName = S.consultant.name;
   if (!S.timesheet.reviewName) S.timesheet.reviewName = SIGN_DEFAULTS.review;
   if (!S.timesheet.apprName)  S.timesheet.apprName  = SIGN_DEFAULTS.hod;
@@ -453,8 +678,16 @@ function fillDefaultsForMonth () {
   // these only start filled the way the printed form starts filled
   if (!S.timesheet.reviewDate) S.timesheet.reviewDate = S.timesheet.prepDate;
   if (!S.timesheet.apprDate)  S.timesheet.apprDate  = S.timesheet.prepDate;
-  // a year turned over: this year's leave starts from nothing
-  if (!S.leave || S.leave.year !== ts.year) S.leave = { year: ts.year, pto: 0, mc: 0, ul: 0 };
+  /* The leave record is keyed by month, so a year turning over needs nothing
+     done to it — last year's months simply stop being this year's. All this
+     has to do is make sure the shape is there to write into. */
+  if (!S.leave || typeof S.leave !== 'object') S.leave = { year: ts.year, pto: 0, mc: 0, ul: 0, counted: {} };
+  if (!S.leave.counted || typeof S.leave.counted !== 'object') S.leave.counted = {};
+  S.leave.year = ts.year;
+
+  // an empty month is filled in from the calendar rather than left blank
+  if (timesheetIsAuto(S)) autoFillMonth(S);
+
   lastName = S.consultant.name;
 }
 
@@ -465,14 +698,11 @@ function fillDefaultsForMonth () {
 function adoptSubmission (sub) {
   S = mergeDefaults(sub.data);
   activeProfile = '';
+  fillDefaultsForMonth();
   stepIndex = Math.max(0, activeSteps().findIndex(s => s.id === 'claim'));
   renderAll();
   persist();
   toast('Opened in the form. Fix it, then resubmit from the Approvals step.');
-}
-
-function timesheetUntouched () {
-  return S.timesheet.activities.every(a => Object.keys(a.days || {}).length === 0);
 }
 
 /* ---------------- signatures inside the form ---------------- */
@@ -502,6 +732,7 @@ function renderAll () {
   renderProfileCards();
   renderTimesheet(S, afterTimesheetChange);
   mountSignatures();
+  syncInvoiceNo();
   syncAutoAmount();
   paintChoices();
   showStep();
@@ -528,6 +759,7 @@ function boot () {
 
   renderTimesheet(S, afterTimesheetChange);
   mountSignatures();
+  syncInvoiceNo();
   syncAutoAmount();
   paintChoices();
   showStep();
@@ -545,9 +777,25 @@ function boot () {
   document.getElementById('btnResetDays').addEventListener('click', () => {
     if (!confirm('Clear every day tick on every activity row?')) return;
     S.timesheet.activities.forEach(a => { a.days = {}; });
+    // an empty sheet is an automatic one again: change the month and it fills
+    S.timesheet.autoFilled = false;
     renderTimesheet(S, afterTimesheetChange);
     syncAutoAmount(); persist();
     toast('All ticks cleared.');
+  });
+  document.getElementById('btnFillDays').addEventListener('click', () => {
+    const marked = !timesheetIsAuto(S);
+    if (marked && !confirm(
+      'Fill this month in from the calendar?\n\n' +
+      'Every working day is ticked and the Selangor public holidays are marked PH. ' +
+      'Anything already on the grid is replaced.')) return;
+    const done = autoFillMonth(S);
+    renderTimesheet(S, afterTimesheetChange);
+    syncAutoAmount(); persist();
+    const n = Object.keys(done.holidays).length;
+    toast(done.known || !n
+      ? `Month filled in${n ? `, ${n} public holiday${n > 1 ? 's' : ''} marked` : ''}.`
+      : `Month filled in — only the fixed public holidays are known for ${S.timesheet.year}.`);
   });
 
   document.getElementById('btnAddItem').addEventListener('click', () => {
@@ -638,28 +886,11 @@ function boot () {
   wire('btnClaimPdf',  generateClaimPDF,    'Claim PDF');
   wire('btnClaimDocx', generateClaimDOCX,   'Claim Word');
 
-  document.getElementById('btnAll').addEventListener('click', async () => {
-    if (!validate()) return;
-    const jobs = [];
-    if (S.mode === 'invoice' || S.mode === 'both') {
-      jobs.push(['Invoice PDF', generateInvoicePDF], ['Invoice Excel', generateInvoiceXLSX]);
-    }
-    if (S.mode === 'claim' || S.mode === 'both') {
-      jobs.push(['Claim PDF', generateClaimPDF], ['Claim Word', generateClaimDOCX]);
-    }
-    const made = [];
-    for (const [label, fn] of jobs) {
-      try { await fn(S); made.push(label); log(`✓ ${label} generated.`, 'ok'); }
-      catch (err) { log(`✗ ${label} failed: ${err.message}`, 'err'); console.error(err); }
-      await new Promise(res => setTimeout(res, 350));
-    }
-    // One row per submission, not per button: this is the claim going out.
-    if (made.length) Sync.recordClaim(S, made);
-    toast('Done — check your Downloads folder.');
-  });
-
   /* --- sending the claim off to be approved --- */
   document.getElementById('btnRefreshApprovals').addEventListener('click', renderApprovals);
+  const btnArch = document.getElementById('btnRefreshArchive');
+  if (btnArch) btnArch.addEventListener('click', () => renderArchive(true));
+
   document.getElementById('btnSubmitClaim').addEventListener('click', async () => {
     if (!validate()) return;
     if (!Sync.on) {
@@ -672,6 +903,7 @@ function boot () {
     try {
       await Sync.submit(S, note.value.trim());
       note.value = '';
+      afterSubmitted();
       toast('Sent to the project manager.');
       goToStep(activeSteps().findIndex(st => st.id === 'approvals'), true);
     } catch (err) {
@@ -696,6 +928,9 @@ function boot () {
     if (r.adopted)     toast('Loaded the draft saved from your other device.');
     else if (r.gained) toast(`${r.gained} shared profile(s) loaded.`);
     refreshProfileList();
+    // the probe is what decides whether a claim can be sent at all, and it
+    // answers after the first paint
+    renderSubmitStep();
   });
 }
 
@@ -737,7 +972,7 @@ function wireView (id, build, nameOf, label) {
 function wire (id, fn, label) {
   document.getElementById(id).addEventListener('click', async () => {
     if (!validate()) return;
-    try { await fn(S); log(`✓ ${label} generated.`, 'ok'); toast(`${label} downloaded.`); }
+    try { await fn(S); generated.add(label); log(`✓ ${label} generated.`, 'ok'); toast(`${label} downloaded.`); }
     catch (err) { log(`✗ ${label} failed: ${err.message}`, 'err'); toast(`${label} could not be generated.`, true); console.error(err); }
   });
 }
@@ -788,6 +1023,10 @@ function editProfile (name) {
   S = mergeDefaults(p);
   activeProfile = name;
   stepIndex = 0;                       // Your Details, which is what is being edited
+  /* A profile saved in August, opened in September, is a September claim.
+     The month, the Assignment Period and an untouched grid all move with it —
+     the same thing that happens when the app is opened cold. */
+  fillDefaultsForMonth();
   renderAll();
   persist();
   openProfiles(false);
@@ -855,6 +1094,14 @@ function renderProfileCards () {
     sub.className = 'pcardsub';
     sub.textContent = p.consultant.position || p.consultant.position2 || 'No position saved';
     card.appendChild(sub);
+
+    // the unique ID is the middle of every invoice number this person sends,
+    // so it belongs on the card that chooses them
+    const id = document.createElement('span');
+    const pid = String(p.consultant.uniqueId || '').trim();
+    id.className = 'pcardid' + (pid ? '' : ' missing');
+    id.textContent = pid ? `ID ${pid}` : 'no unique ID';
+    card.appendChild(id);
 
     // the balance is the thing people open a profile to find out
     const chips = document.createElement('span');

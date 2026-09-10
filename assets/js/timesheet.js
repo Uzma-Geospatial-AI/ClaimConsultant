@@ -25,6 +25,71 @@ function dayValue (ts, act, d) {
   return '';
 }
 
+/* -----------------------------------------------------------------------
+   Filling the month in
+
+   Almost every month is the same month: every working day worked, the
+   public holidays marked PH, the weekend already labelled by the calendar.
+   Typing that in twenty-two times is twenty-two chances to miss one, so the
+   app does it and the consultant corrects it — which is one click per day
+   that was not ordinary.
+
+   The moment any cell is clicked the sheet stops being automatic and is
+   left alone: changing the month afterwards will not quietly rewrite
+   somebody's corrections.
+   ----------------------------------------------------------------------- */
+
+/** is the grid still the calendar's work rather than somebody's? */
+function timesheetIsAuto (S) {
+  return S.timesheet.autoFilled ||
+         S.timesheet.activities.every(a => Object.keys(a.days || {}).length === 0);
+}
+
+/**
+ * Tick every working day of the month on the first activity row, and mark
+ * the Selangor public holidays PH. Weekends are left blank because the grid
+ * labels them SAT and SUN from the calendar already.
+ *
+ * @returns {{holidays: Object, known: boolean}} which days were made PH, and
+ *          whether the holiday table actually knows this year
+ */
+function autoFillMonth (S) {
+  const ts = S.timesheet;
+  if (!ts.activities.length) ts.activities.push(newActivity(''));
+  const act = ts.activities[0];
+  const dim = daysInMonth(ts.year, ts.month);
+  const hol = typeof holidaysInMonth === 'function' ? holidaysInMonth(ts.year, ts.month) : {};
+
+  ts.activities.forEach(a => { a.days = {}; });
+  for (let d = 1; d <= dim; d++) {
+    if (isWeekend(ts.year, ts.month, d)) continue;
+    act.days[d] = hol[d] ? 'PH' : '/';
+  }
+  ts.autoFilled = true;
+  return {
+    holidays: hol,
+    known: typeof holidaysKnown === 'function' ? holidaysKnown(ts.year) : false
+  };
+}
+
+/**
+ * The next mark a cell takes when it is clicked, skipping any kind of leave
+ * whose allowance for the year is already spent. A balance of zero is not a
+ * warning after the fact — the sheet simply will not offer the day.
+ *
+ * @returns {{value: string, skipped: string[]}}
+ */
+function nextDayMark (S, cur) {
+  const at = CYCLE.indexOf(cur);
+  const skipped = [];
+  for (let step = 1; step <= CYCLE.length; step++) {
+    const v = CYCLE[(at + step) % CYCLE.length];
+    if (canMarkLeave(S, v, false)) return { value: v, skipped: skipped };
+    skipped.push(v);
+  }
+  return { value: '', skipped: skipped };
+}
+
 const B_HEADS = [
   'TOTAL DAYS<br>(current month claim)<br>[A]',
   'ALLOCATED<br>PROJECTED DAYS<br>[B]',
@@ -82,10 +147,16 @@ function renderTimesheet (S, onChange) {
       } else {
         td.addEventListener('click', () => {
           const cur = act.days[d] || '';
-          const nextVal = CYCLE[(CYCLE.indexOf(cur) + 1) % CYCLE.length];
-          if (nextVal) act.days[d] = nextVal; else delete act.days[d];
+          const step = nextDayMark(S, cur);
+          if (step.value) act.days[d] = step.value; else delete act.days[d];
+          // the consultant has had a say now, so the month is theirs
+          ts.autoFilled = false;
           paintDay(td, ts, act, d);
           updateRow(tr, S, act, ai);
+          if (step.skipped.length) {
+            const names = step.skipped.map(k => `${k} (${LEAVE_NAMES[k]})`).join(' and ');
+            toast(`No ${names} left for ${ts.year} — skipped.`, true);
+          }
           onChange();
         });
         paintDay(td, ts, act, d);
@@ -198,6 +269,24 @@ function renderSummary (S) {
     <div>Allocated [B]<b>${t.B}</b></div>
     <div>Balance<b>${t.balance}</b></div>`;
 
+  /* Which days the calendar put a PH on, and — more usefully — when it could
+     not, because the movable holidays for that year have not been added yet.
+     Silence there would read as "there are none". */
+  const holNote = document.getElementById('tsHolidays');
+  if (holNote && typeof holidaysInMonth === 'function') {
+    const hol = holidaysInMonth(ts.year, ts.month);
+    const listed = Object.keys(hol).map(d => `${d} ${MON3[ts.month]} — ${hol[d]}`);
+    const known = typeof holidaysKnown === 'function' ? holidaysKnown(ts.year) : false;
+    holNote.hidden = false;
+    holNote.className = 'holnote' + (known ? '' : ' unsure');
+    holNote.textContent = (listed.length
+        ? `Selangor public holidays this month: ${listed.join(' · ')}.`
+        : 'No Selangor public holiday falls in this month.') +
+      (known ? '' :
+        ` The movable holidays for ${ts.year} are not in the calendar yet, so only the ` +
+        'fixed dates were set — check the others and mark them PH yourself.');
+  }
+
   const warn = document.getElementById('tsWarn');
   if (warn) {
     // an unmarked working day is not paid, and that is almost never what
@@ -215,10 +304,13 @@ function renderSummary (S) {
 }
 
 /**
- * The year's leave, one row per kind: what this month's grid holds, what was
- * taken before it, and what is left of the allowance. The "before this month"
- * figure is typed, the way PAST CLAIM [C] is, so the balance is right without
- * needing every earlier sheet to hand.
+ * The year's leave, one row per kind: what this month's grid holds, and what
+ * is left of the allowance.
+ *
+ * Nothing here is typed any more. What earlier months used up is added up
+ * from the months that have actually been sent for approval, so the balance
+ * carries itself forward and the column that used to ask somebody to
+ * remember it is gone.
  */
 function renderLeave (S, hostId) {
   // the same table appears twice: under the grid, and on the profile step
@@ -227,28 +319,41 @@ function renderLeave (S, hostId) {
   if (!host) return;
   const ts = S.timesheet;
 
+  const carried = Object.keys(LEAVE_LIMITS)
+    .map(mark => ({ mark: mark, n: carriedLeave(S, mark) }))
+    .filter(x => x.n > 0);
+
   host.innerHTML = `
     <div class="leavehead">
-      <b>Leave taken in ${ts.year}</b>
+      <b>Leave in ${ts.year}</b>
       <span>${LEAVE_LIMITS.PTO} days each a year. <b>PTO</b> and <b>MC</b> are paid and
-        counted into [A]; <b>UL</b> is not.</span>
+        counted into [A]; <b>UL</b> is not. A day cannot be marked once its
+        allowance is spent.</span>
     </div>
     <table class="leavetable">
       <thead><tr>
-        <th>Leave</th><th>Earlier in ${ts.year}</th>
-        <th>${MONTHS[ts.month]}</th><th>Taken</th><th>Left</th><th>Days this month</th>
+        <th>Leave</th><th>${MONTHS[ts.month]}</th>
+        <th>Taken in ${ts.year}</th><th>Left</th><th>Days this month</th>
       </tr></thead>
       <tbody></tbody>
-    </table>`;
+    </table>
+    <p class="leavefoot"></p>`;
+
+  const foot = host.querySelector('.leavefoot');
+  foot.textContent = carried.length
+    ? 'Carried forward from months already submitted: ' +
+      carried.map(x => `${x.n} ${x.mark}`).join(', ') + '.'
+    : `Nothing carried forward — ${ts.year} starts here.`;
 
   const tbody = host.querySelector('tbody');
   leaveStandings(S).forEach(L => tbody.appendChild(leaveRow(S, L.mark)));
 }
 
-/** one leave row, and the cells that follow whatever is typed into it */
+/** one leave row: this month, the year so far, and what is left of it */
 function leaveRow (S, mark) {
-  const ts = S.timesheet;
+  const L = leaveStanding(S, mark);
   const tr = document.createElement('tr');
+  if (L.over) tr.className = 'over';
 
   const name = document.createElement('td');
   name.innerHTML = `<span class="lmark ${MARKS[mark]}"></span>`;
@@ -256,42 +361,20 @@ function leaveRow (S, mark) {
   name.appendChild(document.createTextNode(' ' + LEAVE_NAMES[mark]));
   tr.appendChild(name);
 
-  // What was taken before this sheet is the one figure nobody can derive.
-  const earlier = document.createElement('td');
-  const input = document.createElement('input');
-  input.className = 'dinput ta-c';
-  input.type = 'number'; input.min = '0'; input.step = '0.5';
-  input.title = `${LEAVE_NAMES[mark]} taken earlier in ${ts.year}, before ${MONTHS[ts.month]}`;
-  earlier.appendChild(input);
-  tr.appendChild(earlier);
-
-  const month = document.createElement('td');
-  const taken = document.createElement('td');
-  const left  = document.createElement('td');
-  const days  = document.createElement('td');
-  days.className = 'daylist';
-  tr.append(month, taken, left, days);
-
-  /* Only the cells that follow the number are repainted — rebuilding the row
-     here would take the focus out of the box being typed in. */
-  const paint = () => {
-    const L = leaveStanding(S, mark);
-    tr.className = L.over ? 'over' : '';
-    month.textContent = String(L.month);
-    taken.textContent = String(L.taken);
-    left.textContent = L.over ? `${L.left} — over by ${L.taken - L.limit}` : String(L.left);
-    left.className = L.over ? 'bad' : (L.left <= 2 ? 'low' : '');
-    days.textContent = L.days.join(', ') || '—';
+  const cell = (text, cls) => {
+    const td = document.createElement('td');
+    td.textContent = text;
+    if (cls) td.className = cls;
+    return td;
   };
 
-  input.value = leaveStanding(S, mark).earlier || '';
-  input.addEventListener('input', e => {
-    if (!S.leave || S.leave.year !== ts.year) S.leave = { year: ts.year, pto: 0, mc: 0, ul: 0 };
-    S.leave[LEAVE_KEYS[mark]] = Math.max(0, Number(e.target.value) || 0);
-    paint();
-    afterTimesheetChange();
-  });
+  tr.appendChild(cell(String(L.month)));
+  tr.appendChild(cell(`${L.taken} of ${L.limit}`));
+  tr.appendChild(cell(
+    L.over ? `${L.left} — over by ${L.taken - L.limit}` : String(L.left),
+    L.over ? 'bad' : (L.left === 0 ? 'bad' : (L.left <= 2 ? 'low' : ''))
+  ));
+  tr.appendChild(cell(L.days.join(', ') || '—', 'daylist'));
 
-  paint();
   return tr;
 }

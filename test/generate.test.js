@@ -86,8 +86,8 @@ const load = f => vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), c
 
 [ 'vendor/jspdf.umd.min.js', 'vendor/jspdf.plugin.autotable.min.js', 'vendor/carlito.js',
   'vendor/exceljs.min.js',
-  'vendor/docx.umd.js', 'assets/js/state.js', 'assets/js/logo.js',
-  'assets/js/timesheet.js' ].forEach(load);
+  'vendor/docx.umd.js', 'assets/js/state.js', 'assets/js/holidays.js',
+  'assets/js/logo.js', 'assets/js/timesheet.js' ].forEach(load);
 
 // signature.js and app.js need a real DOM — substitute the few helpers they export
 vm.runInContext(`
@@ -175,6 +175,86 @@ vm.runInContext(`
     Object.assign({}, S, { leave: { year: 2025, pto: 9, mc: 9, ul: 9 } }), 'PTO');
   globalThis.__sat = dayValue(S.timesheet, S.timesheet.activities[0], 29);
   globalThis.__sun = dayValue(S.timesheet, S.timesheet.activities[0], 30);
+
+  /* ---- the invoice number ---- */
+  const num = defaultState();
+  num.timesheet.year = 2026;
+  num.consultant.name = 'Nur Amila Zulfa';
+  num.consultant.uniqueId = '3';
+  globalThis.__numPlain = invoiceNumberOf(num);          // padded to two digits
+  num.consultant.claimSeq = 12;
+  globalThis.__numTwelfth = invoiceNumberOf(num);
+  const seeded = defaultState();
+  seeded.timesheet.year = 2026;
+  seeded.consultant.uniqueId = '01';
+  seeded.consultant.name = 'Adlishah Hakimi bin Sharilfuddin';
+  globalThis.__numSeeded = invoiceNumberOf(seeded);      // one already sent on paper
+  const noId = defaultState();
+  noId.consultant.name = 'Somebody Else';
+  globalThis.__numNone = invoiceNumberOf(noId);
+
+  /* ---- Assignment Period is Month / Year said another way ---- */
+  globalThis.__mlShort = parseMonthLabel('Sep-26');
+  globalThis.__mlLong  = parseMonthLabel('September 2026');
+  globalThis.__mlIso   = parseMonthLabel('2026-09');
+  globalThis.__mlHalf  = parseMonthLabel('Sep');
+  globalThis.__mlRound = monthLabel({ month: 8, year: 2026 });
+
+  /* ---- leave carries itself forward ---- */
+  const car = defaultState();
+  car.timesheet.year = 2026;
+  car.timesheet.month = 8;                               // September
+  car.leave = { year: 2026, pto: 0, mc: 0, ul: 0, counted: {
+    '2026-07': { pto: 4, mc: 1, ul: 0 },
+    '2026-08': { pto: 3, mc: 0, ul: 0 },
+    '2025-11': { pto: 9, mc: 9, ul: 9 }                  // another year entirely
+  } };
+  car.timesheet.activities[0].days[2] = 'PTO';
+  globalThis.__carried      = leaveStanding(car, 'PTO').earlier;
+  globalThis.__carriedTaken = leaveStanding(car, 'PTO').taken;
+  globalThis.__carriedLeft  = leaveStanding(car, 'PTO').left;
+
+  // the month on the sheet is what is being decided, so it is never also
+  // counted as one of the months that went before it
+  const twice = JSON.parse(JSON.stringify(car));
+  twice.leave.counted['2026-09'] = { pto: 1, mc: 0, ul: 0 };
+  globalThis.__notTwice = leaveStanding(twice, 'PTO').taken;
+
+  // and filing the same month again replaces it rather than adding to it
+  recordLeaveTaken(car);
+  recordLeaveTaken(car);
+  globalThis.__filed = car.leave.counted['2026-09'].pto;
+
+  /* ---- a spent allowance is not offered ---- */
+  const spent = defaultState();
+  spent.timesheet.year = 2026;
+  spent.timesheet.month = 8;
+  spent.leave = { year: 2026, pto: 0, mc: 0, ul: 0, counted: {
+    '2026-01': { pto: 12, mc: 0, ul: 0 }
+  } };
+  globalThis.__spentLeft = leaveStanding(spent, 'PTO').left;
+  globalThis.__spentPto  = canMarkLeave(spent, 'PTO', false);
+  globalThis.__spentMc   = canMarkLeave(spent, 'MC', false);
+  globalThis.__spentPh   = canMarkLeave(spent, 'PH', false);
+  globalThis.__spentNext = nextDayMark(spent, 'PH').value;    // PTO is skipped
+
+  /* ---- the month fills itself in ---- */
+  const auto = defaultState();
+  auto.timesheet.year = 2026;
+  auto.timesheet.month = 8;                                   // September 2026
+  globalThis.__autoBefore = timesheetIsAuto(auto);
+  autoFillMonth(auto);
+  const grid = auto.timesheet.activities[0].days;
+  globalThis.__autoWorked  = workedDays(auto.timesheet);
+  globalThis.__autoPaid    = paidDays(auto.timesheet);
+  globalThis.__autoPH      = grid[16];                        // 16 Sep, Malaysia Day
+  globalThis.__autoBlank   = unmarkedDays(auto.timesheet).length;
+  globalThis.__autoWeekend = grid[5] === undefined;           // 5 Sep is a Saturday
+  globalThis.__autoFlag    = auto.timesheet.autoFilled;
+  auto.timesheet.activities[0].days[3] = 'PTO';
+  auto.timesheet.autoFilled = false;
+  globalThis.__autoAfter = timesheetIsAuto(auto);
+  globalThis.__holKnown = holidaysKnown(2026) && !holidaysKnown(2099);
 `, ctx);
 
 /* ---------------- run ---------------- */
@@ -228,6 +308,57 @@ vm.runInContext(`
   check('and what would not fit is on line 2',
         ctx.__loadedLine2, '78300, Masjid Tanah, Melaka');
   check('loading it again moves nothing further', ctx.__reloaded, ctx.__loadedLine1);
+
+  /* -----------------------------------------------------------------------
+     The invoice number. 2026-01-003 reads as the year, the person, and the
+     third claim they have sent, so all three have to be right — and a
+     profile with no unique ID gets no number rather than a guessed one.
+     ----------------------------------------------------------------------- */
+  console.log('\nThe invoice number');
+  check('a single digit is padded to two',       ctx.__numPlain, '2026-03-001');
+  check('the count is padded to three',          ctx.__numTwelfth, '2026-03-012');
+  check('claims already sent on paper carry on', ctx.__numSeeded, '2026-01-002');
+  check('no unique ID means no number',          ctx.__numNone, '');
+
+  console.log('\nAssignment Period and Month / Year are one fact');
+  check('Sep-26 is a month',       JSON.stringify(ctx.__mlShort), '{"y":2026,"m":8}');
+  check('so is September 2026',    JSON.stringify(ctx.__mlLong),  '{"y":2026,"m":8}');
+  check('and so is 2026-09',       JSON.stringify(ctx.__mlIso),   '{"y":2026,"m":8}');
+  check('half a month is not one', ctx.__mlHalf, 'null');
+  check('and it round-trips',      ctx.__mlRound, 'Sep-26');
+
+  /* -----------------------------------------------------------------------
+     Leave carries itself forward out of the months that have been submitted,
+     so nobody types last month's figure in — and an allowance that is spent
+     stops being offered, rather than being warned about after the fact.
+     ----------------------------------------------------------------------- */
+  console.log('\nLeave carries itself forward');
+  check('earlier months add up',                  ctx.__carried, 7);
+  check('another year is not this one',           ctx.__carriedTaken, 8);
+  check('and the rest of the twelve is left',     ctx.__carriedLeft, 4);
+  check('the month on the sheet is not carried',  ctx.__notTwice, 8);
+  check('filing it twice files it once',          ctx.__filed, 1);
+  check('a spent allowance has nothing left',     ctx.__spentLeft, 0);
+  check('and cannot be marked',                   ctx.__spentPto, false);
+  check('while another kind still can',           ctx.__spentMc, true);
+  check('a public holiday spends no allowance',   ctx.__spentPh, true);
+  check('so clicking past PH lands on MC',        ctx.__spentNext, 'MC');
+
+  /* -----------------------------------------------------------------------
+     Almost every month is every working day worked, so that is what an
+     untouched month starts as — and one click on any cell makes it the
+     consultant's sheet, never to be rewritten underneath them again.
+     ----------------------------------------------------------------------- */
+  console.log('\nThe month fills itself in');
+  check('an empty sheet is an automatic one',   ctx.__autoBefore, true);
+  check('September 2026 has 21 working days',   ctx.__autoWorked, 21);
+  check('and every one of its 30 days is paid', ctx.__autoPaid, 30);
+  check('Malaysia Day is marked PH',            ctx.__autoPH, 'PH');
+  check('nothing is left unaccounted for',      ctx.__autoBlank, 0);
+  check('the weekend is left to the calendar',  ctx.__autoWeekend, true);
+  check('and the sheet knows it is automatic',  ctx.__autoFlag, true);
+  check('one click and it is not any more',     ctx.__autoAfter, false);
+  check('a year with no gazette says so',       ctx.__holKnown, true);
 
   console.log('\nDocument generation');
   const jobs = [

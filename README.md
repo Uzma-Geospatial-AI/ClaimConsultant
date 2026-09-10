@@ -5,11 +5,13 @@
 **Invoice Timesheet &amp; Personnel Time Sheet generator · PDF · Excel · Word**
 Fill the form once, tick the calendar, download all four documents.
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-open%20the%20app-F26522?style=for-the-badge&logo=githubpages&logoColor=white)](https://kymy07.github.io/ConsultantClaimSystem/)
-[![CI](https://github.com/kymy07/ConsultantClaimSystem/actions/workflows/ci.yml/badge.svg)](https://github.com/kymy07/ConsultantClaimSystem/actions/workflows/ci.yml)
+[![Live](https://img.shields.io/badge/Live-uzma--geospatial--ai.github.io%2FClaimConsultant-F26522?style=for-the-badge&logo=githubpages&logoColor=white)](https://uzma-geospatial-ai.github.io/ClaimConsultant/)
+[![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2F5597?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/Uzma-Geospatial-AI/ClaimConsultant/actions)
 [![Build](https://img.shields.io/badge/Build-none%20required-1F3864?style=for-the-badge)]()
 [![Offline](https://img.shields.io/badge/Runs%20offline-after%20sign--in-F26522?style=for-the-badge)]()
 [![Dependencies](https://img.shields.io/badge/npm%20install-not%20needed-2F5597?style=for-the-badge&logo=npm&logoColor=white)]()
+
+### 🔗 **[uzma-geospatial-ai.github.io/ClaimConsultant](https://uzma-geospatial-ai.github.io/ClaimConsultant/)**
 
 <img src="assets/img/preview.png" alt="The invoice step — a fillable copy of the invoice itself" width="100%">
 
@@ -90,16 +92,22 @@ confirms, so an account that is not on the list cannot get in with a valid passw
 ## The Flow
 
 ```
-Step 1  Your details ──▶ Step 2  Pick a document ──┬─▶ A    Invoice ───────────────┐
-                                                   ├─▶ B    Claim Form ────────────┤──▶ Generate
-                                                   └─▶ A+B  Invoice + Claim Form ──┘
+Step 1  Profile ──▶ Step 2  Pick a document ──┬─▶ A    Invoice ──────────────┐
+                                              ├─▶ B    Claim Form ───────────┤─▶ Generate ─▶ Submit ─▶ Status
+                                              └─▶ A+B  Invoice + Claim Form ─┘
 ```
 
 | Choice | Steps you see | You get |
 |---|---|---|
-| **A** Invoice Timesheet | Invoice · Generate | PDF + Excel |
-| **B** Claim Form | Claim Form · Generate | PDF + Word |
-| **A + B** Both | Invoice · Claim Form · Generate | PDF + Excel + Word |
+| **A** Invoice Timesheet | Invoice · Generate · Submit · Status | PDF + Excel |
+| **B** Claim Form | Claim Form · Generate · Submit · Status | PDF + Word |
+| **A + B** Both | Invoice · Claim Form · Generate · Submit · Status | PDF + Excel + Word |
+
+**Generate** downloads the files and nothing else. **Submit** sends the claim away. They used to
+be one screen, and they are two different decisions: generating happens several times while a
+month is still being argued about, submitting happens once and cannot be taken back. The Submit
+step is a summary of what is about to go — who, which month, which invoice number, how much, and
+anything wrong with it — and then one button.
 
 Step 3 onwards is not a form *about* the document — it **is** the document. The invoice step
 draws the invoice with its navy band, BILL TO bar, item table and totals; the Claim step draws
@@ -118,6 +126,19 @@ Because the invoice period decides its own month, choosing **A** alone never ask
 the timesheet. Choose **A + B** and setting the period pulls the timesheet to the same month —
 unless you have already ticked days, in which case your ticks win.
 
+A claim is for one month, and that month is written in four places: the **Month / Year** boxes,
+the **Assignment Period** line above them, the invoice period, and the year inside the invoice
+number. They are one fact, so they are kept as one: set any of them and the rest follow.
+Assignment Period accepts whatever people actually write there — `Sep-26`, `September 2026`,
+`2026-09` — and anything that is not a month (`Aug-Sep 26`, written on purpose) is left alone.
+
+The month also fills itself in. An untouched sheet opens with **every working day ticked** and
+the **Selangor public holidays marked PH**, because that is what almost every month is; the
+weekend labels itself from the calendar as it always did. One click on any cell and the sheet
+stops being automatic — it is the consultant's now, and changing the month afterwards will not
+rewrite their corrections. **Fill the month in** does it again on demand, and **Clear all ticks**
+hands it back to the calendar.
+
 <img src="assets/img/preview-claim.png" alt="The Claim step — the Uzma Personnel Time Sheet, fillable" width="100%">
 
 ---
@@ -127,13 +148,16 @@ unless you have already ticked days, in which case your ticks win.
 | | |
 |---|---|
 | 🔐 **BDOS sign-in** | Two named accounts, checked against the BDOS auth API; the 30-day session then opens the app offline |
-| 🗄️ **Shared history, when BDOS offers it** | Profiles, the open draft and every generated claim go to the `cradle` database through BDOS &mdash; and the app works exactly as before when it cannot reach them |
+| 🗄️ **Shared history, when BDOS offers it** | Profiles, the open draft, every submitted claim and the signed copies go to the `cradle` database through BDOS &mdash; and the app works exactly as before when it cannot reach them |
 | 🧭 **Guided, branching flow** | Fill your details once, then pick **A** (Invoice), **B** (Claim) or **both** — the remaining steps rearrange so you only ever see the document you asked for |
 | 📄 **You fill the real document** | Steps 3 and 4 are pixel-shaped copies of the invoice and the Uzma time sheet, so every value is typed exactly where it prints |
 | 💡 **A hint in every box** | Each blank carries an example of what belongs in it, and optional fields say so outright |
 | 📅 **Tickable day grid** | Section B is the real 31-column table — click a cell to cycle `blank → / → PH → PTO → MC → UL`; Saturdays and Sundays label themselves from the calendar |
 | 💰 **Paid days decide the money** | Every day of the month is paid or it is not. Worked `/`, the weekend, `PH`, `PTO` and `MC` are paid and add up to TOTAL DAYS [A]; `UL` is not, and neither is a working day nobody marked — so the month's pay is `rate ÷ days in month × paid days`, and unpaid leave shows up in the figure without anybody working it out |
-| 🧮 **Leave against the year** | `PTO`, `MC` and `UL` each come out of 12 days a year. Under the grid — and on the profile card before you even open it — a row per kind shows what this month holds, what was taken earlier in the year (typed once, the way PAST CLAIM [C] is), what is left, and colours the row when it goes over |
+| 🧮 **Leave that carries itself forward** | `PTO`, `MC` and `UL` each come out of 12 days a year. Nobody types last month's figure any more: what earlier months used is added up from the months that have actually been submitted, keyed by month so resubmitting a returned claim costs nothing. A row per kind — under the grid, and on the profile card before you open it — shows this month, the year so far and what is left. **An allowance that is spent stops being offered**: the day cell skips straight past it rather than letting somebody claim a thirteenth day and be told afterwards |
+| 📅 **Public holidays it already knows** | The Selangor calendar ships with the app. Fixed dates are worked out for any year; the movable ones — Raya, Thaipusam, Deepavali, the Agong's birthday — are gazetted a year at a time and are written down in [`holidays.js`](assets/js/holidays.js). A year the table does not know still gets its fixed dates and **says so on the page** rather than pretending there are none |
+| 🔢 **Invoice numbers that write themselves** | `2026-01-003` is the year, the person, and the third claim they have sent. The middle is the profile's **Unique ID** — its own field on the Profile step, highlighted, because without it there is no number and the app will not guess a digit that would put two people on one series. The count goes up by one each time a claim is submitted, and follows the person rather than the form. Typing your own number over it is allowed, and the page says so |
+| 🗃️ **The signed copies, on file** | Everything else the app keeps is the claim as software holds it. The **Status** step also takes the paper: upload the signed invoice and the signed time sheet once they come back, and they are filed against that person and that month in the shared database. Any month can then be produced again a year later without hunting through anybody's Downloads folder |
 | 🧮 **Three ways to price a period** | Monthly rate prorated by calendar days, daily rate × days ticked, or a fixed amount you type yourself — the live formula shows its working |
 | ✍️ **Sign in the signature box** | The four pads (Personnel, Project Manager, HOD, Verified By) sit inside Section C where the pen would go; blank space around the stroke is trimmed before it is embedded |
 | ✅ **Two approvals, in order** | A submitted claim goes to the project manager, then to the HOD, and the HOD's signature is placed by their PA. Each approver reads the sheet as it will be printed, signs their own box or sends it back with a reason, and every move is recorded against a name and a time |
@@ -176,12 +200,15 @@ ConsultantClaimSystem/
 │       ├── auth.js               # the BDOS sign-in gate + allow-list
 │       ├── sync.js               # profiles / draft / claims → the cradle DB, via BDOS
 │       ├── state.js              # data model, formulas, localStorage
+│       ├── holidays.js           # the Selangor public holiday calendar
 │       ├── logo.js               # brand artwork loading + vector fallbacks
 │       ├── timesheet.js          # Section B — the 31-column day grid
 │       ├── signature.js          # in-form signature pads + image trimming
 │       ├── gen-invoice.js        # Invoice → PDF (jsPDF) + Excel (ExcelJS)
 │       ├── gen-claim.js          # Claim   → PDF (jsPDF) + Word (docx)
 │       ├── preview.js            # the on-screen PDF viewer
+│       ├── approvals.js          # the approval queue and the decisions
+│       ├── archive.js            # the signed copies on file
 │       └── app.js                # step flow, profiles, generate buttons
 ├── docs/
 │   └── BDOS-CCS-Endpoints.md     # the storage API this app asks BDOS for
@@ -202,14 +229,18 @@ ConsultantClaimSystem/
 
 The app is live on GitHub Pages — nothing to install:
 
-**<https://kymy07.github.io/ConsultantClaimSystem/>**
+**<https://uzma-geospatial-ai.github.io/ClaimConsultant/>**
+
+That is the one to use. A second copy is published from the personal mirror at
+<https://kymy07.github.io/ConsultantClaimSystem/>; it is the same app, but the two have separate
+`localStorage`, so work saved at one address is not visible at the other.
 
 It runs entirely in your browser there too: nothing is uploaded, everything stays in that
 browser's `localStorage`. To keep a copy on your own machine instead:
 
 ```bash
-git clone https://github.com/kymy07/ConsultantClaimSystem.git
-cd ConsultantClaimSystem
+git clone https://github.com/Uzma-Geospatial-AI/ClaimConsultant.git
+cd ClaimConsultant
 ```
 
 Then just double-click `index.html`. That is the whole setup.
@@ -369,10 +400,11 @@ Worth knowing:
 
 ### The shared database
 
-Beyond the browser, the app keeps three things in the **`cradle`** PostgreSQL database &mdash;
-**profiles**, **the draft that is open**, and **a history of every claim generated**. All three
-are one shared set of rows, so signing in on another laptop brings the work with you and nothing
-is lost when a browser is cleared.
+Beyond the browser, the app keeps five things in the **`cradle`** PostgreSQL database &mdash;
+**profiles**, **the draft that is open**, **a history of every claim sent**, **the claims
+travelling through the approvals**, and **the signed copies that come back**. They are one
+shared set of rows, so signing in on another laptop brings the work with you and nothing is lost
+when a browser is cleared.
 
 A browser cannot speak to PostgreSQL: it is a TCP wire protocol, not HTTP, and a public static
 app could not be trusted with the password anyway. So the database stays behind BDOS, which
@@ -384,9 +416,18 @@ there rather than here, because a check written in JavaScript is a check the rea
 
 | Data | Where | Who sees it |
 |---|---|---|
-| Profiles | `ccs_profiles` | all three accounts |
-| The open draft | `ccs_drafts` | all three accounts — one row |
-| Generated claims | `ccs_claims` | all three accounts |
+| Profiles | `ccs_profiles` | every account |
+| The open draft | `ccs_drafts` | every account — one row |
+| Claims sent | `ccs_claims` | every account |
+| Claims being approved | `ccs_submissions` | every account |
+| Signed copies | `ccs_archive` | every account — **not deployed yet** |
+
+The archive is newer than the rest and BDOS has not shipped it. It is the one thing here that
+**must not** switch syncing off when it 404s: drafts, profiles and approvals are a working system
+without it, and taking them down because one newer feature is missing would be the archive
+breaking the app it was added to. So the Status step says the archive is not switched on yet,
+which is true, rather than "nothing filed", which would have somebody hunting for files that were
+never uploaded.
 
 **Until a BDOS build carrying those routes is deployed, none of this is on.**
 [`sync.js`](assets/js/sync.js) probes
@@ -419,6 +460,13 @@ month's pay is worked out from that rate and the days that are paid for. That fi
 over when a month is settled at something else; the app says so, and offers the calculated one
 back.
 
+Two numbers on the profile are not about this month at all. **Unique ID** is the person — the
+middle of `2026-01-003` — and **Next claim number** is how many claims they have sent. Both live
+on the profile because they belong to the person, not to whatever happens to be in the form; both
+are ordinary fields, so somebody who sent three claims on paper before this app existed starts at
+four by typing four. A profile with no unique ID has no invoice number, and the page says so
+rather than inventing a digit that would put two people on one series.
+
 ### Approvals
 
 A claim does not go straight to Finance. It travels:
@@ -445,6 +493,13 @@ appended to a history that is never rewritten &mdash; who, when, which way, and 
 The HOD does not sign anything themselves. They approve; their PA places the signature. That is
 the arrangement the office already had, and the app follows it rather than arguing with it.
 
+When a claim comes back signed, the two finished documents are filed on the same screen: **File
+the signed copies**, under the profile that is open and the month on the sheet, so there is no
+second place to type a name and a month and therefore no second place to get them wrong. Anything
+over 12 MB is refused before it is read. The list underneath is every month anybody has filed,
+newest first, filterable by person — which is the record somebody actually needs when Finance
+asks about September a year later.
+
 ### One thing to remember when changing anything under `assets/`
 
 GitHub Pages serves this page **and everything it loads** with `Cache-Control: max-age=600`. A
@@ -454,7 +509,7 @@ exactly like a fix that did not work — and costs an afternoon before anybody s
 So every local file is loaded with a `?v=` stamp:
 
 ```html
-<script src="assets/js/sync.js?v=20260911a"></script>
+<script src="assets/js/sync.js?v=20260911c"></script>
 ```
 
 **Bump that stamp whenever you change a file under `assets/`.** It is one find-and-replace across
@@ -466,17 +521,22 @@ refuses a local file without a stamp, or a set of files that do not share one.
 ## Testing & CI
 
 ```bash
-node test/page.test.js        # 11 checks — the markup and the stylesheet
+node test/page.test.js        # 37 checks — the markup and the stylesheet
 node test/auth.test.js        # 29 checks — the sign-in gate
-node test/sync.test.js        # 31 checks — the database sync
-node test/generate.test.js    # 15 checks — the four documents
+node test/sync.test.js        # 38 checks — the database sync
+node test/generate.test.js    # 73 checks — the arithmetic and the four documents
 ```
 
 No `npm install`, and nothing touches the network. Three of the suites load the application
 code into a Node VM behind a small browser stub.
 
-`generate.test.js` produces all four documents and checks both the arithmetic — the invoice
-amount (RM 903.23), `TOTAL DAYS [A]`, `BALANCE`, the automatic SAT/SUN labels — and the files
+`generate.test.js` carries most of the arithmetic. The invoice number and where a person's
+count starts; Assignment Period parsed back into a month; leave carried forward out of the
+months already submitted, counted once and never twice; an allowance that is spent skipping
+itself when a day cell is clicked; and a month filling itself in — 21 working days in September
+2026, Malaysia Day marked PH, the weekend left to the calendar, and one click making the sheet
+the consultant's. It then produces all four documents and checks both the older arithmetic — the
+invoice amount (RM 903.23), `TOTAL DAYS [A]`, `BALANCE`, the automatic SAT/SUN labels — and the files
 themselves: size and magic bytes for each, that the Claim PDF really embeds Carlito, and that
 the Invoice PDF does *not*, since it is not set in Calibri and should not carry a face it never
 draws with. It also pins the template's grey and orange, so a change to either fails loudly

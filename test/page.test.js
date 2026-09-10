@@ -73,7 +73,37 @@ console.log('\nThe approvals screen');
 
 const approvals = fs.readFileSync(path.join(ROOT, 'assets/js/approvals.js'), 'utf8');
 check('the panel is in the page', /id="p-approvals"/.test(html), true);
-check('the submit card starts hidden', /id="card_submit"[^>]*hidden/.test(html), true);
+
+/* -----------------------------------------------------------------------
+   Downloading the documents and sending the claim away are two different
+   decisions, and they used to be one screen. Generating happens several
+   times while a month is still being argued about; submitting happens once
+   and cannot be taken back — so it has a step of its own, and the Generate
+   step no longer offers it.
+   ----------------------------------------------------------------------- */
+console.log('\nSubmitting is its own step');
+
+check('the submit panel is in the page', /id="p-submit"/.test(html), true);
+check('and the step is in the flow', /id: 'submit'/.test(appjs), true);
+check('the Generate step no longer submits',
+  /id="p-generate"[\s\S]*?<\/section>/.exec(html)[0].includes('btnSubmitClaim'), false);
+check('nor offers "Generate All"', /id="btnAll"/.test(html + appjs), false);
+// The card is only offered once the database has answered: a claim that
+// silently went nowhere is worse than one that was never sent.
+check('the card waits for the database', /card.hidden = !canSend/.test(appjs), true);
+
+/* -----------------------------------------------------------------------
+   Signed copies. The upload sends bytes somebody chose off their own disk,
+   so the size is checked in the browser before any of it is read.
+   ----------------------------------------------------------------------- */
+console.log('\nThe archive');
+
+const archivejs = fs.readFileSync(path.join(ROOT, 'assets/js/archive.js'), 'utf8');
+check('the list is in the page', /id="archiveList"/.test(html), true);
+check('a file too big is refused before it is read',
+  /f\.size > ARCHIVE_MAX_BYTES/.test(archivejs), true);
+check('and rows are built as text, never markup',
+  /archiveperson[\s\S]{0,200}innerHTML/.test(archivejs), false);
 // Which box is signed follows the stage the claim is at, not the role of
 // whoever is looking — the admin stands in at any of them.
 check('the REVIEWED BY box is signed when it is with the manager',
@@ -149,6 +179,11 @@ check('the generators come before preview.js',
 check('approvals.js comes after the generator and the viewer',
   at('gen-claim.js') < at('approvals.js') && at('preview.js') < at('approvals.js'), true);
 check('and before app.js, which calls into it', at('approvals.js') < at('app.js'), true);
+// holidays.js is read by the time sheet when it fills a month in
+check('holidays.js comes before timesheet.js', at('holidays.js') < at('timesheet.js'), true);
+// archive.js borrows button() from approvals.js and is called from app.js
+check('archive.js sits between approvals.js and app.js',
+  at('approvals.js') < at('archive.js') && at('archive.js') < at('app.js'), true);
 
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length) {

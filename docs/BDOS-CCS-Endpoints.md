@@ -10,7 +10,7 @@ durable to keep their work. CCS is a static browser app: it has no server of its
 hold a database credential, so BDOS owns the storage and exposes it over the same authenticated
 HTTPS API the sign-in already uses.
 
-This document specifies the six endpoints, the table shapes behind them, and the access rule that
+This document specifies the endpoints, the table shapes behind them, and the access rule that
 is enforced server-side. It follows the conventions already set by the *BDOS Authentication API
 Integration Guide*: `Bearer` tokens, JSON bodies, `{ "detail": "…" }` on error.
 
@@ -65,6 +65,7 @@ This matters for the `WHERE` clauses, so it is worth stating plainly:
 | **Profiles** | shared | A consultant's details are reference data all three work from |
 | **Claims history** | shared | The point is that everyone can see what has been submitted |
 | **Draft** | shared — one row | The three of them work on one claim at a time, and picking it up on another machine is the reason this storage exists |
+| **Archive** | shared | The signed copies of a finished month. Finance and the approvers all have reason to produce one later |
 
 Everything is one set of rows: whoever signs in, on whichever machine, sees the same work. Nothing
 is keyed by `uid`. The caller's email is still recorded on every write — `updated_by` on a profile
@@ -207,6 +208,69 @@ Everyone can read every claim: five people working one process, and an approver 
 what they approved last month is not much use. `mine=1` narrows to the claims this account sent;
 `status=open` to everything unfinished.
 
+### Archive — the signed copies of a finished month
+
+> **Status — not yet implemented.** Everything above this section is live. This one is the
+> request. Until it exists CCS calls `GET /ccs/archive` once, reads a `404` as *not deployed*,
+> and says so on the Status step instead of pretending the archive is empty. Nothing else in the
+> app is affected — a missing archive does **not** switch syncing off.
+
+Every other endpoint here holds the claim as software holds it. This one holds the paper: the
+invoice and the time sheet with real signatures on them, scanned back in after the round trip
+through the project manager, the HOD and their PA. A month is only really finished when those two
+files exist somewhere other than one person's Downloads folder, and "somewhere" is here.
+
+Rows are written once and read for years. They are not edited.
+
+```
+POST   /ccs/archive                → { "record": Record }
+GET    /ccs/archive?consultant=&year=  → { "records": [ Record, … ] }   (no file contents)
+GET    /ccs/archive/{id}           → { "record": Record }               (with file contents)
+DELETE /ccs/archive/{id}           → { "ok": true }
+```
+
+**`POST /ccs/archive`** body:
+
+```json
+{
+  "consultant":   "Ahmad bin Abdullah",
+  "unique_id":    "01",
+  "invoice_no":   "2026-09-003",
+  "period_month": 9,
+  "period_year":  2026,
+  "note":         "signed by the HOD on the 3rd",
+  "files": [
+    { "name": "invoice-signed.pdf", "type": "application/pdf", "size": 184320, "content": "JVBERi0…" }
+  ]
+}
+```
+
+`content` is the file's bytes, base64, without a `data:` prefix. CCS refuses anything over
+**12 MB** before it reads it, and sends at most two files per record — but the shape is a list, so
+a month that needed three attachments does not need a new endpoint.
+
+**`Record`** as returned adds `id`, `created_by` (the caller's email, from the token) and
+`created_at`. On the **list** endpoint each file is returned as `{ name, type, size }` with
+**no `content`** — a year of scanned PDFs is not something to send down to draw a list with. The
+single-record endpoint returns them in full; that is what a download button calls.
+
+`consultant` and `year` are both optional filters. Newest first: `period_year DESC,
+period_month DESC`.
+
+Errors: `400` on a missing `consultant`, an empty `files` list, or a file whose `content` is not
+base64 · `404` on a `GET` or `DELETE` of an unknown id · `413` if the server has its own size
+limit and the body is over it.
+
+Storing the bytes in the database column below is the simple option and is what the schema
+assumes; putting them in object storage and keeping a URL in the row would work as well, so long
+as the JSON above does not change. CCS does not know or care which.
+
+Two notes on what lands here. These files carry a handwritten signature and a bank account, so
+they are personal data in the same way the `data` blobs already are — same handling. And they are
+the record of an approval that was actually given, which is the reason for the `DELETE`: it exists
+for the case of the wrong file being uploaded, and should be reachable only by whoever created the
+row or the admin.
+
 ---
 
 ## 4 · Suggested schema for `cradle`
@@ -273,6 +337,22 @@ CREATE TABLE ccs.submissions (
 );
 
 CREATE INDEX ON ccs.submissions (status);
+
+-- Shared: the signed copies of a finished month.
+CREATE TABLE ccs.archive (
+  id            text        PRIMARY KEY,
+  consultant    text        NOT NULL,
+  unique_id     text,
+  invoice_no    text,
+  period_month  smallint    CHECK (period_month BETWEEN 1 AND 12),
+  period_year   smallint,
+  note          text,
+  files         jsonb       NOT NULL DEFAULT '[]',   -- [{ name, type, size, content }]
+  created_by    text        NOT NULL,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX ON ccs.archive (consultant, period_year DESC, period_month DESC);
 ```
 
 A note on what lands in `data`: it is the consultant's own name, address, IC number and bank
@@ -284,9 +364,12 @@ BDOS to hold them rather than trying to hold them itself.
 
 ## 5 · CORS
 
-CCS is served from GitHub Pages, so the browser sends a cross-origin request:
+CCS is served from GitHub Pages, so the browser sends a cross-origin request. There are two
+addresses it can come from — the Uzma organisation's copy, which is the one people use, and the
+personal mirror it is developed on:
 
 ```
+Origin: https://uzma-geospatial-ai.github.io
 Origin: https://kymy07.github.io
 ```
 

@@ -47,11 +47,6 @@ const cEdgeAt = i => C_LABEL + i * (1 - C_LABEL) / C_HEADS.length;
 const C_ROW  = { head: 0.020541, sig: 0.048422, text: 0.018124 };
 const C_GAP  = 0.037457;
 
-/** compact month/year label: 'Aug-26' */
-function monthLabel (ts) {
-  return `${MON3[ts.month]}-${String(ts.year).slice(2)}`;
-}
-
 function claimFileBase (S) {
   const nm = safeFile(S.consultant.name);
   const my = `${MON3[S.timesheet.month]} ${S.timesheet.year}`;

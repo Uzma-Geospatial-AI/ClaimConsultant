@@ -143,6 +143,20 @@ async function renderApprovals () {
   const host = document.getElementById('approvalList');
   if (!host) return;
 
+  /* The same list answers two different questions. Somebody who prepares
+     claims is asking where theirs got to; an approver is asking what is
+     waiting on them. Naming the screen for whoever opened it costs nothing
+     and saves them reading it twice. */
+  const prepares = !Auth.role() || Auth.prepares();
+  const head = document.getElementById('approvalHead');
+  const lead = document.getElementById('approvalLead');
+  if (head) head.textContent = prepares ? 'Status' : 'Approvals';
+  if (lead) {
+    lead.textContent = prepares
+      ? 'Where every claim you have sent has got to, and anything waiting on you.'
+      : 'What is waiting on you, and where everything else has got to.';
+  }
+
   if (!Sync.on) {
     host.innerHTML = `
       <p class="emptynote"><b>Not connected to the database.</b>
@@ -171,8 +185,8 @@ function paintApprovals () {
 
   host.innerHTML = '';
   if (!subs.length) {
-    host.innerHTML = Auth.prepares()
-      ? '<p class="emptynote">Nothing submitted yet. Fill the claim in, then send it for approval from the Generate step.</p>'
+    host.innerHTML = (!Auth.role() || Auth.prepares())
+      ? '<p class="emptynote">Nothing submitted yet. Fill the claim in, then send it from the Submit step.</p>'
       : '<p class="emptynote">Nothing has been sent for approval yet.</p>';
     return;
   }
