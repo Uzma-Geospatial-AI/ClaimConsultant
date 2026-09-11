@@ -36,7 +36,7 @@ Everybody who sends a claim has an account, and each has one part in it:
 | `hanis.rashidan@uzmagroup.com` | `manager` | Reviews it first, and signs it before it goes on |
 | `fadhli.jamaluddin@uzmagroup.com` | `boss` | Approves it second — the HOD |
 | `fatin.zaini@uzmagroup.com` | `pa` | Places the HOD's signature on the **time sheet**, in the app or on paper |
-| `najihah.zakir@uzmagroup.com` | `finance` | Approves nothing; reads the whole record and takes a copy of it |
+| `najihah.zakir@uzmagroup.com` | `finance` | Approves nothing and prepares nothing; collects the finished forms |
 
 ### A consultant sees their own work only — and that needs enforcing here
 

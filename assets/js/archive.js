@@ -190,6 +190,22 @@ async function renderHistory (force) {
   const host = document.getElementById('historyList');
   if (!host) return;
 
+  /* For the administrator this is the back of the filing cabinet. For
+     whoever collects the forms it is the whole job, and the only screen they
+     have — so it is named for what they came to do. */
+  const collecting = Auth.keepsRecords() && !Auth.approves();
+  const head = document.getElementById('historyHead');
+  const lead = document.getElementById('historyLead');
+  if (head) head.textContent = collecting ? 'Documents to collect' : 'History';
+  if (lead) {
+    lead.textContent = collecting
+      ? 'Every signed form on file, for everybody, newest first. Download all takes a copy ' +
+        'of whatever is listed — narrow it by person or year first if you only want part of it.'
+      : 'Every signed copy ever filed, for everybody, newest first. The Status step shows one ' +
+        'month; this is the whole record, which is what Finance asks for when they ask about ' +
+        'last March.';
+  }
+
   if (!Sync.on) {
     archiveLoaded = false;
     host.innerHTML =

@@ -111,7 +111,14 @@ function activeSteps () {
      "Prepares" is the question, not "is a consultant". */
   const all = permittedSteps();
   if (Auth.role() && !Auth.prepares()) {
-    return all.filter(s => s.id === 'approvals' || s.id === 'history');
+    /* Nobody here fills a claim in, so none of them sees the wizard. What
+       each of them does see is the one screen their job happens on: the
+       approvers get the queue, and whoever collects the finished forms gets
+       the shelf they end up on and nothing else. A queue of decisions that
+       will never be yours to make is not information, it is furniture. */
+    return all.filter(s =>
+      (s.id === 'approvals' && Auth.approves()) ||
+      (s.id === 'history' && Auth.keepsRecords()));
   }
   const tail = all.filter(s => s.id === 'resubmit' || s.id === 'approvals' || s.id === 'history');
   if (!S.mode) {

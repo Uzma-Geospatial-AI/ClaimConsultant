@@ -122,7 +122,8 @@ const run = expr => vm.runInContext(expr, ctx);
   check('Najihah keeps the records',   run("ROLES['najihah.zakir@uzmagroup.com']"), 'finance');
   check('and that is a job, not a name',
         run("keepsRecords('finance') && keepsRecords('admin') && !keepsRecords('pa')"), true);
-  check('she approves nothing',        run("!ROLE_NAMES.finance ? false : true"), true);
+  check('she approves nothing',
+        run("!approves('finance') && approves('manager') && approves('boss') && approves('pa')"), true);
   // everybody who sends a claim has an account of their own now, and each of
   // them sees their own work and nobody else's
   check('Zharif prepares his own',     run("ROLES['zharif.zaidi@uzmagroup.com']"), 'consultant');

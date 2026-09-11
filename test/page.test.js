@@ -227,6 +227,14 @@ check('keeping records is a capability, not a name',
   /const keepsRecords = r => r === 'admin' \|\| r === 'finance'/.test(authjs), true);
 check('and Download all takes what the filters are showing',
   /function downloadAllHistory/.test(archivejs) && /historyRows\(\)/.test(archivejs), true);
+/* Somebody who only collects the finished forms is not shown a queue of
+   decisions that will never be theirs to make. Their whole app is the shelf
+   the documents end up on. */
+check('a collector gets the shelf and not the queue',
+  /'approvals' && Auth\.approves\(\)/.test(appjs) &&
+  /'history' && Auth\.keepsRecords\(\)/.test(appjs), true);
+check('and approving is a capability too',
+  /const approves = r => r === 'manager'/.test(authjs), true);
 // Status and History only report. Gating them behind "pick a document first"
 // asked an administrator opening the app to see whether Amila had sent
 // September to choose a document they were never going to produce.

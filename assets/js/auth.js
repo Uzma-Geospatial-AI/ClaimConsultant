@@ -110,6 +110,11 @@ const places = r => r === 'pa' || r === 'admin';
    what the approvals produced. */
 const keepsRecords = r => r === 'admin' || r === 'finance';
 
+/* Who moves a claim along. Somebody who only collects the finished forms
+   does not, and should not be shown a queue of decisions that will never be
+   theirs to make — their whole app is the shelf the documents end up on. */
+const approves = r => r === 'manager' || r === 'boss' || r === 'pa' || r === 'admin';
+
 /* Seeing everybody's work, rather than only your own. The administrator sets
    the app up and answers for all of it; the three approvers have to read
    what they are approving. A consultant sees their own, and that is the
@@ -375,6 +380,7 @@ const Auth = {
   prepares: () => prepares(currentRole()),
   places: () => places(currentRole()),
   keepsRecords: () => keepsRecords(currentRole()),
+  approves: () => approves(currentRole()),
   seesEveryone: () => seesEveryone(currentRole()),
   setsNumbering: () => setsNumbering(currentRole()),
   isAdmin: () => isAdmin(currentRole()),
