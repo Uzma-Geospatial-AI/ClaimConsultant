@@ -195,6 +195,7 @@ hands it back to the calendar.
 | 🗂️ **Multiple activity rows** | Eight rows like the original form, each with its own Job ID, allocated days and past claim |
 | 📊 **Totals that add up** | `TOTAL DAYS [A]`, `ALLOCATED [B]`, `PAST CLAIM [C]` and `BALANCE [B-(A+C)]` are computed per row and in aggregate |
 | 💾 **Autosave + profiles** | Everything persists to `localStorage`; save one profile per consultant and switch between them. **Save Profile** sits at the foot of the details it saves, not in the top bar a screenful away. The profile list gives every profile its own row &mdash; the name opens that profile's details in the form, **Delete** removes that one, and **+ Add new profile** clears the form for another consultant |
+| 🗑️ **The administrator can delete a claim** | Not part of the process — a claim that was wrong is sent back, not erased, and the trail of who approved what is the point of the trail. It is for the rows left behind while the thing was being set up, which look exactly like real ones. Admin only, with a confirmation that names the document, the month and the number, because that is where the difference is |
 | 🧨 **Reset All** | Two-step confirmation, then every stored key is wiped and the app is empty again |
 | 📱 **Responsive** | Collapses to a single column below 840px, and to phone-shaped below 700px — see [On a Phone](#on-a-phone) |
 

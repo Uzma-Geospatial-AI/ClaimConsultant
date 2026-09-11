@@ -382,6 +382,28 @@ function submissionKind (sub) {
 }
 
 /**
+ * Take a claim off the record entirely.
+ *
+ * Not part of the process — a claim that was wrong is sent back, not erased,
+ * and the trail of who approved what is the reason the trail exists. This is
+ * for the rows that were never part of the process in the first place: the
+ * ones left behind by setting the thing up. The administrator only, enforced
+ * at the other end.
+ */
+async function deleteSubmission (id) {
+  try {
+    await ccsFetch('/submissions/' + encodeURIComponent(id), { method: 'DELETE' });
+    return true;
+  } catch (err) {
+    if (err.status === 404 || err.status === 405) {
+      throw new Error('BDOS cannot delete a claim yet — see docs/BDOS-CCS-Endpoints.md.');
+    }
+    if (err.status === 403) throw new Error('Only the administrator can delete a claim.');
+    throw err;
+  }
+}
+
+/**
  * @param {string} scope  '' for everything, 'open' for what is unfinished,
  *                        or one status; `mine` narrows to this account's own
  */
@@ -496,6 +518,10 @@ const Sync = {
   me: whoAmI,
   submit: submitClaim,
   kindOf: submissionKind,
+  /* Not `forget` — that name was already taken by the housekeeping this
+     browser does for itself, and two different meanings under one name is
+     how Reset All would have quietly become a no-op. */
+  remove: deleteSubmission,
   submissions: listSubmissions,
   submission: getSubmission,
   act: actOnSubmission,

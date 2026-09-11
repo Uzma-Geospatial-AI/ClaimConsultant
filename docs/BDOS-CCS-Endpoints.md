@@ -219,6 +219,7 @@ POST /ccs/submissions              → { "submission": Submission }
 GET  /ccs/submissions?status=&mine= → { "submissions": [ Submission, … ] }   (no `data`)
 GET  /ccs/submissions/{id}         → { "submission": Submission }            (with `data`)
 POST /ccs/submissions/{id}/action  → { "submission": { id, status, history, updated_at } }
+DELETE /ccs/submissions/{id}       → { "ok": true }                          (admin only)
 GET  /ccs/me                       → { "email", "name", "role", "acts_on" }
 ```
 
@@ -257,6 +258,16 @@ which it writes as well as sending — one request per row, capped, cached for t
 works, and it is a request per row that the field makes unnecessary. Store it as `TEXT`, default
 `'claim'`: every row written before a month was two documents was the whole claim, and the time
 sheet is the half that carries the signatures.
+
+**`DELETE /ccs/submissions/{id}`** — please add this, and allow it to the `admin` account only:
+`403` for everybody else, `404` for an id that is not there. It is deliberately not part of the
+process. A claim that was wrong is **sent back**, not erased, and the trail of who approved what
+is the reason the trail exists.
+
+What it is for is the rows that were never part of the process: the ones left behind while the
+thing was being set up, which look exactly like real ones and sit in somebody's Re-submit tab for
+ever. CCS shows the button to the `admin` and to nobody else, names the document, the month and
+the number in the confirmation, and says plainly when the route is not there yet.
 
 **`POST /ccs/submissions/{id}/action`** body: `{ "action": "approve" | "return" | "resubmit",
 "note": "…", "data": { … } }`.

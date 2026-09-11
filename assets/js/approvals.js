@@ -590,6 +590,10 @@ function statusRow (name, kind, sub, first) {
       acts.appendChild(button('Open', 'ghost small', () => loadIntoForm(sub.id)));
       acts.appendChild(button('Resubmit', 'small', () => toggleDecide(sub.id, 'resubmit')));
     }
+    // the account that set the thing up is the one that clears up after it
+    if (Auth.isAdmin()) {
+      acts.appendChild(button('Delete', 'ghost small danger', () => deleteSubmission(sub)));
+    }
   } else {
     const nothing = document.createElement('span');
     nothing.className = 'statusnone';
@@ -940,6 +944,42 @@ async function fileFinished (sub, file, note) {
 /* -------------------------------------------------------------------
    Reading a document
    ------------------------------------------------------------------- */
+
+/**
+ * Erase one claim, for the account that set the thing up.
+ *
+ * The confirmation names the document, the month and the number, because the
+ * rows worth deleting look exactly like the rows that must never be — three
+ * identical test submissions and one real one are the same four lines on a
+ * screen, and the difference is in the detail.
+ *
+ * @param {function} [after] run when it is gone
+ */
+async function deleteSubmission (sub, after) {
+  if (busy) return;
+  const what = kindLabel(kindOf(sub)).toLowerCase();
+  const who = sub.consultant || 'somebody';
+  if (!confirm(
+    `Delete the ${what} for ${periodOf(sub)}?\n\n` +
+    `${who}${sub.invoice_no ? ' · ' + sub.invoice_no : ''}\n\n` +
+    'It goes from the database for everybody, and the trail goes with it — who ' +
+    'approved it, when, and what they said. This cannot be undone.')) return;
+
+  busy = true;
+  try {
+    await Sync.remove(sub.id);
+    toast('Deleted.');
+    if (typeof loadReturned === 'function') await loadReturned();
+    if (typeof renderResubmit === 'function') await renderResubmit();
+    renderStepper();
+    await renderApprovals();
+    if (typeof after === 'function') after();
+  } catch (err) {
+    toast(err.message || 'Could not delete it.', true);
+  } finally {
+    busy = false;
+  }
+}
 
 function button (label, cls, onClick) {
   const b = document.createElement('button');

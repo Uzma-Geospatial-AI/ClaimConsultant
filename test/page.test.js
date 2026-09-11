@@ -347,6 +347,18 @@ check('what is sent is the form as it stands',
    is not about this document. */
 check('one document back opens by itself',
   /returned\.length === 1 && safeToOpen\(returned\[0\]\)/.test(resubjs), true);
+/* The rows worth deleting look exactly like the rows that must never be, so
+   the confirmation names the document, the month and the number — and only
+   the account that set the thing up is offered it at all. */
+check('only the administrator is offered a delete',
+  /if \(Auth\.isAdmin\(\)\)[\s\S]{0,160}'Delete'/.test(approvals), true);
+check('and it is offered on the Re-submit card too',
+  /Auth\.isAdmin\(\)[\s\S]{0,200}'Delete'/.test(resubjs), true);
+check('the confirmation names what is going',
+  /Delete the \$\{what\} for \$\{periodOf\(sub\)\}/.test(approvals), true);
+check('and deleting is not the same call as Reset All',
+  /remove: deleteSubmission/.test(syncjs), true);
+
 check('but never over somebody else’s unsaved work',
   /if \(fixingId\(\)\) return false/.test(resubjs) &&
   /profileDirty\) return false/.test(resubjs) &&

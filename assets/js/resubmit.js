@@ -193,6 +193,16 @@ function returnedCard (sub) {
   const send = button('Send it back for approval', 'primary',
                       () => resubmitOne(sub, note.value.trim(), send));
   bar.appendChild(send);
+  /* Rows left behind by setting the thing up look exactly like real ones.
+     The administrator can take them off the record; nobody else can, and
+     nothing about the process does it — a claim that was wrong is sent back,
+     not erased. */
+  if (Auth.isAdmin()) {
+    bar.appendChild(button('Delete', 'ghost small danger', () => {
+      if (open) setFixing('');
+      deleteSubmission(sub);
+    }));
+  }
   card.appendChild(bar);
   return card;
 }
