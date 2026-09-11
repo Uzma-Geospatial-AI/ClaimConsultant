@@ -177,6 +177,11 @@ function showStep () {
   const list = activeSteps();
   const step = list[Math.min(stepIndex, list.length - 1)];
 
+  /* The Re-submit step borrows the Invoice or Claim step to edit a document
+     in place. Give it back before anything else is drawn, or the step it was
+     borrowed from is an empty panel. */
+  if (typeof releaseEditor === 'function' && step.id !== 'resubmit') releaseEditor();
+
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('p-' + step.id).classList.add('active');
 

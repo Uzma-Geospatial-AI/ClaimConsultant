@@ -978,3 +978,12 @@ input.locked,select.locked{background:#f3f6f9;color:var(--navy-soft);cursor:not-
 
 /* a stage a document does not have, rather than one it is waiting for */
 .lamp.na{background:#fff;border-style:dashed;color:var(--muted)}
+
+/* the document itself, opened inside the card that is about it */
+.edithost{
+  margin-top:14px;padding-top:14px;border-top:1px dashed #e5a79f;
+}
+.edithost[hidden]{display:none}
+.edithost .sheetwrap{margin-top:0}
+.edithost .lead{margin-bottom:12px}
+.backcard.fixing .edithost{border-top-color:var(--orange)}

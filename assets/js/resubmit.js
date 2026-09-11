@@ -22,6 +22,56 @@ const FIXING_KEY = 'ccs.fixing';        // the submission open in the form, acro
 
 let returned = [];                      // what has come back, for this account
 let resubmitBusy = false;
+let editingId = '';                     // whose document is open in the card
+let putBack = null;                     // returns the borrowed step to its panel
+
+
+/* -------------------------------------------------------------------
+   Editing it here
+
+   The document that came back is drawn by a step of its own, and sending
+   somebody there to change one number meant leaving this card, finding the
+   thing, changing it, and finding the way back. So the step is brought
+   here instead: its contents are moved into the card and moved back
+   afterwards.
+
+   Moved, not copied. The replica is bound to the state by `data-bind` and
+   carries live signature pads; a second copy would be a second form
+   fighting the first over the same claim.
+   ------------------------------------------------------------------- */
+
+/** put the borrowed step back where it came from */
+function releaseEditor () {
+  if (putBack) {
+    try { putBack(); } catch (err) { console.warn(err); }
+  }
+  putBack = null;
+  editingId = '';
+}
+
+/**
+ * Move the step that draws this document into `host`.
+ * @returns {function|null} what to call to give it back
+ */
+function borrowDocument (kind, host) {
+  const panel = document.getElementById(kind === 'invoice' ? 'p-invoice' : 'p-claim');
+  if (!panel) return null;
+
+  // the heading belongs to the step, not to a card that has its own; the
+  // nav row is rebuilt from scratch every time a step is shown
+  const moved = [...panel.children].filter(
+    el => el.tagName !== 'H2' && !el.classList.contains('navrow'));
+  moved.forEach(el => host.appendChild(el));
+  host.hidden = false;
+
+  // canvases can only be measured once they are somewhere visible
+  setTimeout(() => Sig.resizeAll(), 40);
+
+  return () => {
+    host.hidden = true;
+    moved.forEach(el => panel.appendChild(el));
+  };
+}
 
 /** the document currently open in the form to be fixed, '' when none */
 function fixingId () {
@@ -91,6 +141,7 @@ let renderingResubmit = false;
 async function renderResubmit () {
   const host = document.getElementById('resubmitList');
   if (!host || renderingResubmit) return;
+  releaseEditor();          // the card it lives in is about to be rebuilt
 
   if (!Sync.on) {
     host.innerHTML =
@@ -172,8 +223,9 @@ function returnedCard (sub) {
   if (open) {
     const now = document.createElement('p');
     now.className = 'backnow';
-    now.textContent = `This ${kindLabel(kind).toLowerCase()} is open in the form now. Fix it, ` +
-      'then send it back for approval from here — what goes up is the form as it stands.';
+    now.textContent = `This ${kindLabel(kind).toLowerCase()} is the one open in the form. ` +
+      `Press “Edit the ${kindLabel(kind).toLowerCase()}” to change it right here, then send it ` +
+      'back for approval — what goes up is the form as it stands.';
     card.appendChild(now);
   }
 
@@ -183,13 +235,40 @@ function returnedCard (sub) {
   note.placeholder = 'What you changed (optional — the approver sees this)';
   card.appendChild(note);
 
+  /* The document itself, in the card, when somebody asks for it. */
+  const editHost = document.createElement('div');
+  editHost.className = 'edithost';
+  editHost.hidden = true;
+
   const bar = document.createElement('div');
   bar.className = 'btnrow';
   bar.appendChild(button('Read it', 'ghost small', () => reviewSubmission(sub.id)));
-  bar.appendChild(button(
+
+  const edit = button(
     open ? `Edit the ${kindLabel(kind).toLowerCase()}` : 'Open and fix',
     open ? 'small' : 'ghost small',
-    () => open ? goToDocument(kind) : openToFix(sub)));
+    () => {
+      // a card that has been rebuilt underneath this handler is not the card
+      // on screen, and moving the document into it would hide it in a node
+      // nobody can see
+      if (!editHost.isConnected) return;
+      if (!open) { openToFix(sub); return; }
+      if (editingId === sub.id) {
+        releaseEditor();
+        edit.textContent = `Edit the ${kindLabel(kind).toLowerCase()}`;
+        return;
+      }
+      releaseEditor();
+      putBack = borrowDocument(kind, editHost);
+      if (!putBack) { toast('That document could not be opened here.', true); return; }
+      editingId = sub.id;
+      edit.textContent = 'Close the editor';
+      // not every browser — and no test harness — has it
+      if (editHost.scrollIntoView) {
+        editHost.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  bar.appendChild(edit);
   const send = button('Send it back for approval', 'primary',
                       () => resubmitOne(sub, note.value.trim(), send));
   bar.appendChild(send);
@@ -204,6 +283,7 @@ function returnedCard (sub) {
     }));
   }
   card.appendChild(bar);
+  card.appendChild(editHost);
   return card;
 }
 
@@ -236,8 +316,10 @@ async function openToFix (sub, opts) {
 
     renderAll();
     if (jump) {
-      goToDocument(kind);
-      toast(`Opened the ${kindLabel(kind).toLowerCase()}. Fix it, then send it back from Re-submit.`);
+      // opened from somewhere else: bring them to the step that carries it
+      const at = activeSteps().findIndex(st => st.id === 'resubmit');
+      if (at >= 0) goToStep(at, true);
+      toast(`Opened the ${kindLabel(kind).toLowerCase()} — edit it here.`);
     } else {
       const back = activeSteps().findIndex(st => st.id === here);
       if (back >= 0) goToStep(back, true); else renderStepper();
@@ -245,13 +327,6 @@ async function openToFix (sub, opts) {
   } catch (err) {
     toast(err.message || 'Could not open that document.', true);
   }
-}
-
-/** go to the step that draws this kind of document */
-function goToDocument (kind) {
-  const want = kind === 'invoice' ? 'invoice' : 'claim';
-  const at = activeSteps().findIndex(st => st.id === want);
-  if (at >= 0) goToStep(at, true);
 }
 
 /**

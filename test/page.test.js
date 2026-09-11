@@ -359,6 +359,18 @@ check('the confirmation names what is going',
 check('and deleting is not the same call as Reset All',
   /remove: deleteSubmission/.test(syncjs), true);
 
+/* The document that came back is edited in the card that is about it. The
+   step that draws it is moved in and moved back — moved, not copied, because
+   the replica is bound to the state and a second copy would be a second form
+   fighting the first over the same claim. */
+check('the document is edited in the card, not on another step',
+  /function borrowDocument/.test(resubjs) && /host\.appendChild\(el\)/.test(resubjs), true);
+check('and the step it was borrowed from gets it back',
+  /function releaseEditor/.test(resubjs) &&
+  /step\.id !== 'resubmit'\) releaseEditor\(\)/.test(appjs), true);
+check('before the card holding it is rebuilt',
+  /renderingResubmit\) return;[\s\S]{0,60}releaseEditor\(\)/.test(resubjs), true);
+
 check('but never over somebody else’s unsaved work',
   /if \(fixingId\(\)\) return false/.test(resubjs) &&
   /profileDirty\) return false/.test(resubjs) &&
