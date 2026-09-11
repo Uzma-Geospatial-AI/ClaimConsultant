@@ -56,6 +56,7 @@ console.log('\nThe profile list');
 
 const appjs = fs.readFileSync(path.join(ROOT, 'assets/js/app.js'), 'utf8');
 const archivejs = fs.readFileSync(path.join(ROOT, 'assets/js/archive.js'), 'utf8');
+const authjs = fs.readFileSync(path.join(ROOT, 'assets/js/auth.js'), 'utf8');
 check('the menu is in the page', /id="profileMenu"/.test(html), true);
 check('its rows are built as text, never innerHTML',
   /menu\.innerHTML\s*=\s*['"]{2}/.test(appjs) &&
@@ -216,15 +217,21 @@ check('and never remembers a typed password in the URL',
 console.log('\nThe History step');
 
 check('the panel is in the page', /id="p-history"/.test(html), true);
-check('the step is marked for the administrator only',
-  /id: 'history',[^}]*admin: true/.test(appjs), true);
+check('the step is marked for whoever keeps the records',
+  /id: 'history',[^}]*records: true/.test(appjs), true);
 check('and nothing else can reach it',
-  /STEPS\.filter\(s => !s\.admin \|\| Auth\.isAdmin\(\)\)/.test(appjs), true);
+  /!s\.records \|\| Auth\.keepsRecords\(\)/.test(appjs), true);
+// Reading the whole record back, and taking a copy of it away, is a job —
+// the administrator's and Finance's. Neither of them approves anything.
+check('keeping records is a capability, not a name',
+  /const keepsRecords = r => r === 'admin' \|\| r === 'finance'/.test(authjs), true);
+check('and Download all takes what the filters are showing',
+  /function downloadAllHistory/.test(archivejs) && /historyRows\(\)/.test(archivejs), true);
 // Status and History only report. Gating them behind "pick a document first"
 // asked an administrator opening the app to see whether Amila had sent
 // September to choose a document they were never going to produce.
 check('a reporting step is not gated behind the form',
-  /const INFO_STEPS = \['approvals', 'history'\]/.test(appjs) &&
+  /const INFO_STEPS = \['approvals', 'history', 'resubmit'\]/.test(appjs) &&
   /!skipGuard && !reporting/.test(appjs), true);
 check('the stage headings name who does the stage',
   /Auth\.personFor\(st\.who\)/.test(approvals), true);
@@ -261,7 +268,6 @@ check('the notch does not sit over the top bar',
    ----------------------------------------------------------------------- */
 console.log('\nWhose profile is whose');
 
-const authjs = fs.readFileSync(path.join(ROOT, 'assets/js/auth.js'), 'utf8');
 check('a consultant does not see everybody',
   /const seesEveryone = r => r !== 'consultant'/.test(authjs), true);
 check('and does not set the numbering',
@@ -309,6 +315,44 @@ check('and shown back before it is kept',
 check('the PDF reader is fetched only when it is needed',
   !/pdf\.min\.js/.test(html) && /document\.createElement\('script'\)/.test(sigjs), true);
 check('the daily rate is gone', /dailyRate|id="wrapDaily"|id="dailyWarn"/.test(html + appjs), false);
+
+/* -----------------------------------------------------------------------
+   A rejection is a job, not a status. The step carrying it appears by
+   itself the moment something is sent back, and what goes up when it is
+   sent round again is the form as it stands — sending the stored copy would
+   hand the approver the very document they rejected.
+   ----------------------------------------------------------------------- */
+console.log('\nSent back');
+
+const resubjs = fs.readFileSync(path.join(ROOT, 'assets/js/resubmit.js'), 'utf8');
+check('the step is in the page', /id="p-resubmit"/.test(html), true);
+check('and appears only while something has come back',
+  /whenReturned: true/.test(appjs) && /returnedCount\(\) > 0/.test(appjs), true);
+check('the tab counts them', /stepbadge/.test(appjs), true);
+check('the reason is on the card, not in a tooltip',
+  /back\.note \|\| 'No reason was given\.'/.test(resubjs), true);
+check('what is sent is the form as it stands',
+  /editing \? S : undefined/.test(resubjs), true);
+check('and the status table resubmits the same way',
+  /fixingId\(\) === sub\.id/.test(approvals), true);
+
+/* -----------------------------------------------------------------------
+   The PA places the HOD's signature, and an invoice has no HOD signature on
+   it — so an invoice has nothing for them to do and should never reach
+   them. Routing it there anyway was a bill sitting in somebody's queue for
+   ever, waiting on a thing that does not exist.
+   ----------------------------------------------------------------------- */
+console.log('\nWhat the PA actually signs');
+
+check('an invoice has no signature stage',
+  /const hasSignatureStage = sub => kindOf\(sub\) === 'claim'/.test(approvals), true);
+check('so it never lands in the PA queue',
+  /pending_signature' && !hasSignatureStage\(sub\)\) return Auth\.isAdmin\(\)/.test(approvals), true);
+check('and the column says so rather than waiting for ever',
+  /lampCell\('na'/.test(approvals), true);
+check('nothing is asked of a signature that is not owed',
+  /function mustSign/.test(approvals) &&
+  !/signingStage\(sub\.status\)[\s\S]{0,40}const file/.test(approvals), true);
 
 /* -----------------------------------------------------------------------
    Cache keys. GitHub Pages serves this page and everything it loads with

@@ -35,7 +35,8 @@ Everybody who sends a claim has an account, and each has one part in it:
 | `nizar.tarmizi@uzmagroup.com` | `consultant` | Prepares their own claim and submits it |
 | `hanis.rashidan@uzmagroup.com` | `manager` | Reviews it first, and signs it before it goes on |
 | `fadhli.jamaluddin@uzmagroup.com` | `boss` | Approves it second — the HOD |
-| `fatin.zaini@uzmagroup.com` | `pa` | Places the HOD's signature, in the app or on paper |
+| `fatin.zaini@uzmagroup.com` | `pa` | Places the HOD's signature on the **time sheet**, in the app or on paper |
+| `najihah.zakir@uzmagroup.com` | `finance` | Approves nothing; reads the whole record and takes a copy of it |
 
 ### A consultant sees their own work only — and that needs enforcing here
 
@@ -224,9 +225,27 @@ GET  /ccs/me                       → { "email", "name", "role", "acts_on" }
 | Status | Waiting on | Approving takes it to |
 |---|---|---|
 | `pending_manager` | `manager` | `pending_boss` |
-| `pending_boss` | `boss` | `pending_signature` |
+| `pending_boss` | `boss` | `pending_signature` — **but see below for an invoice** |
 | `pending_signature` | `pa` | `complete` |
 | `returned` | the consultant who sent it | `pending_manager`, by `resubmit` |
+
+**An approved invoice should finish at the HOD.** The last stage exists to place the HOD's
+signature, and an invoice does not carry one — it has a single signature on it, the consultant's.
+Routing one to the PA leaves a bill sitting in somebody's queue for ever, waiting on a thing that
+does not exist. So please make the `pending_boss` transition read the row's `kind`:
+
+```
+approve at pending_boss  →  kind = 'claim'    →  pending_signature
+                         →  kind = 'invoice'  →  complete
+```
+
+CCS already keeps invoices out of the PA's queue and draws that column as *not applicable* rather
+than *waiting*. Until the rule is on this side too, an invoice that reaches `pending_signature`
+has to be closed by the `admin`, who can act at any stage — which works, and is a step nobody
+should have to take.
+
+A `finance` account approves nothing: it should be refused `POST /ccs/submissions/{id}/action`
+outright, and allowed the read endpoints.
 
 **`kind`** — please add this field. `POST /ccs/submissions` now sends `"kind": "invoice"` or
 `"kind": "claim"`, and it needs to come back on **both** read endpoints, the list included. The
@@ -243,7 +262,9 @@ sheet is the half that carries the signatures.
 "note": "…", "data": { … } }`.
 
 `data` is optional and is the whole form again — a step that signs sends the sheet back with the
-signature in it, so BDOS never has to know where inside that object a signature lives. `note` is
+signature in it, so BDOS never has to know where inside that object a signature lives. A
+`resubmit` sends it too, and that one matters: a document that came back and was fixed has to
+carry the fix, or the approver is handed the very document they rejected. `note` is
 required by CCS on a `return`, since it is the only thing the consultant is told.
 
 Refusals are the point of this endpoint, so they are specific: `403` when the claim is waiting on

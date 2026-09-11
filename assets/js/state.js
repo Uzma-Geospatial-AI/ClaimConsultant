@@ -49,7 +49,7 @@ function defaultState () {
          of claims sent. Typing over it turns that off — for this claim only,
          and it is said on the page rather than happening silently. */
       autoNo: true,
-      taxPct: 0, mode: 'monthly',
+      taxPct: 0,
       /* No starting figure. A rate that arrives already filled in is a rate
          nobody reads, and every consultant here is on a different one — so
          it is asked for, and the form will not go past step 1 without it. */
@@ -75,7 +75,14 @@ function defaultState () {
       prepName: '', prepDate: '',
       reviewName: '', reviewDate: '',   // the project manager, who reviews first
       apprName: '', apprDate: '',
-      verifName: '', verifDate: ''
+      verifName: '', verifDate: '',
+      /* Which of the three dates in section C are still the app's, and which
+         somebody typed over. An untouched one is today's, every time the
+         form is opened: a claim started on the 9th and sent on the 11th is
+         dated the 11th, because the 11th is when it was sent. Filling them
+         in only when they were empty meant the first date a profile ever
+         saw was the date it carried for ever. */
+      dateAuto: { prep: true, review: true, appr: true }
     },
     sig: { personnel: '', pm: '', hod: '', verified: '' },
     /* Leave already counted this year, one entry per month that has been
@@ -471,32 +478,36 @@ function prorateMonth (S) {
   return { dim, paid, unpaid, rate, deduction, amount, formula };
 }
 
+/**
+ * What this month comes to.
+ *
+ * There is one way of working it out, so there is nothing to choose. A
+ * calculation method used to be a dropdown with three entries; two of them
+ * were never picked, and the third was the right answer every time. A month
+ * settled at some other figure is still typed straight over the amount in
+ * the item table, which is a clearer way of saying "not the usual" than
+ * switching the sum off.
+ */
 function computeAmount (S) {
   const inv = S.invoice, ts = S.timesheet;
-  /* Everybody here is on a monthly rate, so that is the only rate there is.
-     A daily one used to be offered as well and was never once used; what it
-     did do was let a month be priced at the days somebody ticked, which is
-     not what any of these contracts say. `fixed` remains, because a month
-     settled at a figure the sum did not arrive at still has to be typeable. */
-  if (inv.mode !== 'fixed') {
-    const rate = Number(inv.monthlyRate) || 0;
-    /* A month's pay is the month, less the days that are not paid. The sheet
-       already says which those are, so when it has been filled in it decides
-       the figure — that is what makes unpaid leave show up in the money
-       without anybody working it out by hand. */
-    if (timesheetMarked(ts)) {
-      const pr = prorateMonth(S);
-      return { amount: pr.amount, formula: pr.formula, prorate: pr };
-    }
-    // nothing ticked — an invoice on its own, where the period is all there is
-    const ref = periodMonth(inv.pStart) || { y: ts.year, m: ts.month };
-    const dim = daysInMonth(ref.y, ref.m);
-    const cal = calendarDays(inv.pStart, inv.pEnd);
-    const amt = round2(rate / dim * cal);
-    return { amount: amt,
-             formula: `RM ${money(rate)} ÷ ${dim} days (${MONTHS[ref.m]} ${ref.y}) × ${cal} calendar days = RM ${money(amt)}` };
+  const rate = Number(inv.monthlyRate) || 0;
+
+  /* A month's pay is the month, less the days that are not paid. The sheet
+     already says which those are, so when it has been filled in it decides
+     the figure — that is what makes unpaid leave show up in the money
+     without anybody working it out by hand. */
+  if (timesheetMarked(ts)) {
+    const pr = prorateMonth(S);
+    return { amount: pr.amount, formula: pr.formula, prorate: pr };
   }
-  return { amount: null, formula: 'Fixed amount — enter it yourself in the item table below.' };
+
+  // nothing ticked — an invoice on its own, where the period is all there is
+  const ref = periodMonth(inv.pStart) || { y: ts.year, m: ts.month };
+  const dim = daysInMonth(ref.y, ref.m);
+  const cal = calendarDays(inv.pStart, inv.pEnd);
+  const amt = round2(rate / dim * cal);
+  return { amount: amt,
+           formula: `RM ${money(rate)} ÷ ${dim} days (${MONTHS[ref.m]} ${ref.y}) × ${cal} calendar days = RM ${money(amt)}` };
 }
 
 function invoiceTotals (S, items) {
@@ -667,8 +678,13 @@ function mergeDefaults (saved) {
     out.timesheet.activities = [ newActivity('') ];
   }
   if (!out.leave.counted || typeof out.leave.counted !== 'object') out.leave.counted = {};
-  // drafts saved while a daily rate was still on offer
-  if (out.invoice.mode !== 'fixed') out.invoice.mode = 'monthly';
+  if (!out.timesheet.dateAuto || typeof out.timesheet.dateAuto !== 'object') {
+    // a form saved before the dates knew how to keep up: treat them as the
+    // app's, which is what they were — nobody had typed one
+    out.timesheet.dateAuto = { prep: true, review: true, appr: true };
+  }
+  // drafts saved while there was a calculation method to choose
+  delete out.invoice.mode;
   delete out.invoice.dailyRate;
   if (!out.consultant.claimNos || typeof out.consultant.claimNos !== 'object') {
     out.consultant.claimNos = {};

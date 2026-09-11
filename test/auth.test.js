@@ -116,7 +116,13 @@ const run = expr => vm.runInContext(expr, ctx);
   check('case and spaces ignored',     run("isAllowed('  Hanis.Rashidan@UzmaGroup.com ')"), true);
   check('any other BDOS user refused', run("isAllowed('someone.else@uzmagroup.com')"), false);
   check('empty refused',               run("isAllowed('')"), false);
-  check('eight accounts, no more',     run('ALLOWED_USERS.length'), 8);
+  check('nine accounts, no more',      run('ALLOWED_USERS.length'), 9);
+  // Najihah collects the finished paper; she approves nothing and prepares
+  // nothing, so she gets the record and the way to take a copy of it
+  check('Najihah keeps the records',   run("ROLES['najihah.zakir@uzmagroup.com']"), 'finance');
+  check('and that is a job, not a name',
+        run("keepsRecords('finance') && keepsRecords('admin') && !keepsRecords('pa')"), true);
+  check('she approves nothing',        run("!ROLE_NAMES.finance ? false : true"), true);
   // everybody who sends a claim has an account of their own now, and each of
   // them sees their own work and nobody else's
   check('Zharif prepares his own',     run("ROLES['zharif.zaidi@uzmagroup.com']"), 'consultant');

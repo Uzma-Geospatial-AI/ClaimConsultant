@@ -272,19 +272,50 @@ function renderSummary (S) {
   /* Which days the calendar put a PH on, and — more usefully — when it could
      not, because the movable holidays for that year have not been added yet.
      Silence there would read as "there are none". */
+  /* The public holidays are not a warning and not an instruction: they are
+     the calendar saying which days of this month are which kind of day. So
+     they are drawn as the days themselves — one chip per holiday, in the
+     same orange the PH cells in the grid above are — rather than as another
+     paragraph of prose in a box that looks like every other box. */
   const holNote = document.getElementById('tsHolidays');
   if (holNote && typeof holidaysInMonth === 'function') {
     const hol = holidaysInMonth(ts.year, ts.month);
-    const listed = Object.keys(hol).map(d => `${d} ${MON3[ts.month]} — ${hol[d]}`);
+    const days = Object.keys(hol).map(Number).sort((a, b) => a - b);
     const known = typeof holidaysKnown === 'function' ? holidaysKnown(ts.year) : false;
+
     holNote.hidden = false;
-    holNote.className = 'holnote' + (known ? '' : ' unsure');
-    holNote.textContent = (listed.length
-        ? `Selangor public holidays this month: ${listed.join(' · ')}.`
-        : 'No Selangor public holiday falls in this month.') +
-      (known ? '' :
-        ` The movable holidays for ${ts.year} are not in the calendar yet, so only the ` +
-        'fixed dates were set — check the others and mark them PH yourself.');
+    holNote.className = 'holidays' + (known ? '' : ' unsure');
+    holNote.innerHTML = '';
+
+    const head = document.createElement('b');
+    head.textContent = days.length
+      ? `Public holidays in ${MONTHS[ts.month]}`
+      : `No public holiday falls in ${MONTHS[ts.month]}`;
+    holNote.appendChild(head);
+
+    if (days.length) {
+      const list = document.createElement('span');
+      list.className = 'holchips';
+      days.forEach(d => {
+        const chip = document.createElement('i');
+        chip.className = 'holchip';
+        const when = document.createElement('b');
+        when.textContent = `${d} ${MON3[ts.month]}`;
+        chip.appendChild(when);
+        chip.appendChild(document.createTextNode(hol[d]));   // gazetted names, as text
+        list.appendChild(chip);
+      });
+      holNote.appendChild(list);
+    }
+
+    if (!known) {
+      const warn = document.createElement('span');
+      warn.className = 'holwarn';
+      warn.textContent =
+        `The movable holidays for ${ts.year} are not in the calendar yet, so only the fixed ` +
+        'dates were set. Check the rest against the gazette and mark them PH yourself.';
+      holNote.appendChild(warn);
+    }
   }
 
   const warn = document.getElementById('tsWarn');
@@ -334,7 +365,7 @@ function renderLeave (S, hostId) {
     <table class="leavetable">
       <thead><tr>
         <th>Leave</th><th>${MONTHS[ts.month]}</th>
-        <th>Taken in ${ts.year}</th><th>Left</th><th>Days this month</th>
+        <th>Taken in ${ts.year}</th><th>Left</th>
       </tr></thead>
       <tbody></tbody>
     </table>
@@ -369,7 +400,16 @@ function leaveRow (S, mark) {
     return td;
   };
 
-  tr.appendChild(cell(String(L.month)));
+  /* How many days of it this month, and — in the tooltip — which days.
+     The dates used to be a column of their own, and were a column of dashes
+     eleven months of the year. They say more hung off the count they belong
+     to, and the grid above is where anybody actually looks for them. */
+  const month = cell(String(L.month));
+  if (L.days.length) {
+    month.title = `${L.name} on ${L.days.join(', ')} ${MONTHS[S.timesheet.month]}`;
+  }
+  tr.appendChild(month);
+
   tr.appendChild(cell(L.limit == null ? String(L.taken) : `${L.taken} of ${L.limit}`));
   tr.appendChild(cell(
     L.limit == null ? 'no limit'
@@ -377,7 +417,6 @@ function leaveRow (S, mark) {
       : String(L.left),
     L.limit == null ? 'nolimit' : (L.over || L.left === 0) ? 'bad' : (L.left <= 2 ? 'low' : '')
   ));
-  tr.appendChild(cell(L.days.join(', ') || '—', 'daylist'));
 
   return tr;
 }

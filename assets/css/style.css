@@ -571,11 +571,36 @@ body.locked > .sitefoot{display:none}
 .pcardid.missing{color:var(--muted);font-weight:400;text-transform:none}
 
 /* ---------- what the calendar decided ---------- */
-.holnote{
-  margin:10px 0 0;font-size:12.5px;color:var(--navy-soft);
-  background:#f7fafd;border:1px solid var(--line);border-radius:7px;padding:9px 12px;
+/* The public holidays are not a warning and not an instruction — they are
+   the calendar saying which days of this month are which kind of day. So
+   they are drawn as the days themselves, in the orange the PH cells in the
+   grid use, and look like nothing else on the page. */
+.holidays{
+  margin:12px 0 0;padding:0;display:flex;flex-wrap:wrap;align-items:center;
+  gap:8px 12px;border:none;background:none;font-size:12.5px;
 }
-.holnote.unsure{color:#9a5a12;background:#fff6e8;border-color:#f2d3a3}
+.holidays > b{
+  font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--orange);
+  white-space:nowrap;
+}
+.holchips{display:flex;flex-wrap:wrap;gap:8px}
+.holchip{
+  display:inline-flex;align-items:baseline;gap:7px;font-style:normal;font-size:12px;
+  padding:4px 11px 4px 5px;border-radius:20px;
+  background:var(--orange-soft);color:#b3480f;border:1px solid #f6d3bf;
+}
+.holchip b{
+  font-size:11px;font-weight:700;letter-spacing:.2px;white-space:nowrap;
+  background:#fff;border-radius:14px;padding:2px 8px;color:var(--orange);
+}
+.holwarn{
+  flex:1 1 100%;font-size:12px;color:#9a5a12;background:#fff6e8;
+  border:1px solid #f2d3a3;border-radius:7px;padding:8px 11px;
+}
+@media(max-width:700px){
+  .holidays > b{flex:1 1 100%}
+  .holchip{font-size:11.5px}
+}
 .leavefoot{margin:8px 14px 12px;font-size:12px;color:var(--muted)}
 
 /* =======================================================================
@@ -917,3 +942,39 @@ body.locked > .sitefoot{display:none}
 /* what the administrator alone sets */
 input.locked,select.locked{background:#f3f6f9;color:var(--navy-soft);cursor:not-allowed}
 .keyfield input.locked,.keyfield select.locked{border-color:var(--line);background:#f3f6f9}
+
+/* =======================================================================
+   Sent back — the Re-submit step
+
+   A rejection is a job, not a status. The reason somebody gave is the
+   biggest thing on the card, because it is the only thing on it that says
+   what to do next.
+   ======================================================================= */
+.stepbadge{
+  font-style:normal;font-size:10.5px;font-weight:700;line-height:1;
+  background:var(--danger);color:#fff;border-radius:20px;padding:3px 7px;margin-left:2px;
+}
+.backcard{
+  border:1px solid #e5a79f;border-left:4px solid var(--danger);border-radius:9px;
+  padding:14px 16px;background:#fffbfa;
+}
+.backcard.fixing{border-color:var(--orange);border-left-color:var(--orange);background:#fffaf6}
+.backhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px}
+.backhead b{font-size:14.5px}
+.backhead span{color:var(--muted);font-size:12px}
+.backwho{margin:10px 0 0;font-size:12px;color:var(--muted)}
+.backwhy{
+  margin:6px 0 0;padding:10px 14px;border-left:3px solid #e5a79f;background:#fff;
+  border-radius:0 7px 7px 0;font-size:13.5px;color:var(--ink);
+}
+.backnow{
+  margin:10px 0 0;font-size:12.5px;color:#9a5a12;background:#fff6e8;
+  border:1px solid #f2d3a3;border-radius:7px;padding:8px 11px;
+}
+.backcard .decidenote{margin-top:12px}
+@media(max-width:700px){
+  .backcard .btnrow .btn{flex:1 1 auto}
+}
+
+/* a stage a document does not have, rather than one it is waiting for */
+.lamp.na{background:#fff;border-style:dashed;color:var(--muted)}

@@ -173,11 +173,15 @@ hands it back to the calendar.
 | 🪪 **Profiles in unique-ID order** | The ones with an ID first, in ID order, and the ones without last. A profile with no ID cannot produce an invoice number, so it is a job still to do — and it belongs where it gets noticed rather than scattered through the alphabet |
 | 🔒 **Three fields the office sets** | The **unique ID**, the **claim count** and the **account** a profile belongs to are the administrator's. One person deciding they are 07 is how two people end up both being 07 — so everybody else can read them and see why they are what they are, and change none of them |
 | 🚧 **Step 1 has to be finished** | A name, a unique ID, a monthly rate and a signature, or nothing goes further. The monthly rate starts **empty** rather than at a figure nobody reads. And an edit that has not been saved holds the step too: **Next** is not offered while there is a reason it would be refused, and says which — a draft is not a profile, and details typed in and never saved came back blank the next month |
+| ↩️ **A rejection is a job, not a status** | When something you sent is sent back, a **Re-submit** tab appears by itself, with a number on it, carrying the reason in the approver's own words. Open it, fix the one thing, send it round again — and what goes up is the form as it stands, not the stored copy the approver already rejected |
+| 🖊️ **The PA signs the time sheet, and only that** | The last stage exists to place the HOD's signature, and an invoice does not carry one. So an invoice never lands in the PA's queue and that column reads *not applicable* rather than *waiting* — a bill waiting on a signature that does not exist is a bill waiting for ever |
+| 📥 **Download all, for whoever keeps the record** | The `finance` account approves nothing: it reads the whole archive and takes a copy of it. **Download all** saves every file the History filters are showing, named for the person and the month rather than for whatever the scanner called it |
 | ✍️ **One signature, kept on the profile** | Draw it once, or upload a scan — **PDF**, PNG or JPG. A scan is a whole page, so the app finds the ink on it, puts a box round what it found, and shows a preview of exactly what will be kept; drag a different box if the guess was wrong. From then on it prints itself into the PERSONNEL box on the Claim form and onto the Invoice. The PDF reader is a third of a megabyte and is fetched only when somebody actually uploads one |
 | 📅 **Public holidays it already knows** | The Selangor calendar ships with the app. Fixed dates are worked out for any year; the movable ones — Raya, Thaipusam, Deepavali, the Agong's birthday — are gazetted a year at a time and are written down in [`holidays.js`](assets/js/holidays.js). A year the table does not know still gets its fixed dates and **says so on the page** rather than pretending there are none |
 | 🔢 **Invoice numbers that write themselves** | `2026-01-003` is the year, the person, and the third claim they have sent. The middle is the profile's **Unique ID** — its own field on the Profile step, highlighted, because without it there is no number and the app will not guess a digit that would put two people on one series. The count goes up by one each time a claim is submitted, and follows the person rather than the form. Typing your own number over it is allowed, and the page says so |
 | 🗃️ **The signed copies, on file** | Everything else the app keeps is the claim as software holds it. The **Status** step also takes the paper: upload the signed invoice and the signed time sheet once they come back, and they are filed against that person and that month in the shared database. Any month can then be produced again a year later without hunting through anybody's Downloads folder |
-| 🧮 **Three ways to price a period** | Monthly rate prorated by calendar days, daily rate × days ticked, or a fixed amount you type yourself — the live formula shows its working |
+| 🧮 **One way of pricing a month, shown as it works** | The monthly rate less the days that are not paid for, and the live formula line spells the sum out. There is nothing to choose: a calculation method used to be a dropdown of three, two of which were never picked. A month settled at some other figure is typed straight over the amount, which is a clearer way of saying "not the usual" than switching the sum off |
+| 📅 **Dates that keep up** | The three dates in section C are today's, every time the form is opened — a claim started on the 9th and sent on the 11th is dated the 11th. Type a different one and it stays; empty it and it goes back to being today's. A date somebody signed against is a fact and is never moved |
 | ✍️ **Sign in the signature box** | The four pads (Personnel, Project Manager, HOD, Verified By) sit inside Section C where the pen would go; blank space around the stroke is trimmed before it is embedded |
 | ✅ **Three stages, in order** | A submitted document goes to the project manager, then to the HOD, and the HOD's signature is placed by their PA. Each approver reads it as it will be printed, signs their own box or sends it back with a reason, and every move is recorded against a name and a time |
 | 🚦 **A status table that starts from the people** | Everybody with a profile gets a row per document for the month you are looking at, **whether or not they have sent anything** — because "has Amila sent September yet" is the question that gets asked, and a list of what was sent can never answer it. Then five lights, in the order they happen: **Sent · Reviewed · Approved · Signed · On file**. Green done, amber waiting here now, red sent back from here, blank not yet. Pick another month from the same row of controls |
@@ -257,7 +261,8 @@ ConsultantClaimSystem/
 │       ├── gen-claim.js          # Claim   → PDF (jsPDF) + Word (docx)
 │       ├── preview.js            # the on-screen PDF viewer
 │       ├── approvals.js          # the status table and the decisions
-│       ├── archive.js            # the signed copies, and the History step
+│       ├── archive.js            # the signed copies, the History step, Download all
+│       ├── resubmit.js           # what came back, and putting it right
 │       └── app.js                # step flow, profiles, generate buttons
 ├── docs/
 │   └── BDOS-CCS-Endpoints.md     # the storage API this app asks BDOS for
@@ -329,17 +334,20 @@ not the formula's: unpaid leave and a working day nobody marked are the only two
 anything (see `PAID_MARKS`). A month with nothing unpaid deducts nothing and pays the rate.
 
 
-Pick a method on the **Invoice** step; the formula line updates as you type.
+There is nothing to pick. The **Invoice** step shows the rate and the formula line, and the
+formula line updates as you type.
 
-| Method | Formula |
+| Situation | Formula |
 |---|---|
-| **Monthly rate** (default), with a time sheet | `monthly rate − (unpaid days ÷ days in month × monthly rate)` |
-| **Monthly rate**, invoice on its own | `monthly rate ÷ days in month × calendar days in period` |
-| **Fixed amount** | whatever you type in the item table |
+| With a time sheet — the usual | `monthly rate − (unpaid days ÷ days in month × monthly rate)` |
+| An invoice sent on its own, for a part month | `monthly rate ÷ days in month × calendar days in period` |
 
-A daily rate used to be on offer as a third method. Nobody used it, and what it did do was let a
-month be priced at the days somebody happened to tick, which is not what any of these contracts
-say — so it is gone, and a draft saved while it existed is read as monthly.
+A **calculation method** used to be a dropdown of three. A daily rate was one of them: nobody
+used it, and what it did do was let a month be priced at the days somebody happened to tick,
+which is not what any of these contracts say. A fixed amount was another, and typing over the
+amount in the item table already says the same thing more clearly — the app keeps what you typed,
+says it has been typed over, and offers the calculated figure back. So both are gone, and a draft
+saved while they existed has the method and the daily rate stripped on the way in.
 
 There are two monthly cases because there are two situations. With a time sheet the sheet says
 which days were paid for, so the deduction is real and is taken off the whole month. Without one
@@ -556,12 +564,14 @@ A claim does not go straight to Finance. It travels:
 ```
   consultant          project manager        HOD              PA to the HOD
   ─────────────────   ────────────────────   ──────────────   ───────────────────
-  fills it in     →   SIGNS it, then     →   approves     →   SIGNS it → complete
-  submits it          approves               it (no
+  fills it in     →   SIGNS it, then     →   approves     →   SIGNS the time
+  submits it          approves               it (no            sheet → complete
                                              signature)
-                          │                      │
+                          │                      │           (an invoice is
+                          │                      │            finished here)
                           └──── sends back ──────┴──→ returned, with a reason
-
+                                                        │
+                                                        └─→ Re-submit tab
   signing means either: draw it in the app  ·  or upload the paper you signed
 ```
 

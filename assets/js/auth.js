@@ -38,7 +38,8 @@ const ROLES = {
   'nizar.tarmizi@uzmagroup.com':     'consultant',
   'hanis.rashidan@uzmagroup.com':    'manager',
   'fadhli.jamaluddin@uzmagroup.com': 'boss',
-  'fatin.zaini@uzmagroup.com':       'pa'
+  'fatin.zaini@uzmagroup.com':       'pa',
+  'najihah.zakir@uzmagroup.com':     'finance'
 };
 const ALLOWED_USERS = Object.keys(ROLES);
 
@@ -66,7 +67,8 @@ const ROLE_NAMES = {
   consultant: 'Consultant',
   manager:    'Project Manager',
   boss:       'Head of Department',
-  pa:         'PA to the HOD'
+  pa:         'PA to the HOD',
+  finance:    'Group People & Finance'
 };
 
 /**
@@ -84,7 +86,8 @@ const ROLE_PEOPLE = {
   consultant: 'the consultant',
   manager:    'Muhammad Hanis Rashidan',
   boss:       'Gs. Mohammad Fadhli Jamaluddin',
-  pa:         'Fatin Zaini'
+  pa:         'Fatin Zaini',
+  finance:    'Sharifah Najihah Syed Mohd Zakir'
 };
 
 /* The admin prepares claims like a consultant and can also move any claim at
@@ -101,6 +104,11 @@ const isAdmin  = r => r === 'admin';
    comparing to a role name is how the admin ended up with less access than
    the people it administers. */
 const places = r => r === 'pa' || r === 'admin';
+
+/* Whose job is the finished paper: reading the whole record back, and taking
+   a copy of it away. Nobody in this group approves anything — they collect
+   what the approvals produced. */
+const keepsRecords = r => r === 'admin' || r === 'finance';
 
 /* Seeing everybody's work, rather than only your own. The administrator sets
    the app up and answers for all of it; the three approvers have to read
@@ -366,6 +374,7 @@ const Auth = {
   personFor: r => ROLE_PEOPLE[r] || '',
   prepares: () => prepares(currentRole()),
   places: () => places(currentRole()),
+  keepsRecords: () => keepsRecords(currentRole()),
   seesEveryone: () => seesEveryone(currentRole()),
   setsNumbering: () => setsNumbering(currentRole()),
   isAdmin: () => isAdmin(currentRole()),

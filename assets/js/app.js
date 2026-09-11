@@ -22,6 +22,38 @@ function todayDotted () {
   return `${n.getDate()}.${n.getMonth() + 1}.${n.getFullYear()}`;
 }
 
+/* The three dates in section C, and the flag that says whether each is still
+   the app's to keep up to date. Typing in one hands it over; emptying it
+   hands it back. */
+const AUTO_DATES = {
+  'timesheet.prepDate':   'prep',
+  'timesheet.reviewDate': 'review',
+  'timesheet.apprDate':   'appr'
+};
+
+/**
+ * Move every date nobody has typed over on to today.
+ *
+ * Called whenever the form is opened or the month changes, so a claim that
+ * sat half-finished for two days is dated the day it is actually sent —
+ * while a date somebody set on purpose is left exactly where they set it.
+ */
+function refreshAutoDates () {
+  const today = todayDotted();
+  const auto = S.timesheet.dateAuto || (S.timesheet.dateAuto = {});
+  let moved = false;
+  Object.keys(AUTO_DATES).forEach(path => {
+    const key = AUTO_DATES[path];
+    const field = path.split('.')[1];
+    if (auto[key] === false) return;
+    if (S.timesheet[field] === today) return;
+    S.timesheet[field] = today;
+    moved = true;
+  });
+  if (moved) { mirror('timesheet.prepDate'); mirror('timesheet.reviewDate'); mirror('timesheet.apprDate'); }
+  return moved;
+}
+
 /* ---------------- toast ---------------- */
 let toastTimer = null;
 function toast (msg, bad) {
@@ -50,16 +82,24 @@ const STEPS = [
      several times while a month is still being argued about; submitting
      happens once and cannot be taken back. They are separate steps now. */
   { id: 'submit',     label: 'Submit' },
+  /* Only there while something of yours has been sent back. A rejection is
+     not a status, it is a job — and a job nobody can see is a month nobody
+     gets paid for. */
+  { id: 'resubmit',   label: 'Re-submit', whenReturned: true },
   { id: 'approvals',  label: 'Status' },
   /* The administrator, and only them: the Status step answers "where is this
      month", and somebody has to be able to answer "where is last March" as
      well. `admin: true` is the only thing that keeps a step out of the flow
      for everybody else. */
-  { id: 'history',    label: 'History', admin: true }
+  /* The whole record, for the two accounts whose job it is: the
+     administrator, and whoever keeps the finished paper. */
+  { id: 'history',    label: 'History', records: true }
 ];
 
-/** steps this account is allowed to see at all */
-const permittedSteps = () => STEPS.filter(s => !s.admin || Auth.isAdmin());
+/** steps this account is allowed to see at all, right now */
+const permittedSteps = () => STEPS.filter(s =>
+  (!s.records || Auth.keepsRecords()) &&
+  (!s.whenReturned || (typeof returnedCount === 'function' && returnedCount() > 0)));
 
 let stepIndex = 0;
 let activeProfile = '';          // the saved profile the form was opened from
@@ -73,7 +113,7 @@ function activeSteps () {
   if (Auth.role() && !Auth.prepares()) {
     return all.filter(s => s.id === 'approvals' || s.id === 'history');
   }
-  const tail = all.filter(s => s.id === 'approvals' || s.id === 'history');
+  const tail = all.filter(s => s.id === 'resubmit' || s.id === 'approvals' || s.id === 'history');
   if (!S.mode) {
     return all.filter(s => s.id === 'consultant' || s.id === 'choose').concat(tail);
   }
@@ -107,11 +147,13 @@ function canLeave (id) {
   return true;
 }
 
-/* Steps that only report. Nothing on them is part of preparing a claim, so
-   nothing has to be filled in to look at one — an administrator opening the
-   app to see whether Amila has sent September should not first be asked to
-   pick a document they are not going to produce. */
-const INFO_STEPS = ['approvals', 'history'];
+/* Steps that only report, or that are about a claim already sent. Nothing on
+   them is part of preparing a new one, so nothing has to be filled in to
+   reach one — an administrator opening the app to see whether Amila has sent
+   September should not first be asked to pick a document they are not going
+   to produce, and somebody whose invoice was rejected should not have to
+   finish a fresh claim before they can read why. */
+const INFO_STEPS = ['approvals', 'history', 'resubmit'];
 
 function goToStep (i, skipGuard) {
   const list = activeSteps();
@@ -135,11 +177,14 @@ function showStep () {
   renderNavRows();
   // canvases can only be measured once their panel is visible
   if (step.id === 'claim' || step.id === 'invoice') setTimeout(() => Sig.resizeAll(), 30);
+  // a tab left open over midnight should not date today's claim yesterday
+  if (step.id === 'claim' && refreshAutoDates()) persist();
   if (step.id === 'generate') renderGenSummary();
   if (step.id === 'choose') paintChoices();
   if (step.id === 'submit') renderSubmitStep();
   if (step.id === 'approvals') { renderApprovals(); renderArchive(); }
   if (step.id === 'history') renderHistory();
+  if (step.id === 'resubmit') renderResubmit();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -151,7 +196,14 @@ function renderStepper () {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'step' + (i === stepIndex ? ' active' : (i < stepIndex ? ' done' : ''));
+    const n = s.whenReturned && typeof returnedCount === 'function' ? returnedCount() : 0;
     b.innerHTML = `<span class="step-num">${i + 1}</span><span>${s.label}</span>`;
+    if (n) {
+      const badge = document.createElement('i');
+      badge.className = 'stepbadge';
+      badge.textContent = String(n);
+      b.appendChild(badge);
+    }
     b.addEventListener('click', () => goToStep(i));
     host.appendChild(b);
   });
@@ -331,7 +383,12 @@ function bindInputs () {
         S.invoice.autoNo = !el.value.trim() || el.value.trim() === invoiceNumberOf(S);
         paintInvoiceNo();
       }
-      if (path === 'invoice.mode') renderItems();
+      /* A date somebody typed is theirs from then on, and one they emptied
+         is handed back to the app — which is the only way to undo having
+         typed one, and is what an empty box has always meant here. */
+      if (AUTO_DATES[path]) {
+        S.timesheet.dateAuto[AUTO_DATES[path]] = !String(el.value).trim();
+      }
       // a person typed something, which is the only thing that counts as an edit
       if (path.indexOf('consultant.') === 0 || path === 'invoice.monthlyRate') {
         markProfileDirty();
@@ -562,7 +619,8 @@ function paintInvoiceNo () {
 function renderItems () {
   const tb = document.querySelector('#itemTable tbody');
   tb.innerHTML = '';
-  const autoManaged = S.invoice.mode !== 'fixed';
+  // the first line is always the sum's; lines two onwards are yours to write
+  const autoManaged = true;
 
   S.invoice.items.forEach((it, i) => {
     const tr = document.createElement('tr');
@@ -621,12 +679,11 @@ function refreshTotals () {
 function syncAutoAmount () {
   const calc = computeAmount(S);
   document.getElementById('calcFormula').innerHTML = calc.formula || '&nbsp;';
-  document.getElementById('wrapMonthly').classList.toggle('hidden', S.invoice.mode !== 'monthly');
 
   if (!S.invoice.items.length) {
     S.invoice.items.push({ desc: 'Consultancy Service Fee', position: S.consultant.position, period: '', amount: 0 });
   }
-  if (S.invoice.mode !== 'fixed') {
+  {
     const it = S.invoice.items[0];
     const overridden = S.invoice.override != null && S.invoice.override !== '';
     it.amount = overridden ? Number(S.invoice.override) : (calc.amount || 0);
@@ -640,8 +697,6 @@ function syncAutoAmount () {
     it.position = S.consultant.position;
     it.period = fmtPeriodShort(S.invoice.pStart, S.invoice.pEnd);
     paintOverride(calc, overridden);
-  } else {
-    paintOverride(calc, false);
   }
   renderItems();
   refreshTotals();
@@ -895,11 +950,12 @@ function fillDefaultsForMonth () {
   if (!S.timesheet.reviewName) S.timesheet.reviewName = SIGN_DEFAULTS.review;
   if (!S.timesheet.apprName)  S.timesheet.apprName  = SIGN_DEFAULTS.hod;
   if (!S.timesheet.verifName) S.timesheet.verifName = SIGN_DEFAULTS.verified;
-  if (!S.timesheet.prepDate)  S.timesheet.prepDate  = todayDotted();
-  // the reviewer and the approver date their own boxes when they sign, so
-  // these only start filled the way the printed form starts filled
-  if (!S.timesheet.reviewDate) S.timesheet.reviewDate = S.timesheet.prepDate;
-  if (!S.timesheet.apprDate)  S.timesheet.apprDate  = S.timesheet.prepDate;
+  /* The reviewer and the approver date their own boxes when they sign, so
+     these only start filled the way the printed form starts filled — with
+     today's date, which is what a blank form handed over today would have
+     written on it. Every one of them is still an ordinary box: type a
+     different date and it stays. */
+  refreshAutoDates();
   /* The leave record is keyed by month, so a year turning over needs nothing
      done to it — last year's months simply stop being this year's. All this
      has to do is make sure the shape is there to write into. */
@@ -1098,6 +1154,14 @@ function boot () {
   });
   const btnHist = document.getElementById('btnRefreshHistory');
   if (btnHist) btnHist.addEventListener('click', () => renderHistory(true));
+  const btnAll = document.getElementById('btnDownloadAll');
+  if (btnAll) btnAll.addEventListener('click', () => downloadAllHistory(btnAll));
+  const btnBack = document.getElementById('btnRefreshReturned');
+  if (btnBack) btnBack.addEventListener('click', async () => {
+    await loadReturned();
+    renderResubmit();
+    renderStepper();
+  });
 
   document.getElementById('btnSubmitClaim').addEventListener('click', async () => {
     if (!validate()) return;
@@ -1169,6 +1233,14 @@ function boot () {
     // the probe is what decides whether a claim can be sent at all, and it
     // answers after the first paint
     renderSubmitStep();
+    loadReturned().then(list => {
+      if (!list.length) return;
+      renderStepper();
+      renderNavRows();
+      toast(list.length === 1
+        ? 'One document was sent back — see the Re-submit step.'
+        : `${list.length} documents were sent back — see the Re-submit step.`, true);
+    });
   });
 }
 

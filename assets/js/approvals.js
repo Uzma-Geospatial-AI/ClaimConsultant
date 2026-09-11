@@ -66,8 +66,8 @@ const STAGE_KEYS = STAGES.map(s => s.key);
    Only the time sheet has these boxes. An invoice has one signature on it,
    the consultant's, and an approver approving a bill does not sign it. */
 const STAGE_SIGNS = {
-  pending_manager:   { sig: 'pm',  name: 'reviewName', date: 'reviewDate' },
-  pending_signature: { sig: 'hod', name: 'apprName',   date: 'apprDate' }
+  pending_manager:   { sig: 'pm',  name: 'reviewName', date: 'reviewDate', auto: 'review' },
+  pending_signature: { sig: 'hod', name: 'apprName',   date: 'apprDate',   auto: 'appr' }
 };
 
 const LAST_SIG_KEY = 'ccs.mysignature';      // this approver's own, on this machine
@@ -167,6 +167,11 @@ function myEmail () { return String((Auth.user() || {}).email || '').toLowerCase
 /** can the account that is signed in move this document on? */
 function waitingOnMe (sub) {
   if (!sub || !STATUS_ROLE[sub.status]) return false;   // finished, or sent back
+  /* The PA places the HOD's signature, and an invoice does not carry one —
+     so an invoice never lands in their queue. Until BDOS stops routing one
+     there, somebody has to close it, and that is the account that stands in
+     everywhere. */
+  if (sub.status === 'pending_signature' && !hasSignatureStage(sub)) return Auth.isAdmin();
   return Auth.isAdmin() || STATUS_ROLE[sub.status] === myRole();
 }
 
@@ -190,6 +195,25 @@ function kindOf (sub) {
 function signsFor (sub) {
   return kindOf(sub) === 'claim' ? STAGE_SIGNS[sub.status] : null;
 }
+
+/**
+ * Does somebody have to put their name to this document at this stage?
+ *
+ * The project manager signs both, because reviewing a bill and saying so is
+ * still reviewing it. The last stage is the HOD's signature being placed,
+ * and an invoice has no HOD signature on it — so for an invoice there is
+ * nothing at that stage to do, and it should never have been sent to the PA
+ * in the first place. See docs/BDOS-CCS-Endpoints.md: an approved invoice
+ * ought to finish at the HOD.
+ */
+function mustSign (sub) {
+  if (!signingStage(sub.status)) return false;
+  if (sub.status === 'pending_signature' && kindOf(sub) !== 'claim') return false;
+  return true;
+}
+
+/** is the PA's stage even a thing for this document? */
+const hasSignatureStage = sub => kindOf(sub) === 'claim';
 
 /**
  * Where one approval stage stands for one document.
@@ -259,6 +283,8 @@ async function renderApprovals () {
   await learnKinds();
   // the last column is "is the signed paper on file", which lives over there
   if (typeof ensureArchive === 'function') await ensureArchive();
+  // and the Re-submit tab comes and goes with what is sitting in `returned`
+  if (typeof loadReturned === 'function') { await loadReturned(); renderStepper(); }
   paintApprovals();
 }
 
@@ -524,6 +550,13 @@ function statusRow (name, kind, sub, first) {
 
   // the three approval stages
   STAGES.forEach(st => {
+    // an invoice has no HOD signature to place, so that column is not a
+    // thing it is waiting for — it is a thing it does not have
+    if (sub && st.key === 'pending_signature' && !hasSignatureStage(sub)) {
+      tr.appendChild(lampCell('na', st.head,
+        'an invoice carries no approver signature — nothing to place'));
+      return;
+    }
     const state = stageState(sub, st.key);
     const did = sub ? whoDid(sub, st.key) : '';
     tr.appendChild(lampCell(state, st.head,
@@ -577,7 +610,8 @@ function lampCell (state, head, why) {
   lamp.className = 'lamp ' + state;
   lamp.textContent = state === 'done' ? '✓'
     : state === 'returned' ? '✕'
-    : state === 'waiting' ? '●' : '';
+    : state === 'waiting' ? '●'
+    : state === 'na' ? '–' : '';
   lamp.title = `${head} — ${why}`;
   cell.appendChild(lamp);
   return cell;
@@ -657,7 +691,7 @@ async function bulk (waiting, action, note) {
      machine remembers. One without — an invoice — needs a scan that only a
      person can produce, so it is left where it is and said so. */
   const needsScan = action === 'approve'
-    ? waiting.filter(s => signingStage(s.status) && !signsFor(s)) : [];
+    ? waiting.filter(s => mustSign(s) && !signsFor(s)) : [];
   const canDo = waiting.filter(s => needsScan.indexOf(s) < 0);
   const signing = action === 'approve' && canDo.some(s => signsFor(s));
   if (signing && !myLastSignature()) {
@@ -684,6 +718,8 @@ async function bulk (waiting, action, note) {
         data.sig[signs.sig] = myLastSignature();
         data.timesheet[signs.name] = (Auth.user() || {}).name || data.timesheet[signs.name] || '';
         data.timesheet[signs.date] = todayDotted();
+        // the day somebody signed is a fact, not a default to be kept current
+        (data.timesheet.dateAuto = data.timesheet.dateAuto || {})[signs.auto] = false;
       }
       await Sync.act(sub.id, action, note, data);
       done++;
@@ -728,7 +764,7 @@ function decideBox (sub) {
   const box = document.createElement('div');
   box.className = 'decidebox';
   const signs = decideAction === 'approve' ? signsFor(sub) : null;
-  const signing = decideAction === 'approve' && signingStage(sub.status);
+  const signing = decideAction === 'approve' && mustSign(sub);
   const stage = STAGE_BY_KEY[sub.status] || {};
 
   const head = document.createElement('p');
@@ -738,7 +774,9 @@ function decideBox (sub) {
     : decideAction === 'resubmit' ? 'Send this document back for approval'
     : signs ? 'Sign and approve'
     : signing ? `Sign the ${kindLabel(kindOf(sub)).toLowerCase()} and pass it on`
-    : `Approve the ${kindLabel(kindOf(sub)).toLowerCase()}`;
+    : sub.status === 'pending_signature'
+      ? 'Close the invoice — there is no signature to place on one'
+      : `Approve the ${kindLabel(kindOf(sub)).toLowerCase()}`;
   box.appendChild(head);
 
   let pad = null;
@@ -792,7 +830,7 @@ function decideBox (sub) {
   const go = button(
     decideAction === 'return' ? 'Send it back'
       : decideAction === 'resubmit' ? 'Resubmit'
-      : sub.status === 'pending_signature' ? 'Mark it signed'
+      : sub.status === 'pending_signature' ? (signing ? 'Mark it signed' : 'Close it')
       : signing ? 'Sign and pass it on' : 'Confirm',
     decideAction === 'return' ? 'danger' : 'primary',
     () => decide(sub, note.value.trim(), pad, filed, go));
@@ -809,7 +847,7 @@ async function decide (sub, note, pad, filed, go) {
     return;
   }
   const signs = decideAction === 'approve' ? signsFor(sub) : null;
-  const signing = decideAction === 'approve' && signingStage(sub.status);
+  const signing = decideAction === 'approve' && mustSign(sub);
   const file = filed && filed.files && filed.files[0];
 
   /* A stage that signs does not pass anything on unsigned. Where the document
@@ -844,7 +882,17 @@ async function decide (sub, note, pad, filed, go) {
       // even when it is the admin standing in for somebody away
       data.timesheet[signs.name] = (Auth.user() || {}).name || data.timesheet[signs.name] || '';
       data.timesheet[signs.date] = todayDotted();
+      // the day somebody signed is a fact, not a default to be kept current
+      (data.timesheet.dateAuto = data.timesheet.dateAuto || {})[signs.auto] = false;
       rememberSignature(png);
+    }
+
+    /* Resubmitting sends the form as it stands when the form as it stands is
+       this document. Sending the stored copy would hand the approver the very
+       document they rejected. */
+    if (decideAction === 'resubmit' && typeof fixingId === 'function' &&
+        fixingId() === sub.id) {
+      data = S;
     }
 
     /* File first, then move the document on. A file that is on record for a

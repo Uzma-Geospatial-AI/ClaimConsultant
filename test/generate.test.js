@@ -165,9 +165,6 @@ vm.runInContext(`
   }));
   globalThis.__staleMode = __stale.invoice.mode;
   globalThis.__staleRate = __stale.invoice.dailyRate;
-  globalThis.__fixed = computeAmount(Object.assign({}, S, {
-    invoice: Object.assign({}, S.invoice, { mode: 'fixed' })
-  })).amount;
 
   /* A second activity row must not make the weekend count twice: the days
      belong to the month, and the rows have to keep adding up to the total. */
@@ -277,9 +274,11 @@ vm.runInContext(`
   check('invoice amount (RM)', ctx.__calc.amount, 2032.26);
   check('TOTAL DAYS [A] counts every paid day', ctx.__tot.A, 18);
   check('the days worked are still counted', ctx.__worked, 4);
-  check('a draft on the old daily rate is read as monthly', ctx.__staleMode, 'monthly');
-  check('and the rate that went with it is dropped', ctx.__staleRate, 'undefined');
-  check('a fixed month leaves the figure to whoever types it', ctx.__fixed, 'null');
+  /* There is one way of working a month out, so there is nothing to choose.
+     A draft saved while there was gets both the method and the rate that
+     went with it stripped on the way in. */
+  check('a draft carrying a calculation method loses it', ctx.__staleMode, 'undefined');
+  check('and the daily rate with it', ctx.__staleRate, 'undefined');
   check('unpaid leave is not a paid day', ctx.__ulDay, 'UL');
   check('the weekend fills itself in', ctx.__satDay, 'SAT');
   check('a working day nobody marked is unpaid', ctx.__unmarked.includes(18), true);

@@ -180,6 +180,11 @@ function paintArchive () {
 
 let historyWho = '';
 let historyYear = '';
+/* Which copies the History step is listing. Finished by default: the ones
+   the PA put back after the signatures were on them, which is what anybody
+   asking for "September" actually means. */
+let historyStage = 'final';
+let downloading = false;
 
 async function renderHistory (force) {
   const host = document.getElementById('historyList');
@@ -232,16 +237,14 @@ function paintHistory () {
     year.onchange = () => { historyYear = year.value; paintHistory(); };
   }
 
-  const rows = archive
-    .filter(r => !historyWho || String(r.consultant || '').trim() === historyWho)
-    .filter(r => !historyYear || String(r.period_year) === historyYear)
-    .slice()
-    .sort((a, b) =>
-      (b.period_year - a.period_year) || (b.period_month - a.period_month) ||
-      String(a.consultant || '').localeCompare(String(b.consultant || '')));
+  const stage = document.getElementById('historyStage');
+  if (stage) {
+    stage.value = historyStage;
+    stage.onchange = () => { historyStage = stage.value; paintHistory(); };
+  }
 
+  const rows = historyRows();
   host.innerHTML = '';
-
   const count = document.createElement('p');
   count.className = 'historycount';
   const files = rows.reduce((n, r) => n + ((r.files || []).length), 0);
@@ -274,6 +277,88 @@ function paintHistory () {
     }
     host.appendChild(archiveRow(r, true));
   });
+}
+
+/** what the History step is showing, after its three filters */
+function historyRows () {
+  return archive
+    .filter(r => !historyWho || String(r.consultant || '').trim() === historyWho)
+    .filter(r => !historyYear || String(r.period_year) === historyYear)
+    .filter(r => historyStage !== 'final' || stageOf(r) === ARCHIVE_FINAL)
+    .slice()
+    .sort((a, b) =>
+      (b.period_year - a.period_year) || (b.period_month - a.period_month) ||
+      String(a.consultant || '').localeCompare(String(b.consultant || '')));
+}
+
+/**
+ * Take a copy of everything listed.
+ *
+ * Whoever keeps the records needs the whole month, not a file at a time —
+ * so this walks what the filters are showing and saves every file in it,
+ * named for the person and the month rather than for whatever the scanner
+ * called it. The browser asks once whether it may save several files; say
+ * yes and it stops asking.
+ */
+async function downloadAllHistory (btn) {
+  if (downloading) return;
+  const rows = historyRows();
+  const note = document.getElementById('downloadNote');
+  const say = (text, bad) => {
+    if (!note) return;
+    note.hidden = false;
+    note.className = 'keynote' + (bad ? ' warn' : '');
+    note.textContent = text;
+  };
+
+  if (!rows.length) { say('There is nothing listed to download.', true); return; }
+
+  downloading = true;
+  const was = btn.textContent;
+  btn.disabled = true;
+  let saved = 0;
+  const failed = [];
+
+  try {
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      btn.textContent = `Downloading ${i + 1} of ${rows.length}…`;
+      say(`${saved} file${saved === 1 ? '' : 's'} saved so far. Leave this step open until it finishes.`);
+      try {
+        const rec = await Sync.storedOne(r.id);
+        const files = (rec && rec.files) || [];
+        for (const f of files) {
+          const type = f.type || 'application/octet-stream';
+          const bytes = dataUrlToBytes('data:' + type + ';base64,' + (f.content || ''));
+          saveAs(new Blob([bytes], { type: type }), archiveFileName(r, f));
+          saved++;
+          // the browser needs a breath between saves, or it drops some
+          await new Promise(res => setTimeout(res, 250));
+        }
+      } catch (err) {
+        failed.push(`${r.consultant || r.id}: ${err.message}`);
+      }
+    }
+  } finally {
+    downloading = false;
+    btn.disabled = false;
+    btn.textContent = was;
+  }
+
+  say(failed.length
+    ? `${saved} file${saved === 1 ? '' : 's'} saved. ${failed.length} could not be: ${failed[0]}`
+    : `${saved} file${saved === 1 ? '' : 's'} saved to your Downloads folder.`, !!failed.length);
+}
+
+/** named for the person and the month, not for whatever the scanner called it */
+function archiveFileName (r, f) {
+  const m = Number(r.period_month) || 0;
+  const when = `${MON3[Math.max(0, m - 1)]} ${r.period_year || ''}`.trim();
+  const who = safeFile(r.consultant) || 'Consultant';
+  const dot = String(f.name || '').lastIndexOf('.');
+  const ext = dot > 0 ? String(f.name).slice(dot) : '.pdf';
+  const what = safeFile(kindLabel(r.kind || 'claim'));
+  return `${when} - ${who} - ${what}${ext}`;
 }
 
 /** rebuild a <select> without losing the caller's placeholder */

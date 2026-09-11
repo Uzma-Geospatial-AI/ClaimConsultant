@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Consultant Claim System</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20260913a">
+<link rel="stylesheet" href="assets/css/style.css?v=20260913c">
 </head>
 <body class="locked">
 
@@ -250,13 +250,10 @@
 
   <div class="sidenote">
     <h3>How the amount is worked out</h3>
-    <div class="grid3">
-      <label>Calculation Method
-        <select id="i_mode" data-bind="invoice.mode">
-          <option value="monthly">Monthly rate, less the days that are not paid</option>
-          <option value="fixed">Fixed amount (type it in the table)</option>
-        </select>
-      </label>
+    <!-- One way of working it out, so there is nothing to choose. A month
+         settled at some other figure is typed straight over the amount in
+         the table above, which says so when you do. -->
+    <div class="grid2">
       <label id="wrapMonthly">Monthly Rate (RM)<input type="number" data-bind="invoice.monthlyRate" data-type="num" step="0.01"></label>
     </div>
     <p class="formula" id="calcFormula">&nbsp;</p>
@@ -325,7 +322,7 @@
       <button class="btn ghost small" id="btnResetDays">Clear all ticks</button>
     </div>
     <div class="summary" id="tsSummary"></div>
-    <p class="holnote" id="tsHolidays" hidden></p>
+    <p class="holidays" id="tsHolidays" hidden></p>
     <p class="warn" id="tsWarn" hidden></p>
     <div class="leavebox" id="leaveBox"></div>
 
@@ -438,6 +435,18 @@
   </p>
 </section>
 
+<!-- ============ RE-SUBMIT — only while something has come back ============ -->
+<section class="panel" id="p-resubmit" data-step="resubmit">
+  <h2>Put it right and send it again</h2>
+  <p class="lead">Something you sent was read and sent back. The reason is below, in the words
+    of whoever sent it. Fix that one thing, then send it round again &mdash; it goes the same
+    way it went the first time: the project manager, then the HOD, then the PA.</p>
+  <div class="btnrow">
+    <button class="btn ghost small" id="btnRefreshReturned">Refresh</button>
+  </div>
+  <div id="resubmitList" class="approvals"></div>
+</section>
+
 <!-- ============ STEP 7: STATUS / APPROVALS ============ -->
 <section class="panel" id="p-approvals" data-step="approvals">
   <h2 id="approvalHead">Status</h2>
@@ -473,7 +482,15 @@
     <label class="archivefilter">Year
       <select id="historyYear"><option value="">every year</option></select>
     </label>
+    <label class="archivefilter">Copies
+      <select id="historyStage">
+        <option value="final">finished only</option>
+        <option value="">every copy, reviewed ones too</option>
+      </select>
+    </label>
+    <button class="btn small" id="btnDownloadAll">Download all</button>
   </div>
+  <p class="keynote" id="downloadNote" hidden></p>
   <div id="historyList" class="archive"></div>
 </section>
 
@@ -512,25 +529,26 @@
      fetches the page again but keeps the old JavaScript for up to ten minutes
      — which reads as "the fix did not work". Bump this stamp whenever
      anything under assets/ changes and a reload picks it all up at once. -->
-<script src="vendor/jspdf.umd.min.js?v=20260913a"></script>
-<script src="vendor/jspdf.plugin.autotable.min.js?v=20260913a"></script>
-<script src="vendor/carlito.js?v=20260913a"></script>
-<script src="vendor/exceljs.min.js?v=20260913a"></script>
-<script src="vendor/FileSaver.min.js?v=20260913a"></script>
-<script src="vendor/signature_pad.umd.min.js?v=20260913a"></script>
-<script src="vendor/docx.umd.js?v=20260913a"></script>
-<script src="assets/js/state.js?v=20260913a"></script>
-<script src="assets/js/holidays.js?v=20260913a"></script>
-<script src="assets/js/logo.js?v=20260913a"></script>
-<script src="assets/js/timesheet.js?v=20260913a"></script>
-<script src="assets/js/signature.js?v=20260913a"></script>
-<script src="assets/js/gen-invoice.js?v=20260913a"></script>
-<script src="assets/js/gen-claim.js?v=20260913a"></script>
-<script src="assets/js/preview.js?v=20260913a"></script>
-<script src="assets/js/auth.js?v=20260913a"></script>
-<script src="assets/js/sync.js?v=20260913a"></script>
-<script src="assets/js/approvals.js?v=20260913a"></script>
-<script src="assets/js/archive.js?v=20260913a"></script>
-<script src="assets/js/app.js?v=20260913a"></script>
+<script src="vendor/jspdf.umd.min.js?v=20260913c"></script>
+<script src="vendor/jspdf.plugin.autotable.min.js?v=20260913c"></script>
+<script src="vendor/carlito.js?v=20260913c"></script>
+<script src="vendor/exceljs.min.js?v=20260913c"></script>
+<script src="vendor/FileSaver.min.js?v=20260913c"></script>
+<script src="vendor/signature_pad.umd.min.js?v=20260913c"></script>
+<script src="vendor/docx.umd.js?v=20260913c"></script>
+<script src="assets/js/state.js?v=20260913c"></script>
+<script src="assets/js/holidays.js?v=20260913c"></script>
+<script src="assets/js/logo.js?v=20260913c"></script>
+<script src="assets/js/timesheet.js?v=20260913c"></script>
+<script src="assets/js/signature.js?v=20260913c"></script>
+<script src="assets/js/gen-invoice.js?v=20260913c"></script>
+<script src="assets/js/gen-claim.js?v=20260913c"></script>
+<script src="assets/js/preview.js?v=20260913c"></script>
+<script src="assets/js/auth.js?v=20260913c"></script>
+<script src="assets/js/sync.js?v=20260913c"></script>
+<script src="assets/js/approvals.js?v=20260913c"></script>
+<script src="assets/js/archive.js?v=20260913c"></script>
+<script src="assets/js/resubmit.js?v=20260913c"></script>
+<script src="assets/js/app.js?v=20260913c"></script>
 </body>
 </html>
