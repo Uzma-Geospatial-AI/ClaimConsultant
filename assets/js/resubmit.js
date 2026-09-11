@@ -223,9 +223,8 @@ function returnedCard (sub) {
   if (open) {
     const now = document.createElement('p');
     now.className = 'backnow';
-    now.textContent = `This ${kindLabel(kind).toLowerCase()} is the one open in the form. ` +
-      `Press “Edit the ${kindLabel(kind).toLowerCase()}” to change it right here, then send it ` +
-      'back for approval — what goes up is the form as it stands.';
+    now.textContent = `This ${kindLabel(kind).toLowerCase()} is open below. Change whatever was ` +
+      'wrong with it, then send it back for approval — what goes up is the form as it stands.';
     card.appendChild(now);
   }
 
@@ -284,6 +283,17 @@ function returnedCard (sub) {
   }
   card.appendChild(bar);
   card.appendChild(editHost);
+
+  /* If this is the document that is open, it is shown here, now — not
+     behind a button. Somebody whose invoice was sent back has come to this
+     card to fix that invoice, and the invoice is the thing they came for. */
+  if (open) {
+    putBack = borrowDocument(kind, editHost);
+    if (putBack) {
+      editingId = sub.id;
+      edit.textContent = 'Close the editor';
+    }
+  }
   return card;
 }
 
