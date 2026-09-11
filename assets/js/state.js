@@ -13,6 +13,11 @@ function defaultState () {
     consultant: {
       name: '', ic: '', addr1: '', addr2: '',
       position: '', position2: '', workLoc: 'UZMA TOWER', empCode: '',
+      /* Whose account this profile is. A consultant sees their own and
+         nobody else's, and this is what "their own" means — stamped when
+         they save it, and settable by the administrator, who is the one
+         who knows which address belongs to which person. */
+      email: '',
       assignPeriod: '',
       /* Two numbers that make an invoice number: who this is, and how many
          claims they have sent. 2026-01-003 is the third claim of 2026 from
@@ -44,7 +49,11 @@ function defaultState () {
          of claims sent. Typing over it turns that off — for this claim only,
          and it is said on the page rather than happening silently. */
       autoNo: true,
-      taxPct: 0, mode: 'monthly', monthlyRate: 3500, dailyRate: 0,
+      taxPct: 0, mode: 'monthly',
+      /* No starting figure. A rate that arrives already filled in is a rate
+         nobody reads, and every consultant here is on a different one — so
+         it is asked for, and the form will not go past step 1 without it. */
+      monthlyRate: 0,
       /* The pay is worked out from the rate and the days that are paid for.
          Typing over it puts the figure here, so the calculation stops
          overwriting it — a month can be settled at something else, and the
@@ -464,14 +473,12 @@ function prorateMonth (S) {
 
 function computeAmount (S) {
   const inv = S.invoice, ts = S.timesheet;
-  if (inv.mode === 'daily') {
-    // a daily rate buys days of work, so it is the ticks it multiplies —
-    // not the weekend, which nobody worked
-    const days = workedDays(ts);
-    return { amount: round2((Number(inv.dailyRate) || 0) * days),
-             formula: `RM ${money(inv.dailyRate)} × ${days} days worked = RM ${money((Number(inv.dailyRate) || 0) * days)}` };
-  }
-  if (inv.mode === 'monthly') {
+  /* Everybody here is on a monthly rate, so that is the only rate there is.
+     A daily one used to be offered as well and was never once used; what it
+     did do was let a month be priced at the days somebody ticked, which is
+     not what any of these contracts say. `fixed` remains, because a month
+     settled at a figure the sum did not arrive at still has to be typeable. */
+  if (inv.mode !== 'fixed') {
     const rate = Number(inv.monthlyRate) || 0;
     /* A month's pay is the month, less the days that are not paid. The sheet
        already says which those are, so when it has been filled in it decides
@@ -660,6 +667,9 @@ function mergeDefaults (saved) {
     out.timesheet.activities = [ newActivity('') ];
   }
   if (!out.leave.counted || typeof out.leave.counted !== 'object') out.leave.counted = {};
+  // drafts saved while a daily rate was still on offer
+  if (out.invoice.mode !== 'fixed') out.invoice.mode = 'monthly';
+  delete out.invoice.dailyRate;
   if (!out.consultant.claimNos || typeof out.consultant.claimNos !== 'object') {
     out.consultant.claimNos = {};
   }

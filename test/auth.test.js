@@ -116,7 +116,20 @@ const run = expr => vm.runInContext(expr, ctx);
   check('case and spaces ignored',     run("isAllowed('  Hanis.Rashidan@UzmaGroup.com ')"), true);
   check('any other BDOS user refused', run("isAllowed('someone.else@uzmagroup.com')"), false);
   check('empty refused',               run("isAllowed('')"), false);
-  check('five accounts, no more',      run('ALLOWED_USERS.length'), 5);
+  check('eight accounts, no more',     run('ALLOWED_USERS.length'), 8);
+  // everybody who sends a claim has an account of their own now, and each of
+  // them sees their own work and nobody else's
+  check('Zharif prepares his own',     run("ROLES['zharif.zaidi@uzmagroup.com']"), 'consultant');
+  check('so does Afifah',              run("ROLES['afifah.zamzari@uzmagroup.com']"), 'consultant');
+  check('and so does Nizar',           run("ROLES['nizar.tarmizi@uzmagroup.com']"), 'consultant');
+  check('a consultant does not see everybody', run("seesEveryone('consultant')"), false);
+  check('but the administrator does',  run("seesEveryone('admin')"), true);
+  check('and so do the approvers, who have to read what they sign',
+        run("seesEveryone('manager') && seesEveryone('boss') && seesEveryone('pa')"), true);
+  // the numbering is the office's, not the person's: one consultant deciding
+  // they are 07 is how two people end up both being 07
+  check('only the administrator sets the numbering',
+        run("setsNumbering('admin') && !setsNumbering('consultant') && !setsNumbering('manager')"), true);
 
   // A claim is prepared, reviewed, approved and then signed — each account
   // has exactly one part in that, and the list is the roles it comes from.

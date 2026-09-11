@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Consultant Claim System</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20260912c">
+<link rel="stylesheet" href="assets/css/style.css?v=20260913a">
 </head>
 <body class="locked">
 
@@ -85,15 +85,25 @@
     <label>Position <span class="hint">(as on the invoice)</span><input data-bind="consultant.position" placeholder="Full Stack Developer"></label>
     <label>Position <span class="hint">(as on the Claim form)</span><input data-bind="consultant.position2" placeholder="FULL STACK DEVELOPER (CONSULTANT)"></label>
     <label>Work Location<input data-bind="consultant.workLoc" placeholder="UZMA TOWER"></label>
-    <label>Employee / BP Code No. <span class="hint">(SAP usage only)</span><input data-bind="consultant.empCode" placeholder="leave blank if none"></label>
+  </div>
+
+  <!-- Three things that belong to the office rather than to the person: the
+       number series, the count, and which sign-in this profile is. One
+       consultant deciding they are 07 is how two people both end up 07. -->
+  <h3>Set by the administrator <span class="hint">(locked for everybody else)</span></h3>
+  <div class="grid3" id="adminFields">
     <label class="keyfield">Unique ID <span class="req">required</span>
-      <span class="hint">two digits, this person's own &mdash; it is the middle of every invoice number they send</span>
+      <span class="hint">two digits, this person's own &mdash; the middle of every invoice number they send</span>
       <input data-bind="consultant.uniqueId" id="c_uniqueId" placeholder="01" maxlength="4" inputmode="numeric"></label>
     <label class="keyfield">Next claim number
       <span class="hint">goes up by one each time a claim is submitted</span>
       <input type="number" min="1" step="1" data-bind="consultant.claimSeq" data-type="num" id="c_claimSeq" placeholder="1"></label>
+    <label class="keyfield">Account
+      <span class="hint">whose sign-in sees this profile</span>
+      <select data-bind="consultant.email" id="c_email"></select></label>
   </div>
   <p class="keynote" id="invNoPreview"></p>
+  <p class="keynote" id="adminLocked" hidden></p>
 
     <h3>Bank Details <span class="hint">(printed on the Invoice)</span></h3>
     <div class="grid2">
@@ -104,9 +114,19 @@
 
     <h3>Pay <span class="hint">(the invoice starts from this, and can be typed over)</span></h3>
     <div class="grid2">
-      <label>Monthly Rate (RM)<input type="number" data-bind="invoice.monthlyRate" data-type="num" step="0.01"></label>
-      <label>Daily Rate (RM) <span class="hint">(only for a daily-rate month)</span><input type="number" data-bind="invoice.dailyRate" data-type="num" step="0.01"></label>
+      <label>Monthly Rate (RM) <span class="req">required</span>
+        <span class="hint">what the month is billed from &mdash; nothing goes past this step without it</span>
+        <input type="number" id="c_rate" data-bind="invoice.monthlyRate" data-type="num"
+               step="0.01" min="0" placeholder="e.g. 3500.00"></label>
     </div>
+
+    <!-- Everybody signs their own claim, so everybody keeps their signature
+         here rather than redrawing it on the form every month. -->
+    <h3>Signature <span class="req">required</span></h3>
+    <p class="hint">Draw it once, or upload a scan &mdash; PDF, PNG or JPG. Whatever you upload is
+      shown back to you to confirm before it is kept, and from then on it prints itself into the
+      PERSONNEL box on the Claim form and onto the Invoice.</p>
+    <div class="sigprofile" id="sigProfile"></div>
 
     <div class="leavebox" id="leaveBoxProfile"></div>
 
@@ -117,6 +137,9 @@
       <button class="btn primary" id="btnSaveProfile">Save Profile</button>
       <span class="savehint" id="saveHint"></span>
     </div>
+    <!-- What is still missing, and whether anything on screen has not been
+         saved. The step will not be left until both are answered. -->
+    <p class="keynote" id="profileGate" hidden></p>
   </div>
 </section>
 
@@ -230,17 +253,14 @@
     <div class="grid3">
       <label>Calculation Method
         <select id="i_mode" data-bind="invoice.mode">
-          <option value="monthly">Monthly rate &divide; days in month &times; calendar days in period</option>
-          <option value="daily">Daily rate &times; days ticked on the timesheet</option>
+          <option value="monthly">Monthly rate, less the days that are not paid</option>
           <option value="fixed">Fixed amount (type it in the table)</option>
         </select>
       </label>
       <label id="wrapMonthly">Monthly Rate (RM)<input type="number" data-bind="invoice.monthlyRate" data-type="num" step="0.01"></label>
-      <label id="wrapDaily" class="hidden">Daily Rate (RM)<input type="number" data-bind="invoice.dailyRate" data-type="num" step="0.01"></label>
     </div>
     <p class="formula" id="calcFormula">&nbsp;</p>
     <p class="overridenote" id="amountOverride" hidden></p>
-    <p class="warn hidden" id="dailyWarn">The daily rate multiplies the days you tick on the Claim form — add the Claim in step 2, or pick another method.</p>
     <label class="check"><input type="checkbox" id="i_showsig" data-bind="invoice.showSig" data-type="bool"> Print my signature on the invoice</label>
   </div>
 </section>
@@ -492,25 +512,25 @@
      fetches the page again but keeps the old JavaScript for up to ten minutes
      — which reads as "the fix did not work". Bump this stamp whenever
      anything under assets/ changes and a reload picks it all up at once. -->
-<script src="vendor/jspdf.umd.min.js?v=20260912c"></script>
-<script src="vendor/jspdf.plugin.autotable.min.js?v=20260912c"></script>
-<script src="vendor/carlito.js?v=20260912c"></script>
-<script src="vendor/exceljs.min.js?v=20260912c"></script>
-<script src="vendor/FileSaver.min.js?v=20260912c"></script>
-<script src="vendor/signature_pad.umd.min.js?v=20260912c"></script>
-<script src="vendor/docx.umd.js?v=20260912c"></script>
-<script src="assets/js/state.js?v=20260912c"></script>
-<script src="assets/js/holidays.js?v=20260912c"></script>
-<script src="assets/js/logo.js?v=20260912c"></script>
-<script src="assets/js/timesheet.js?v=20260912c"></script>
-<script src="assets/js/signature.js?v=20260912c"></script>
-<script src="assets/js/gen-invoice.js?v=20260912c"></script>
-<script src="assets/js/gen-claim.js?v=20260912c"></script>
-<script src="assets/js/preview.js?v=20260912c"></script>
-<script src="assets/js/auth.js?v=20260912c"></script>
-<script src="assets/js/sync.js?v=20260912c"></script>
-<script src="assets/js/approvals.js?v=20260912c"></script>
-<script src="assets/js/archive.js?v=20260912c"></script>
-<script src="assets/js/app.js?v=20260912c"></script>
+<script src="vendor/jspdf.umd.min.js?v=20260913a"></script>
+<script src="vendor/jspdf.plugin.autotable.min.js?v=20260913a"></script>
+<script src="vendor/carlito.js?v=20260913a"></script>
+<script src="vendor/exceljs.min.js?v=20260913a"></script>
+<script src="vendor/FileSaver.min.js?v=20260913a"></script>
+<script src="vendor/signature_pad.umd.min.js?v=20260913a"></script>
+<script src="vendor/docx.umd.js?v=20260913a"></script>
+<script src="assets/js/state.js?v=20260913a"></script>
+<script src="assets/js/holidays.js?v=20260913a"></script>
+<script src="assets/js/logo.js?v=20260913a"></script>
+<script src="assets/js/timesheet.js?v=20260913a"></script>
+<script src="assets/js/signature.js?v=20260913a"></script>
+<script src="assets/js/gen-invoice.js?v=20260913a"></script>
+<script src="assets/js/gen-claim.js?v=20260913a"></script>
+<script src="assets/js/preview.js?v=20260913a"></script>
+<script src="assets/js/auth.js?v=20260913a"></script>
+<script src="assets/js/sync.js?v=20260913a"></script>
+<script src="assets/js/approvals.js?v=20260913a"></script>
+<script src="assets/js/archive.js?v=20260913a"></script>
+<script src="assets/js/app.js?v=20260913a"></script>
 </body>
 </html>

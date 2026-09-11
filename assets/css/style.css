@@ -868,3 +868,52 @@ body.locked > .sitefoot{display:none}
   color:var(--muted);background:#eef2f6;border-radius:20px;padding:2px 8px;
 }
 .decidefile.required{border-color:var(--orange);background:#fffaf6}
+
+/* =======================================================================
+   The signature on the profile
+
+   Drawn once or scanned once, then printed every month. A scan is a whole
+   page and the signature is a small part of it, so the page is shown with
+   a box over what the app thinks is the ink, and a preview of exactly what
+   will be kept — nothing is stored until somebody has looked at it.
+   ======================================================================= */
+.sigprofile{margin:6px 0 4px}
+.sigshow{
+  display:flex;align-items:center;justify-content:center;
+  min-height:96px;padding:10px;background:#fff;
+  border:1px dashed var(--line);border-radius:9px;
+}
+.sigprofile.has .sigshow{border-style:solid;border-color:#9ed3ba;background:#fbfefc}
+.sigshow img{max-height:110px;max-width:100%;object-fit:contain}
+.signone{color:var(--muted);font-size:12.5px}
+.sigactions{margin-top:10px}
+.sigdraw{margin-top:12px;max-width:420px}
+.sigdraw[hidden]{display:none}
+
+.sigcrop{
+  margin-top:14px;padding:14px;background:#f7fafd;
+  border:1px solid var(--line);border-radius:9px;
+}
+.sigcrop[hidden]{display:none}
+.croplead{margin:0 0 10px;font-size:12.5px;color:var(--navy-soft)}
+.cropwrap{
+  position:relative;display:inline-block;max-width:100%;
+  border:1px solid var(--line);background:#fff;line-height:0;
+  cursor:crosshair;touch-action:none;
+}
+.cropcanvas{max-width:100%;height:auto;display:block}
+.cropbox{
+  position:absolute;border:2px solid var(--orange);background:rgba(241,102,42,.12);
+  pointer-events:none;
+}
+.croppreview{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  margin-top:12px;padding:10px 12px;background:#fff;
+  border:1px solid var(--line);border-radius:8px;
+}
+.croppreview span{font-size:12px;color:var(--muted)}
+.croppreview img{max-height:80px;max-width:100%;object-fit:contain}
+
+/* what the administrator alone sets */
+input.locked,select.locked{background:#f3f6f9;color:var(--navy-soft);cursor:not-allowed}
+.keyfield input.locked,.keyfield select.locked{border-color:var(--line);background:#f3f6f9}

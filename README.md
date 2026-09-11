@@ -28,9 +28,14 @@ four file formats — straight from the browser.
 No server, no build step, no `npm install`. Every library is vendored into `vendor/`, so the
 whole thing runs from a single folder on any machine.
 
-The one thing that needs the network is the front door: the app is opened by two named people
-and asks them to sign in with their **BDOS** account. After that the session lasts 30 days and
-the app works with the network unplugged.
+The one thing that needs the network is the front door: everybody who sends a claim has a **BDOS**
+account and signs in with it. After that the session lasts 30 days and the app works with the
+network unplugged.
+
+A consultant sees their own profile, their own rows and their own filed copies. The administrator
+and the three approvers see everybody's — an approver who cannot read what they are signing is no
+use. That filtering is drawn in the browser today and needs enforcing server-side; see
+[the endpoint notes](docs/BDOS-CCS-Endpoints.md#a-consultant-sees-their-own-work-only--and-that-needs-enforcing-here).
 
 ---
 
@@ -166,6 +171,9 @@ hands it back to the calendar.
 | 💰 **Paid days decide the money** | Every day of the month is paid or it is not. Worked `/`, the weekend, `PH`, `PTO` and `MC` are paid and add up to TOTAL DAYS [A]; `UL` is not, and neither is a working day nobody marked — so the month's pay is `rate ÷ days in month × paid days`, and unpaid leave shows up in the figure without anybody working it out |
 | 🧮 **Leave that carries itself forward** | `PTO` and `MC` are 12 days a year each. `UL` has no allowance — nobody is paid for an unpaid day, so there is nothing to ration — and it is counted and shown but can never be "over". Nobody types last month's figure any more: what earlier months used is added up from the months that have actually been submitted, keyed by month so resubmitting a returned claim costs nothing. A row per kind — under the grid, and on the profile card before you open it — shows this month, the year so far and what is left. **An allowance that is spent stops being offered**: the day cell skips straight past it rather than letting somebody claim a thirteenth day and be told afterwards |
 | 🪪 **Profiles in unique-ID order** | The ones with an ID first, in ID order, and the ones without last. A profile with no ID cannot produce an invoice number, so it is a job still to do — and it belongs where it gets noticed rather than scattered through the alphabet |
+| 🔒 **Three fields the office sets** | The **unique ID**, the **claim count** and the **account** a profile belongs to are the administrator's. One person deciding they are 07 is how two people end up both being 07 — so everybody else can read them and see why they are what they are, and change none of them |
+| 🚧 **Step 1 has to be finished** | A name, a unique ID, a monthly rate and a signature, or nothing goes further. The monthly rate starts **empty** rather than at a figure nobody reads. And an edit that has not been saved holds the step too: **Next** is not offered while there is a reason it would be refused, and says which — a draft is not a profile, and details typed in and never saved came back blank the next month |
+| ✍️ **One signature, kept on the profile** | Draw it once, or upload a scan — **PDF**, PNG or JPG. A scan is a whole page, so the app finds the ink on it, puts a box round what it found, and shows a preview of exactly what will be kept; drag a different box if the guess was wrong. From then on it prints itself into the PERSONNEL box on the Claim form and onto the Invoice. The PDF reader is a third of a megabyte and is fetched only when somebody actually uploads one |
 | 📅 **Public holidays it already knows** | The Selangor calendar ships with the app. Fixed dates are worked out for any year; the movable ones — Raya, Thaipusam, Deepavali, the Agong's birthday — are gazetted a year at a time and are written down in [`holidays.js`](assets/js/holidays.js). A year the table does not know still gets its fixed dates and **says so on the page** rather than pretending there are none |
 | 🔢 **Invoice numbers that write themselves** | `2026-01-003` is the year, the person, and the third claim they have sent. The middle is the profile's **Unique ID** — its own field on the Profile step, highlighted, because without it there is no number and the app will not guess a digit that would put two people on one series. The count goes up by one each time a claim is submitted, and follows the person rather than the form. Typing your own number over it is allowed, and the page says so |
 | 🗃️ **The signed copies, on file** | Everything else the app keeps is the claim as software holds it. The **Status** step also takes the paper: upload the signed invoice and the signed time sheet once they come back, and they are filed against that person and that month in the shared database. Any month can then be produced again a year later without hunting through anybody's Downloads folder |
@@ -220,6 +228,7 @@ was never meant to be.
 **Excel** — ExcelJS 4.4.0
 **Word** — docx 8.5.0
 **Typeface** — Carlito (SIL OFL), metrically identical to Calibri
+**PDF reading** — pdf.js 3.11.174 (Apache-2.0), loaded on demand for scanned signatures
 **Signatures** — signature_pad 4.1.7 · Canvas 2D
 **Downloads** — FileSaver.js 2.0.5
 **CI** — GitHub Actions (Node 20 · 22)
@@ -259,7 +268,10 @@ ConsultantClaimSystem/
 │   └── generate.test.js          # generates all four docs and checks them
 ├── vendor/                       # pinned libraries, committed for offline use
 │   ├── carlito.js                # the Calibri-metric typeface, subset for this form
-│   └── Carlito-OFL.txt           # its licence
+│   ├── Carlito-OFL.txt           # its licence
+│   ├── pdf.min.js                # pdf.js — reads a signature off a scanned PDF
+│   ├── pdf.worker.min.js         # its worker; both fetched only when one is uploaded
+│   └── pdfjs-Apache-2.0.txt      # its licence
 └── .github/workflows/ci.yml      # lint + tests on Node 20 & 22
 ```
 
@@ -323,8 +335,11 @@ Pick a method on the **Invoice** step; the formula line updates as you type.
 |---|---|
 | **Monthly rate** (default), with a time sheet | `monthly rate − (unpaid days ÷ days in month × monthly rate)` |
 | **Monthly rate**, invoice on its own | `monthly rate ÷ days in month × calendar days in period` |
-| **Daily rate** | `daily rate × days ticked "/"` |
 | **Fixed amount** | whatever you type in the item table |
+
+A daily rate used to be on offer as a third method. Nobody used it, and what it did do was let a
+month be priced at the days somebody happened to tick, which is not what any of these contracts
+say — so it is gone, and a draft saved while it existed is read as monthly.
 
 There are two monthly cases because there are two situations. With a time sheet the sheet says
 which days were paid for, so the deduction is real and is taken off the whole month. Without one

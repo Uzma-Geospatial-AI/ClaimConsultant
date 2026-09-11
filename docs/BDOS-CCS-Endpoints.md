@@ -24,15 +24,47 @@ Integration Guide*: `Bearer` tokens, JSON bodies, `{ "detail": "…" }` on error
 
 ## 1 · The access rule (please enforce here)
 
-CCS is used by exactly five accounts, and each has one part in a claim:
+Everybody who sends a claim has an account, and each has one part in it:
 
 | Account | Role | What they do |
 |---|---|---|
-| `adlishah0821@gmail.com` | `consultant` | Prepares a claim and submits it |
-| `nuramilazulfa@gmail.com` | `consultant` | Prepares a claim and submits it |
-| `hanis.rashidan@uzmagroup.com` | `manager` | Reviews it first, and signs the REVIEWED BY box |
+| `adlishah0821@gmail.com` | `admin` | Runs the app; prepares claims and can stand in at any stage |
+| `nuramilazulfa@gmail.com` | `consultant` | Prepares their own claim and submits it |
+| `zharif.zaidi@uzmagroup.com` | `consultant` | Prepares their own claim and submits it |
+| `afifah.zamzari@uzmagroup.com` | `consultant` | Prepares their own claim and submits it |
+| `nizar.tarmizi@uzmagroup.com` | `consultant` | Prepares their own claim and submits it |
+| `hanis.rashidan@uzmagroup.com` | `manager` | Reviews it first, and signs it before it goes on |
 | `fadhli.jamaluddin@uzmagroup.com` | `boss` | Approves it second — the HOD |
-| `fatin.zaini@uzmagroup.com` | `pa` | Places the HOD's signature in the APPROVED BY box |
+| `fatin.zaini@uzmagroup.com` | `pa` | Places the HOD's signature, in the app or on paper |
+
+### A consultant sees their own work only — and that needs enforcing here
+
+This is new, and it is the one place where the client's behaviour and BDOS's rules have come
+apart. CCS now shows a `consultant` only their own profile, their own rows in the status table
+and their own filed copies; the `admin` and the three approvers see everybody's, because an
+approver who cannot read what they are signing is no use.
+
+**That filtering is done in the browser, which means it is not done at all.** The rows still
+arrive over the wire and anybody who opens the console can read them — and those rows carry an IC
+number, a home address and a bank account. Please narrow them server-side:
+
+| Endpoint | For a `consultant` | For `admin` / `manager` / `boss` / `pa` |
+|---|---|---|
+| `GET /ccs/profiles` | only profiles whose `data.consultant.email` is their own address | all |
+| `GET /ccs/submissions` | only rows they created | all |
+| `GET /ccs/archive` | only rows for their own `consultant` name | all |
+| `GET /ccs/draft` | see below |
+
+A profile carries `data.consultant.email`, the address the profile belongs to, which CCS stamps
+when a consultant saves one and the administrator can set from the Profile step. Profiles saved
+before that field existed have no owner; CCS falls back to matching a name fragment, and a
+server-side rule can either do the same or treat an unowned profile as the administrator's until
+they assign it.
+
+**The shared draft is now wrong.** One shared draft row made sense for three people working one
+claim at a time; with five consultants each filling in their own month it means they overwrite
+each other. Please key `ccs_drafts` by `uid` — the row id becomes the caller's id rather than the
+literal `'shared'` — and CCS needs no change for it: it reads whatever `GET /ccs/draft` returns.
 
 BDOS reads the list from the `CCS_ROLES` environment variable — `email:role` pairs, comma
 separated — and falls back to the table above, so adding somebody or moving them to another role
@@ -63,9 +95,9 @@ This matters for the `WHERE` clauses, so it is worth stating plainly:
 | Data | Visibility | Why |
 |---|---|---|
 | **Submissions** | shared | Four people move one document between them; an approver who cannot see what they approved last month is not much use |
-| **Profiles** | shared | A consultant's details are reference data all three work from |
-| **Claims history** | shared | The point is that everyone can see what has been submitted |
-| **Draft** | shared — one row | The three of them work on one claim at a time, and picking it up on another machine is the reason this storage exists |
+| **Profiles** | shared, filtered | Reference data the approvers work from; a consultant should be shown only their own |
+| **Claims history** | shared, filtered | Approvers see everything; a consultant sees what they sent |
+| **Draft** | **should become one row per account** | Written for three people sharing one claim; five consultants each filling in their own month overwrite each other |
 | **Archive** | shared | The signed copies of a finished month. Finance and the approvers all have reason to produce one later |
 
 Everything is one set of rows: whoever signs in, on whichever machine, sees the same work. Nothing

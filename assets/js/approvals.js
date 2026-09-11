@@ -292,8 +292,22 @@ async function learnKinds () {
    ------------------------------------------------------------------- */
 function everybody () {
   const names = new Set();
-  Object.keys(Store.profiles()).forEach(n => names.add(n.trim()));
-  subs.forEach(s => { const n = String(s.consultant || '').trim(); if (n) names.add(n); });
+  const all = Store.profiles();
+  Object.keys(all).forEach(n => {
+    if (Auth.owns(mergeDefaults(all[n]))) names.add(n.trim());
+  });
+
+  /* A consultant sees their own rows. Their own means the profiles that are
+     theirs, and anything they sent themselves — a claim submitted before the
+     profile was assigned to them is still theirs. Everybody else here reads
+     what they approve, so they see all of it. */
+  const mine = myEmail();
+  subs.forEach(s => {
+    const n = String(s.consultant || '').trim();
+    if (!n) return;
+    if (Auth.seesEveryone() || String(s.created_by || '').toLowerCase() === mine) names.add(n);
+  });
+
   const here = String(S.consultant.name || '').trim();
   if (here) names.add(here);
   return [...names].filter(Boolean).sort();

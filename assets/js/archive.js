@@ -140,6 +140,9 @@ function paintArchive () {
 
   const rows = archive
     .filter(r => Number(r.period_year) === when.y && Number(r.period_month) === when.m + 1)
+    // a consultant sees their own filed copies, the way they see their own rows
+    .filter(r => Auth.seesEveryone() ||
+                 String(r.consultant || '').trim() === String(S.consultant.name || '').trim())
     .slice()
     .sort((a, b) => String(a.consultant || '').localeCompare(String(b.consultant || '')));
 

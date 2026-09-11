@@ -38,6 +38,7 @@ jobs:
           missing=0
           for f in jspdf.umd.min.js jspdf.plugin.autotable.min.js exceljs.min.js \
                    FileSaver.min.js signature_pad.umd.min.js docx.umd.js \
+                   pdf.min.js pdf.worker.min.js pdfjs-Apache-2.0.txt \
                    carlito.js Carlito-OFL.txt; do
             if [ -s "vendor/$f" ]; then
               echo "ok  vendor/$f ($(wc -c < "vendor/$f") bytes)"

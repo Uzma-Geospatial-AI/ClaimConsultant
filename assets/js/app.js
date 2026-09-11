@@ -81,10 +81,24 @@ function activeSteps () {
 }
 
 function canLeave (id) {
-  if (id === 'consultant' && !S.consultant.name.trim()) {
-    toast('Pick a profile, or start a new one and give it a name.', true);
-    document.getElementById('c_name').focus();
-    return false;
+  if (id === 'consultant') {
+    const missing = profileProblems();
+    if (missing.length) {
+      toast('This profile still needs ' + missing.join(', ') + '.', true);
+      paintProfileGate();
+      const first = !String(S.consultant.name || '').trim() ? 'c_name'
+        : !(Number(S.invoice.monthlyRate) > 0) ? 'c_rate' : '';
+      const box = first && document.getElementById(first);
+      if (box) box.focus();
+      return false;
+    }
+    if (profileDirty) {
+      toast('Press Save Profile first — a draft is not a profile.', true);
+      paintProfileGate();
+      const save = document.getElementById('btnSaveProfile');
+      if (save) save.focus();
+      return false;
+    }
   }
   if (id === 'choose' && !S.mode) {
     toast('Pick which document you need.', true);
@@ -171,6 +185,15 @@ function renderNavRows () {
     const next = document.createElement('button');
     next.className = 'btn';
     next.textContent = 'Next →';
+    /* On step 1, Next is not offered while there is a reason it would be
+       refused. A button that can be pressed and then says no is a button
+       that has wasted the press. */
+    if (step.id === 'consultant') {
+      const missing = profileProblems();
+      next.disabled = !!missing.length || profileDirty;
+      next.title = missing.length ? 'Still needed: ' + missing.join(', ')
+        : profileDirty ? 'Press Save Profile first' : '';
+    }
     next.addEventListener('click', () => goToStep(stepIndex + 1));
     row.appendChild(next);
   }
@@ -309,6 +332,10 @@ function bindInputs () {
         paintInvoiceNo();
       }
       if (path === 'invoice.mode') renderItems();
+      // a person typed something, which is the only thing that counts as an edit
+      if (path.indexOf('consultant.') === 0 || path === 'invoice.monthlyRate') {
+        markProfileDirty();
+      }
       syncAutoAmount();
       persist();
     });
@@ -317,6 +344,64 @@ function bindInputs () {
 
 let lastName = '';
 const afterTimesheetChange = () => { persist(); syncAutoAmount(); };
+
+/* -----------------------------------------------------------------------
+   Unsaved changes
+
+   The form autosaves as a draft, so nothing is ever lost — but a draft is
+   not a profile, and details typed into one and never saved were details
+   that came back blank next month. So an edited profile step will not be
+   left until it has been saved, and the Next button says so rather than
+   simply refusing when pressed.
+
+   Only a person typing sets this. The month filling itself in, an address
+   reflowing, an invoice number being worked out — none of those are edits
+   somebody made, and stopping them at the door for it would be nonsense.
+   ----------------------------------------------------------------------- */
+let profileDirty = false;
+
+function markProfileDirty () {
+  if (profileDirty) return;
+  profileDirty = true;
+  renderNavRows();
+  paintProfileGate();
+}
+
+function clearProfileDirty () {
+  profileDirty = false;
+  paintProfileGate();
+  renderNavRows();
+}
+
+/** what step 1 is still missing, in the order somebody would fill it in */
+function profileProblems () {
+  const out = [];
+  if (!String(S.consultant.name || '').trim()) out.push('the full name');
+  if (!uniqueIdOf(S)) {
+    out.push(Auth.setsNumbering()
+      ? 'the unique ID'
+      : 'a unique ID — ask the administrator to set one');
+  }
+  if (!(Number(S.invoice.monthlyRate) > 0)) out.push('the monthly rate');
+  if (!S.sig.personnel) out.push('a signature');
+  return out;
+}
+
+/** say, under the save button, what is left to do before this step is done */
+function paintProfileGate () {
+  const box = document.getElementById('profileGate');
+  if (!box) return;
+  const missing = profileProblems();
+  // cleared as well as hidden: stale text is a sentence waiting to flash up
+  if (!missing.length && !profileDirty) { box.hidden = true; box.textContent = ''; return; }
+
+  box.hidden = false;
+  box.className = 'keynote warn';
+  box.textContent = missing.length
+    ? 'Before this claim can go anywhere, this profile still needs ' +
+      missing.join(', ') + (profileDirty ? ' — and the changes on screen are not saved yet.' : '.')
+    : 'The changes on screen are not saved yet. Press Save Profile to keep them.';
+}
 
 /* =======================================================================
    The month, and the three things that follow it
@@ -399,6 +484,55 @@ function syncInvoiceNo () {
   }
   paintInvoiceNo();
   renderGenSummary();
+}
+
+/**
+ * The three fields that belong to the office: the unique ID, the count of
+ * claims, and which sign-in owns this profile. A consultant can read them
+ * and can see why they are as they are; only the administrator changes
+ * them, because one person deciding they are 07 is how two people end up
+ * both being 07.
+ *
+ * This is what the app draws. BDOS is what enforces it — see
+ * docs/BDOS-CCS-Endpoints.md.
+ */
+function paintAdminFields () {
+  const may = Auth.setsNumbering();
+
+  const pick = document.getElementById('c_email');
+  if (pick) {
+    const chosen = String(S.consultant.email || '');
+    pick.innerHTML = '';
+    const blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = '— not assigned —';
+    pick.appendChild(blank);
+    const emails = Auth.preparers().slice();
+    if (chosen && emails.indexOf(chosen) < 0) emails.push(chosen);
+    emails.forEach(e => {
+      const o = document.createElement('option');
+      o.value = e;
+      o.textContent = e;
+      pick.appendChild(o);
+    });
+    pick.value = chosen;
+  }
+
+  ['c_uniqueId', 'c_claimSeq', 'c_email'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = !may;
+    el.classList.toggle('locked', !may);
+  });
+
+  const note = document.getElementById('adminLocked');
+  if (note) {
+    note.hidden = may;
+    note.className = 'keynote';
+    note.textContent = 'These three are set by the administrator. The unique ID makes your ' +
+      'invoice numbers, the count keeps them in sequence, and the account is the sign-in this ' +
+      'profile belongs to — so none of them is yours to change.';
+  }
 }
 
 /** say, on the profile step, what number the next claim will carry */
@@ -488,9 +622,6 @@ function syncAutoAmount () {
   const calc = computeAmount(S);
   document.getElementById('calcFormula').innerHTML = calc.formula || '&nbsp;';
   document.getElementById('wrapMonthly').classList.toggle('hidden', S.invoice.mode !== 'monthly');
-  document.getElementById('wrapDaily').classList.toggle('hidden', S.invoice.mode !== 'daily');
-  document.getElementById('dailyWarn')
-    .classList.toggle('hidden', !(S.invoice.mode === 'daily' && S.mode === 'invoice'));
 
   if (!S.invoice.items.length) {
     S.invoice.items.push({ desc: 'Consultancy Service Fee', position: S.consultant.position, period: '', amount: 0 });
@@ -790,6 +921,7 @@ function adoptSubmission (sub) {
   S = mergeDefaults(sub.data);
   activeProfile = '';
   fillDefaultsForMonth();
+  clearProfileDirty();
   stepIndex = Math.max(0, activeSteps().findIndex(s => s.id === 'claim'));
   renderAll();
   persist();
@@ -798,8 +930,12 @@ function adoptSubmission (sub) {
 
 /* ---------------- signatures inside the form ---------------- */
 
+/* Repaints the signature card on the Profile step. Drawing in a pad on the
+   Claim page changes the same signature, so the card has to be told. */
+let repaintProfileSig = () => {};
+
 function mountSignatures () {
-  Sig.reset(S, persist);
+  Sig.reset(S, () => { persist(); repaintProfileSig(); paintProfileGate(); renderNavRows(); });
 
   document.querySelectorAll('[data-sig]').forEach(td => Sig.mount(td, td.dataset.sig));
 
@@ -809,6 +945,11 @@ function mountSignatures () {
     Sig.mount(slot.querySelector('.sigslot-host'), 'personnel');
     updateInvSigName();
   }
+
+  repaintProfileSig = mountProfileSignature(
+    document.getElementById('sigProfile'), S,
+    () => { markProfileDirty(); persist(); paintProfileGate(); renderNavRows(); }
+  ) || (() => {});
 }
 
 function updateInvSigName () {
@@ -820,12 +961,14 @@ function updateInvSigName () {
 
 function renderAll () {
   writeBindings();
+  paintAdminFields();
   renderProfileCards();
   renderTimesheet(S, afterTimesheetChange);
   mountSignatures();
   syncInvoiceNo();
   syncAutoAmount();
   paintChoices();
+  paintProfileGate();
   showStep();
 }
 
@@ -848,11 +991,13 @@ function boot () {
   writeBindings();
   bindInputs();
 
+  paintAdminFields();
   renderTimesheet(S, afterTimesheetChange);
   mountSignatures();
   syncInvoiceNo();
   syncAutoAmount();
   paintChoices();
+  paintProfileGate();
   showStep();
 
   document.querySelectorAll('.choice').forEach(c => {
@@ -1105,11 +1250,20 @@ function saveProfileNow () {
     if (box) box.focus();
     return;
   }
+  /* A profile saved by a consultant is theirs, and saying so is what keeps
+     it visible to them next time. The administrator is setting profiles up
+     for other people, so theirs is only stamped when the field is empty and
+     the account being stamped is their own. */
+  if (!String(S.consultant.email || '').trim() && !Auth.setsNumbering()) {
+    S.consultant.email = Auth.email();
+  }
+
   if (!Store.saveProfile(name, S)) {
     toast('Could not save the profile (browser storage full?).', true);
     return;
   }
   activeProfile = name;
+  clearProfileDirty();
   refreshProfileList();
   Sync.pushProfile(name, S);
   toast(`Saved to "${name}".`);
@@ -1147,6 +1301,7 @@ function editProfile (name) {
      The month, the Assignment Period and an untouched grid all move with it —
      the same thing that happens when the app is opened cold. */
   fillDefaultsForMonth();
+  clearProfileDirty();
   renderAll();
   persist();
   openProfiles(false);
@@ -1165,6 +1320,7 @@ function newProfile () {
   fillDefaultsForMonth();
   activeProfile = '';
   stepIndex = 0;
+  clearProfileDirty();
   renderAll();
   persist();
   openProfiles(false);
@@ -1196,7 +1352,14 @@ function renderProfileCards () {
   const box  = document.getElementById('detailsBox');
   if (!host) return;
 
-  const all = Store.profiles();
+  /* A consultant sees their own profile and nobody else's. The
+     administrator and the three approvers see everybody's — the approvers
+     because they have to read what they are signing. */
+  const everything = Store.profiles();
+  const all = {};
+  Object.keys(everything).forEach(name => {
+    if (Auth.owns(mergeDefaults(everything[name]))) all[name] = everything[name];
+  });
   /* In unique-ID order, and the ones without an ID last. The ID is the middle
      of every invoice number that person sends, so a profile that has one is
      ready to send and a profile that has not is a job still to do — which is
@@ -1286,6 +1449,7 @@ function startNewProfile () {
   S = defaultState();
   activeProfile = '';
   fillDefaultsForMonth();
+  clearProfileDirty();
   renderAll();
   persist();
   const box = document.getElementById('detailsBox');

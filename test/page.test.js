@@ -254,6 +254,63 @@ check('the notch does not sit over the top bar',
   /env\(safe-area-inset-left\)/.test(css), true);
 
 /* -----------------------------------------------------------------------
+   Everybody has an account now, and a consultant sees their own work. Three
+   things on a profile belong to the office rather than to the person — the
+   number series, the count, and which sign-in owns it — and one person
+   deciding they are 07 is how two people end up both being 07.
+   ----------------------------------------------------------------------- */
+console.log('\nWhose profile is whose');
+
+const authjs = fs.readFileSync(path.join(ROOT, 'assets/js/auth.js'), 'utf8');
+check('a consultant does not see everybody',
+  /const seesEveryone = r => r !== 'consultant'/.test(authjs), true);
+check('and does not set the numbering',
+  /const setsNumbering = r => r === 'admin'/.test(authjs), true);
+check('the profile list is filtered by who owns it',
+  /Auth\.owns\(mergeDefaults\(everything\[name\]\)\)/.test(appjs), true);
+check('so is the status table', /Auth\.owns\(mergeDefaults\(all\[n\]\)\)/.test(approvals), true);
+check('the three office fields are locked by capability, not by name',
+  /\['c_uniqueId', 'c_claimSeq', 'c_email'\][\s\S]{0,200}Auth\.setsNumbering\(\)/
+    .test(appjs) || /const may = Auth\.setsNumbering\(\)/.test(appjs), true);
+
+/* -----------------------------------------------------------------------
+   Step 1 is the step everything else reads from, so it is the step that has
+   to be finished. A draft is not a profile: details typed in and never
+   saved came back blank the next month.
+   ----------------------------------------------------------------------- */
+console.log('\nFinishing step 1');
+
+check('a name, a number, a rate and a signature are all required',
+  /'the full name'/.test(appjs) && /'the monthly rate'/.test(appjs) &&
+  /'a signature'/.test(appjs), true);
+check('the rate starts empty rather than at a figure nobody reads',
+  /monthlyRate: 0/.test(statejs), true);
+check('Next is not offered while there is a reason to refuse it',
+  /next\.disabled = !!missing\.length \|\| profileDirty/.test(appjs), true);
+check('and an unsaved edit is one of those reasons',
+  /Press Save Profile first/.test(appjs), true);
+
+/* -----------------------------------------------------------------------
+   The signature. Drawn once or scanned once, then printed every month —
+   and a scan is a whole page, so what was found on it is shown back before
+   anything is kept.
+   ----------------------------------------------------------------------- */
+console.log('\nThe signature on the profile');
+
+const sigjs = fs.readFileSync(path.join(ROOT, 'assets/js/signature.js'), 'utf8');
+check('the block is in the page', /id="sigProfile"/.test(html), true);
+check('a scan can be a PDF',
+  /accept="\.pdf/.test(sigjs) && /pdfjsLib\.getDocument/.test(sigjs), true);
+check('the ink on the page is found for you', /function detectInkBox/.test(sigjs), true);
+check('and shown back before it is kept',
+  /Use this signature/.test(sigjs) && /S\.sig\.personnel = pending/.test(sigjs), true);
+// pdf.js is a third of a megabyte and is used once per person, while the
+// approvers — the ones most likely to be on a phone — never touch it
+check('the PDF reader is fetched only when it is needed',
+  !/pdf\.min\.js/.test(html) && /document\.createElement\('script'\)/.test(sigjs), true);
+check('the daily rate is gone', /dailyRate|id="wrapDaily"|id="dailyWarn"/.test(html + appjs), false);
+
+/* -----------------------------------------------------------------------
    Cache keys. GitHub Pages serves this page and everything it loads with
    max-age=600. A reload fetches the page again but keeps the old JavaScript
    for up to ten minutes, which is indistinguishable from a fix that did not

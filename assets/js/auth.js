@@ -1,8 +1,10 @@
 /* =======================================================================
    auth.js — the BDOS sign-in gate
 
-   Only three people use this app, so the door is a BDOS account
-   (https://bdos.uzmadigitalearth.app) plus the allow-list below.
+   Everybody who sends a claim has an account, so the door is a BDOS account
+   (https://bdos.uzmadigitalearth.app) plus the allow-list below. A
+   consultant signs in and sees their own profile and their own claims;
+   the administrator sees everybody's.
 
    BDOS issues a stateless JWT that lasts 30 days. We keep it in
    localStorage and send it back as `Authorization: Bearer <token>`.
@@ -31,11 +33,32 @@ const BDOS_BASE = 'https://bdos.uzmadigitalearth.app';
 const ROLES = {
   'adlishah0821@gmail.com':          'admin',
   'nuramilazulfa@gmail.com':         'consultant',
+  'zharif.zaidi@uzmagroup.com':      'consultant',
+  'afifah.zamzari@uzmagroup.com':    'consultant',
+  'nizar.tarmizi@uzmagroup.com':     'consultant',
   'hanis.rashidan@uzmagroup.com':    'manager',
   'fadhli.jamaluddin@uzmagroup.com': 'boss',
   'fatin.zaini@uzmagroup.com':       'pa'
 };
 const ALLOWED_USERS = Object.keys(ROLES);
+
+/**
+ * Which profile belongs to which account, for the profiles that existed
+ * before profiles carried an owner.
+ *
+ * A profile stamped with an `email` needs none of this and always wins. This
+ * is only the answer for the ones saved before that field existed, and it is
+ * a fragment rather than a whole name on purpose: a name typed into a form
+ * five times is spelled five ways, and "Sharifuddin" or "Sharilfuddin" is
+ * not a question anybody should be locked out of their own claims over.
+ */
+const PROFILE_HINTS = {
+  'adlishah0821@gmail.com':       /adlishah/i,
+  'nuramilazulfa@gmail.com':      /amila/i,
+  'zharif.zaidi@uzmagroup.com':   /zharif/i,
+  'afifah.zamzari@uzmagroup.com': /afifah/i,
+  'nizar.tarmizi@uzmagroup.com':  /nizar/i
+};
 
 /** What a role is called where somebody has to read it. */
 const ROLE_NAMES = {
@@ -78,6 +101,18 @@ const isAdmin  = r => r === 'admin';
    comparing to a role name is how the admin ended up with less access than
    the people it administers. */
 const places = r => r === 'pa' || r === 'admin';
+
+/* Seeing everybody's work, rather than only your own. The administrator sets
+   the app up and answers for all of it; the three approvers have to read
+   what they are approving. A consultant sees their own, and that is the
+   whole of the change — asked as "does this account see everybody", never as
+   "is this a consultant". */
+const seesEveryone = r => r !== 'consultant';
+
+/* Two numbers belong to the office rather than to the person: the unique ID
+   that makes their invoice series, and the count of claims they have sent.
+   One person deciding they are 07 is how two people end up both being 07. */
+const setsNumbering = r => r === 'admin';
 
 const TOKEN_KEY = 'ccs.token';
 const USER_KEY  = 'ccs.user';
@@ -331,6 +366,27 @@ const Auth = {
   personFor: r => ROLE_PEOPLE[r] || '',
   prepares: () => prepares(currentRole()),
   places: () => places(currentRole()),
+  seesEveryone: () => seesEveryone(currentRole()),
+  setsNumbering: () => setsNumbering(currentRole()),
   isAdmin: () => isAdmin(currentRole()),
+  /** the signed-in address, lower-cased — '' when signed out */
+  email: () => normEmail((storedUser() || {}).email),
+  /** every account that prepares claims, for the administrator to choose from */
+  preparers: () => ALLOWED_USERS.filter(e => prepares(ROLES[e])),
+  /**
+   * Is this profile this account's own? The administrator and the approvers
+   * see everybody's, so the question only bites for a consultant.
+   *
+   * @param {object} p a state object, as stored under a profile name
+   */
+  owns: function (p) {
+    if (seesEveryone(currentRole())) return true;
+    const me = normEmail((storedUser() || {}).email);
+    if (!me) return false;
+    const stamped = normEmail(p && p.consultant && p.consultant.email);
+    if (stamped) return stamped === me;
+    const hint = PROFILE_HINTS[me];
+    return !!(hint && hint.test(String((p && p.consultant && p.consultant.name) || '')));
+  },
   BASE: BDOS_BASE
 };
