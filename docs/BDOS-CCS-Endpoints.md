@@ -2,8 +2,12 @@
 
 > **Status — implemented.** These routes live in the BDOS repository
 > (`Uzma-Geospatial-AI/bdos`, `backend/app.py`, the *Consultant Claim System storage* section),
-> with `backend/test_ccs.py` covering them. This document is now the contract between the two
-> repositories rather than a request: change one side and this page says what the other expects.
+> with `backend/test_ccs.py` covering them. This document is the contract between the two
+> repositories: change one side and this page says what the other expects.
+>
+> Every route on this page is live, including the archive, the per-account draft, `kind`, the
+> per-person filtering and the administrator's delete. CCS still degrades gracefully against an
+> older BDOS build — a `404` on the archive switches that one feature off and nothing else.
 
 The Consultant Claim System (CCS) signs its users in against the BDOS auth API and needs somewhere
 durable to keep their work. CCS is a static browser app: it has no server of its own and cannot
@@ -38,34 +42,37 @@ Everybody who sends a claim has an account, and each has one part in it:
 | `fatin.zaini@uzmagroup.com` | `pa` | Places the HOD's signature on the **time sheet**, in the app or on paper |
 | `najihah.zakir@uzmagroup.com` | `finance` | Approves nothing and prepares nothing; collects the finished forms |
 
-### A consultant sees their own work only — and that needs enforcing here
+### A consultant sees their own work only — enforced here
 
-This is new, and it is the one place where the client's behaviour and BDOS's rules have come
-apart. CCS now shows a `consultant` only their own profile, their own rows in the status table
-and their own filed copies; the `admin` and the three approvers see everybody's, because an
-approver who cannot read what they are signing is no use.
+CCS shows a `consultant` only their own profile, their own rows in the status table and their own
+filed copies; the `admin`, the three approvers and `finance` see everybody's, because an approver
+who cannot read what they are signing is no use.
 
-**That filtering is done in the browser, which means it is not done at all.** The rows still
-arrive over the wire and anybody who opens the console can read them — and those rows carry an IC
-number, a home address and a bank account. Please narrow them server-side:
+Filtering in the browser is not filtering: the rows still arrive over the wire and anybody who
+opens the console can read them — and they carry an IC number, a home address and a bank account.
+So the same rule is applied here, which is the one that holds:
 
-| Endpoint | For a `consultant` | For `admin` / `manager` / `boss` / `pa` |
+| Endpoint | For a `consultant` | For everybody else |
 |---|---|---|
-| `GET /ccs/profiles` | only profiles whose `data.consultant.email` is their own address | all |
+| `GET /ccs/profiles` | profiles whose `data.consultant.email` is theirs, **plus any with no owner yet** | all |
 | `GET /ccs/submissions` | only rows they created | all |
-| `GET /ccs/archive` | only rows for their own `consultant` name | all |
-| `GET /ccs/draft` | see below |
+| `GET /ccs/submissions/{id}` | only rows they created — `404` otherwise, not `403` | all |
+| `GET /ccs/archive` | rows they filed, or filed against a profile they own | all |
+| `GET /ccs/archive/{id}` | the same, `404` otherwise | all |
+| `GET /ccs/draft` | their own row | their own row |
 
-A profile carries `data.consultant.email`, the address the profile belongs to, which CCS stamps
-when a consultant saves one and the administrator can set from the Profile step. Profiles saved
-before that field existed have no owner; CCS falls back to matching a name fragment, and a
-server-side rule can either do the same or treat an unowned profile as the administrator's until
-they assign it.
+A profile carries `data.consultant.email`, the address it belongs to, which CCS stamps when a
+consultant saves one and the administrator can set from the Profile step. Profiles saved before
+that field existed have no owner, and are shown to everybody rather than to nobody — hiding them
+would have locked every consultant out of their own details on the day this shipped. They narrow
+on their own as the administrator assigns them.
 
-**The shared draft is now wrong.** One shared draft row made sense for three people working one
-claim at a time; with five consultants each filling in their own month it means they overwrite
-each other. Please key `ccs_drafts` by `uid` — the row id becomes the caller's id rather than the
-literal `'shared'` — and CCS needs no change for it: it reads whatever `GET /ccs/draft` returns.
+**The draft is one row per account.** A single shared row made sense for three people working one
+claim at a time; with four consultants each filling in their own month they overwrote each other,
+silently, and the loser found out by opening the app. `ccs_drafts.id` is now the owner's email
+address. The old `'shared'` row is still handed back once, and only to whoever wrote it — their
+work should not vanish because the storage changed shape, and nobody else's should appear in
+front of them. It stops being read the first time they save.
 
 BDOS reads the list from the `CCS_ROLES` environment variable — `email:role` pairs, comma
 separated — and falls back to the table above, so adding somebody or moving them to another role
@@ -230,39 +237,36 @@ GET  /ccs/me                       → { "email", "name", "role", "acts_on" }
 | `pending_signature` | `pa` | `complete` |
 | `returned` | the consultant who sent it | `pending_manager`, by `resubmit` |
 
-**An approved invoice should finish at the HOD.** The last stage exists to place the HOD's
-signature, and an invoice does not carry one — it has a single signature on it, the consultant's.
-Routing one to the PA leaves a bill sitting in somebody's queue for ever, waiting on a thing that
-does not exist. So please make the `pending_boss` transition read the row's `kind`:
+**An approved invoice finishes at the HOD.** The last stage exists to place the HOD's signature,
+and an invoice does not carry one — it has a single signature on it, the consultant's. Routing
+one to the PA left a bill sitting in somebody's queue for ever, waiting on a thing that does not
+exist. The `pending_boss` transition reads the row's `kind`:
 
 ```
 approve at pending_boss  →  kind = 'claim'    →  pending_signature
                          →  kind = 'invoice'  →  complete
 ```
 
-CCS already keeps invoices out of the PA's queue and draws that column as *not applicable* rather
-than *waiting*. Until the rule is on this side too, an invoice that reaches `pending_signature`
-has to be closed by the `admin`, who can act at any stage — which works, and is a step nobody
-should have to take.
+CCS keeps invoices out of the PA's queue as well, and draws that column as *not applicable*
+rather than *waiting*. An invoice that reached `pending_signature` before the rule existed is
+refused to the PA and can be closed by the `admin`, who acts at any stage.
 
-A `finance` account approves nothing: it should be refused `POST /ccs/submissions/{id}/action`
-outright, and allowed the read endpoints.
+A `finance` account approves nothing and submits nothing: no stage names that role, so
+`POST /ccs/submissions/{id}/action` is `403` and `POST /ccs/submissions` is `403`. It reads.
 
-**`kind`** — please add this field. `POST /ccs/submissions` now sends `"kind": "invoice"` or
-`"kind": "claim"`, and it needs to come back on **both** read endpoints, the list included. The
-list is the one that matters: it deliberately returns no `data`, and a table of "whose September
-invoice is where" cannot be drawn from rows that do not say which document they are.
+**`kind`** — `"invoice"` or `"claim"`, sent on `POST /ccs/submissions` and returned by **both**
+read endpoints, the list included. The list is the one that matters: it deliberately returns no
+`data`, and a table of "whose September invoice is where" cannot be drawn from rows that do not
+say which document they are.
 
-Until that field exists CCS falls back to reading it out of the stored form — `data.submitKind`,
-which it writes as well as sending — one request per row, capped, cached for the session. That
-works, and it is a request per row that the field makes unnecessary. Store it as `TEXT`, default
-`'claim'`: every row written before a month was two documents was the whole claim, and the time
-sheet is the half that carries the signatures.
+`TEXT NOT NULL DEFAULT 'claim'`, added by an idempotent `ALTER` on boot: every row written before
+a month was two documents was the whole claim, and the time sheet is the half that carries the
+signatures. CCS also writes it inside `data.submitKind` and falls back to reading it from there,
+so it works against a BDOS that predates the column.
 
-**`DELETE /ccs/submissions/{id}`** — please add this, and allow it to the `admin` account only:
-`403` for everybody else, `404` for an id that is not there. It is deliberately not part of the
-process. A claim that was wrong is **sent back**, not erased, and the trail of who approved what
-is the reason the trail exists.
+**`DELETE /ccs/submissions/{id}`** — the `admin` account only: `403` for everybody else, `404`
+for an id that is not there. It is deliberately not part of the process. A claim that was wrong
+is **sent back**, not erased, and the trail of who approved what is the reason the trail exists.
 
 What it is for is the rows that were never part of the process: the ones left behind while the
 thing was being set up, which look exactly like real ones and sit in somebody's Re-submit tab for
@@ -292,10 +296,9 @@ what they approved last month is not much use. `mine=1` narrows to the claims th
 
 ### Archive — the signed copies of a finished month
 
-> **Status — not yet implemented.** Everything above this section is live. This one is the
-> request. Until it exists CCS calls `GET /ccs/archive` once, reads a `404` as *not deployed*,
-> and says so on the Status step instead of pretending the archive is empty. Nothing else in the
-> app is affected — a missing archive does **not** switch syncing off.
+> **Status — implemented.** The routes live in `backend/app.py` alongside the rest of `/ccs`.
+> CCS still treats a `404` here as *not deployed* and says so on the Status step rather than
+> pretending the archive is empty, so an older BDOS build breaks nothing.
 
 Every other endpoint here holds the claim as software holds it. This one holds the paper: the
 invoice and the time sheet with real signatures on them, scanned back in after the round trip
