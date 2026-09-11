@@ -341,6 +341,16 @@ check('the reason is on the card, not in a tooltip',
   /back\.note \|\| 'No reason was given\.'/.test(resubjs), true);
 check('what is sent is the form as it stands',
   /editing \? S : undefined/.test(resubjs), true);
+/* One document back is the ordinary case, and making somebody press a button
+   to be handed the thing they came for is a button for its own sake. But
+   adopting replaces the form, so it is never done over the top of work that
+   is not about this document. */
+check('one document back opens by itself',
+  /returned\.length === 1 && safeToOpen\(returned\[0\]\)/.test(resubjs), true);
+check('but never over somebody else’s unsaved work',
+  /if \(fixingId\(\)\) return false/.test(resubjs) &&
+  /profileDirty\) return false/.test(resubjs) &&
+  /here !== String\(sub\.consultant/.test(resubjs), true);
 check('and the status table resubmits the same way',
   /fixingId\(\) === sub\.id/.test(approvals), true);
 

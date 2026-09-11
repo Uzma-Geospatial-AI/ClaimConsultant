@@ -988,7 +988,7 @@ function adoptSubmission (sub) {
   stepIndex = Math.max(0, activeSteps().findIndex(s => s.id === 'claim'));
   renderAll();
   persist();
-  toast('Opened in the form. Fix it, then resubmit from the Approvals step.');
+  toast('Opened in the form. Fix it, then send it again from the Re-submit step.');
 }
 
 /* ---------------- signatures inside the form ---------------- */

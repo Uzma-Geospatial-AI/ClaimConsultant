@@ -60,9 +60,37 @@ const returnedCount = () => returned.length;
    The step
    ------------------------------------------------------------------- */
 
-function renderResubmit () {
+/**
+ * Should the step open the document by itself?
+ *
+ * Almost always the answer is yes: somebody whose invoice was rejected has
+ * come here to fix that invoice, and making them press a button to be handed
+ * the thing they came for is a button for its own sake.
+ *
+ * The exception is the one that would cost them something. Adopting a
+ * document replaces the form, so it is never done over the top of work that
+ * is not about this document — a half-typed October claim, or an edit that
+ * has not been saved. In those cases the card is there and the button is
+ * there, and the choice stays with the person.
+ */
+function safeToOpen (sub) {
+  if (fixingId()) return false;                       // already fixing one
+  if (typeof profileDirty !== 'undefined' && profileDirty) return false;
+
+  const here = String(S.consultant.name || '').trim();
+  if (!here) return true;                             // nothing on screen to lose
+  if (here !== String(sub.consultant || '').trim()) return false;
+
+  // the same person, but possibly a month they have moved on to
+  return Number(sub.period_year) === Number(S.timesheet.year) &&
+         Number(sub.period_month) === Number(S.timesheet.month) + 1;
+}
+
+let renderingResubmit = false;
+
+async function renderResubmit () {
   const host = document.getElementById('resubmitList');
-  if (!host) return;
+  if (!host || renderingResubmit) return;
 
   if (!Sync.on) {
     host.innerHTML =
@@ -83,6 +111,16 @@ function renderResubmit () {
     return;
   }
 
+  /* One document back is the ordinary case, and it is the one worth opening
+     without being asked. Two or more and there is a choice to make, so the
+     cards make it. */
+  if (returned.length === 1 && safeToOpen(returned[0])) {
+    renderingResubmit = true;                 // adopting redraws the step
+    try { await openToFix(returned[0], { jump: false }); }
+    finally { renderingResubmit = false; }
+  }
+
+  host.innerHTML = '';
   returned
     .slice()
     .sort((a, b) => (b.period_year - a.period_year) || (b.period_month - a.period_month))
@@ -134,8 +172,8 @@ function returnedCard (sub) {
   if (open) {
     const now = document.createElement('p');
     now.className = 'backnow';
-    now.textContent = 'This is the one open in the form. Fix it on the earlier steps, then ' +
-      'send it back for approval from here — what goes up is the form as it stands.';
+    now.textContent = `This ${kindLabel(kind).toLowerCase()} is open in the form now. Fix it, ` +
+      'then send it back for approval from here — what goes up is the form as it stands.';
     card.appendChild(now);
   }
 
@@ -148,8 +186,10 @@ function returnedCard (sub) {
   const bar = document.createElement('div');
   bar.className = 'btnrow';
   bar.appendChild(button('Read it', 'ghost small', () => reviewSubmission(sub.id)));
-  bar.appendChild(button(open ? 'Re-open it' : 'Open and fix', 'ghost small',
-                         () => openToFix(sub)));
+  bar.appendChild(button(
+    open ? `Edit the ${kindLabel(kind).toLowerCase()}` : 'Open and fix',
+    open ? 'small' : 'ghost small',
+    () => open ? goToDocument(kind) : openToFix(sub)));
   const send = button('Send it back for approval', 'primary',
                       () => resubmitOne(sub, note.value.trim(), send));
   bar.appendChild(send);
@@ -162,10 +202,16 @@ function returnedCard (sub) {
  * An invoice opens on the Invoice step and a time sheet on the Claim step,
  * because the thing that was wrong with it is on one of them.
  */
-async function openToFix (sub) {
+async function openToFix (sub, opts) {
+  const jump = !opts || opts.jump !== false;
   try {
     const full = await Sync.submission(sub.id);
     if (!full || !full.data) { toast('That document could not be read.', true); return; }
+
+    /* Adopting jumps to the step that draws the claim, which is right when
+       somebody pressed a button to be taken there and wrong when the step
+       opened it by itself. Remember where they were. */
+    const here = (activeSteps()[stepIndex] || {}).id;
 
     adoptSubmission(full);
     setFixing(sub.id);
@@ -178,14 +224,24 @@ async function openToFix (sub) {
       S.mode = SUBMIT_KINDS[kind].mode;
     }
 
-    const want = kind === 'invoice' ? 'invoice' : 'claim';
-    const at = activeSteps().findIndex(st => st.id === want);
     renderAll();
-    if (at >= 0) goToStep(at, true);
-    toast(`Opened the ${kindLabel(kind).toLowerCase()}. Fix it, then send it back from Re-submit.`);
+    if (jump) {
+      goToDocument(kind);
+      toast(`Opened the ${kindLabel(kind).toLowerCase()}. Fix it, then send it back from Re-submit.`);
+    } else {
+      const back = activeSteps().findIndex(st => st.id === here);
+      if (back >= 0) goToStep(back, true); else renderStepper();
+    }
   } catch (err) {
     toast(err.message || 'Could not open that document.', true);
   }
+}
+
+/** go to the step that draws this kind of document */
+function goToDocument (kind) {
+  const want = kind === 'invoice' ? 'invoice' : 'claim';
+  const at = activeSteps().findIndex(st => st.id === want);
+  if (at >= 0) goToStep(at, true);
 }
 
 /**
