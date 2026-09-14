@@ -81,12 +81,23 @@ function openFilePreview (label, filename, blob, returnTo) {
   previewUrl  = URL.createObjectURL(previewBlob);
 
   if (title) title.textContent = label;
-  // #view=FitH opens at page width, which is how somebody checking a form
-  // wants to see it — not zoomed to whatever the viewer last remembered.
-  // An image ignores it, which is the right thing to do with it.
-  frame.src = previewUrl + '#view=FitH';
   if (tab) tab.href = previewUrl;
+
+  /* Shown first, loaded second. The frame sits in a dialog that is
+     display:none until this moment, and Chrome's PDF viewer measures its
+     frame when src is set. Set while hidden, it measured nothing, and fit
+     to width of a zero-wide frame opened a signed scan at 7840%, a blank
+     page. So the dialog is shown, and the document is pointed at once the
+     frame has been laid out and has a size. */
+  frame.removeAttribute('src');
   box.hidden = false;
+  const url = previewUrl;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (previewUrl !== url) return;          // closed or replaced meanwhile
+    // #view=FitH opens at page width, which is how somebody checking a form
+    // wants to see it. An image ignores it, which is right for an image.
+    frame.src = url + '#view=FitH';
+  }));
   const close = document.getElementById('pdfViewClose');
   if (close) close.focus();
 }

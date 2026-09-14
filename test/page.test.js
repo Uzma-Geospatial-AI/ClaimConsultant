@@ -549,6 +549,12 @@ check('a combined record is never taken, since it covers the invoice too',
 check("the PA's record of confirmed months is called History",
   /labelFor: \(\) => \(Auth\.keepsRecords\(\) \? 'Filed' : 'History'\)/.test(appjs) &&
   /label\.textContent = stepLabel\(s\)/.test(appjs), true);
+/* Chrome's PDF viewer measures its frame when src is set. Set inside a dialog
+   that was still display:none, it measured nothing, and fit to width opened a
+   signed scan at 7840% — a blank page. */
+check('the preview is shown before the document is loaded into it',
+  /box\.hidden = false;[\s\S]{0,120}requestAnimationFrame[\s\S]{0,300}frame\.src = url/.test(
+    fs.readFileSync(path.join(ROOT, 'assets/js/preview.js'), 'utf8')), true);
 check('and it is named for the person who gets them',
   /'Submit to ' \+ collectorShort\(\)/.test(signingjs) &&
   /finance: 'Jiha'/.test(authjs), true);
