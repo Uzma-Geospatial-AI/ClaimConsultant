@@ -27,7 +27,10 @@ assert.equal(body.children.length,1);
 assert.equal(body.children[0].children.length,3);
 assert.equal(body.children[0].children[0].textContent,'Person <A>');
 const missing = ctx.historyTable([record]).children[0].children[2].children[0].children[2];
-assert.equal(missing.children[0].textContent,'Nothing on file');
+assert.equal(missing.children[0].textContent,'Not available');
+// every document that is there says what it is called
+const cell = body.children[0].children[1];
+assert.equal(cell.children[0].children[0].children[0].textContent,'signed.pdf');
 (async()=>{
  const control = new Element('button');
  await ctx.openHistoryFile(record,0,'view',control);

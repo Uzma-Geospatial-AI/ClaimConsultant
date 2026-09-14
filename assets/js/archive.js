@@ -352,6 +352,19 @@ function historyTable (records) {
         fileCount++;
         const item = document.createElement('div');
         item.className = 'history-document';
+        const words = document.createElement('div');
+        words.className = 'history-document-words';
+
+        /* Every document says what it is called. Two icons and a reference
+           number tell somebody there is a file here; the name tells them
+           which file, which is the thing they are looking for. It is cut
+           off at the width of the column rather than wrapped into three
+           lines, and the whole of it is in the tooltip. */
+        const title = document.createElement('span');
+        title.className = 'history-document-name';
+        title.textContent = f.name || 'Document';
+        words.appendChild(title);
+
         const description = document.createElement('span');
         description.className = 'history-document-meta';
         /* A reviewed copy is worth saying, and so is a record old enough to
@@ -364,7 +377,8 @@ function historyTable (records) {
           !r.kind ? 'Combined record' : '',
           (r.files || []).length > 1 ? `File ${index + 1}` : ''
         ].filter(Boolean).join(' \u00B7 ');
-        description.title = [f.name, r.invoice_no, r.note].filter(Boolean).join(' \u00B7 ');
+        words.appendChild(description);
+        words.title = [f.name, r.invoice_no, r.note].filter(Boolean).join(' \u00B7 ');
         const actions = document.createElement('div');
         actions.className = 'history-document-actions';
         const what = `${kind === 'claim' ? 'time sheet' : 'invoice'} \u2014 ${name}`;
@@ -373,14 +387,14 @@ function historyTable (records) {
           actions.appendChild(iconButton(action, label, 'ghost small history-icon',
             control => openHistoryFile(r, index, action, control)));
         });
-        item.appendChild(description);
+        item.appendChild(words);
         item.appendChild(actions);
         cell.appendChild(item);
       }));
       if (!fileCount) {
         const empty = document.createElement('span');
         empty.className = 'history-missing';
-        empty.textContent = 'Nothing on file';
+        empty.textContent = 'Not available';
         cell.appendChild(empty);
       }
       row.appendChild(cell);
