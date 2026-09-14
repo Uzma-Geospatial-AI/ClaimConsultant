@@ -85,6 +85,19 @@ let busy = false;
 let statusMonth = null;        // { y, m } — the month the table is showing
 const kindCache = new Map();   // submission id → 'invoice' | 'claim'
 
+/** Plain text keeps server errors safe; the retry stays beside the problem. */
+function workflowMessage (host, message, retry) {
+  host.innerHTML = '';
+  const box = document.createElement('div');
+  box.className = 'emptynote workflow-state' + (retry ? ' error' : '');
+  const words = document.createElement('p');
+  words.setAttribute('role', retry ? 'alert' : 'status');
+  words.textContent = message;
+  box.appendChild(words);
+  if (retry) box.appendChild(button('Try again', 'ghost small', retry));
+  host.appendChild(box);
+}
+
 /* -------------------------------------------------------------------
    A signature pad that belongs to nothing else
 
@@ -95,13 +108,13 @@ const kindCache = new Map();   // submission id → 'invoice' | 'claim'
 function makePad (host, initial) {
   host.innerHTML = `
     <div class="sigslot">
-      <canvas></canvas>
+      <canvas role="img" aria-label="Draw your signature here, or use Upload signature"></canvas>
       <div class="sigbtns">
-        <button type="button" data-a="clear">Clear</button>
-        <button type="button" data-a="upload">Upload</button>
-        <input type="file" accept="image/*" hidden>
+        <button type="button" data-a="clear">Clear signature</button>
+        <button type="button" data-a="upload">Upload signature</button>
+        <input type="file" accept="image/*" aria-label="Upload a signature image" hidden>
       </div>
-      <span class="sighint">Draw here, or upload an image</span>
+      <span class="sighint" role="status">Draw here, or upload an image</span>
     </div>`;
 
   const canvas = host.querySelector('canvas');
@@ -258,8 +271,8 @@ async function renderApprovals () {
   if (head) head.textContent = prepares ? 'Status' : 'Approvals';
   if (lead) {
     lead.textContent = prepares
-      ? 'Everybody, and how far each of their two documents has got this month.'
-      : 'What is waiting on you, and how far everything else has got.';
+      ? 'Track your time sheets and invoices by month. Open a document to see its details.'
+      : 'Choose a month, review the documents waiting on you, and track their approval progress.';
   }
 
   if (!Sync.on) {
@@ -270,19 +283,21 @@ async function renderApprovals () {
     return;
   }
 
-  host.innerHTML = '<p class="emptynote">Loading…</p>';
+  workflowMessage(host, 'Loading approvals and signed copies…');
+  host.setAttribute('aria-busy', 'true');
   try {
     subs = await Sync.submissions('');
+    await learnKinds();
+    // The signed paper and returned documents complete the status picture.
+    if (typeof ensureArchive === 'function') await ensureArchive();
+    if (typeof loadReturned === 'function') { await loadReturned(); renderStepper(); }
+    paintApprovals();
   } catch (err) {
-    host.innerHTML = `<p class="emptynote">Could not read the approvals: ${err.message}</p>`;
-    return;
+    workflowMessage(host, 'Approvals could not be loaded. ' +
+      (err.message || 'Check your connection and try again.'), renderApprovals);
+  } finally {
+    host.removeAttribute('aria-busy');
   }
-  await learnKinds();
-  // the last column is "is the signed paper on file", which lives over there
-  if (typeof ensureArchive === 'function') await ensureArchive();
-  // and the Re-submit tab comes and goes with what is sitting in `returned`
-  if (typeof loadReturned === 'function') { await loadReturned(); renderStepper(); }
-  paintApprovals();
 }
 
 /**
@@ -345,6 +360,7 @@ function monthsSeen () {
     }
   });
   keys.add(monthKey(S.timesheet.year, S.timesheet.month));
+  if (statusMonth) keys.add(monthKey(statusMonth.y, statusMonth.m));
   return [...keys].sort().reverse();
 }
 
@@ -364,7 +380,8 @@ function paintApprovals () {
   if (!statusMonth) statusMonth = { y: S.timesheet.year, m: S.timesheet.month };
   host.innerHTML = '';
 
-  const waiting = subs.filter(waitingOnMe);
+  const waiting = subs.filter(s => waitingOnMe(s) &&
+    Number(s.period_year) === statusMonth.y && Number(s.period_month) === statusMonth.m + 1);
   host.appendChild(filterBar(waiting.length));
 
   /* The admin stands in at every stage, so they are the one who can end up
@@ -383,6 +400,7 @@ function filterBar (waiting) {
   pick.className = 'statuspick';
   pick.appendChild(document.createTextNode('Month '));
   const sel = document.createElement('select');
+  sel.id = 'statusMonthFilter';
   monthsSeen().forEach(key => {
     const y = Number(key.slice(0, 4)), m = Number(key.slice(5)) - 1;
     const o = document.createElement('option');
@@ -395,15 +413,20 @@ function filterBar (waiting) {
     statusMonth = { y: Number(sel.value.slice(0, 4)), m: Number(sel.value.slice(5)) - 1 };
     openRow = '';
     paintApprovals();
+    if (typeof renderArchive === 'function') renderArchive();
+    document.getElementById('statusMonthFilter').focus();
   });
   pick.appendChild(sel);
   bar.appendChild(pick);
 
   const count = document.createElement('span');
   count.className = 'statuscount';
-  count.textContent = waiting
-    ? `${waiting} document${waiting > 1 ? 's are' : ' is'} waiting on you.`
-    : 'Nothing is waiting on you.';
+  count.setAttribute('role', 'status');
+  count.textContent = Auth.approves()
+    ? waiting
+      ? `${waiting} document${waiting > 1 ? 's need' : ' needs'} your review this month.`
+      : 'Nothing is waiting on you. You are up to date for this month.'
+    : 'Time sheets and invoices are tracked separately.';
   bar.appendChild(count);
 
   return bar;
@@ -416,9 +439,16 @@ function filterBar (waiting) {
 function statusTable () {
   const wrap = document.createElement('div');
   wrap.className = 'statuswrap';
+  wrap.tabIndex = 0;
+  wrap.setAttribute('role', 'region');
+  wrap.setAttribute('aria-label', 'Document approval progress');
 
   const table = document.createElement('table');
   table.className = 'statustable';
+  const caption = document.createElement('caption');
+  caption.className = 'sr-only';
+  caption.textContent = `Document status for ${MONTHS[statusMonth.m]} ${statusMonth.y}`;
+  table.appendChild(caption);
 
   const thead = document.createElement('thead');
   const hr = document.createElement('tr');
@@ -430,7 +460,7 @@ function statusTable () {
     lampHead(st.head, Auth.personFor(st.who), Auth.roleName(st.who) + ' — ' + st.does)));
   hr.appendChild(lampHead('On file', Auth.personFor('pa'),
                           'the signed document is uploaded back into the system'));
-  hr.appendChild(th(''));
+  hr.appendChild(th('Actions'));
   thead.appendChild(hr);
   table.appendChild(thead);
 
@@ -451,8 +481,7 @@ function statusTable () {
     const cell = document.createElement('td');
     cell.colSpan = 8;
     cell.className = 'statusempty';
-    cell.textContent =
-      'Nobody has a profile yet — save one on the Profile step and they appear here.';
+    cell.textContent = 'No profiles to show yet. Save a consultant profile to start tracking documents.';
     tr.appendChild(cell);
     tbody.appendChild(tr);
   }
@@ -465,6 +494,7 @@ function statusTable () {
 
 function th (text) {
   const cell = document.createElement('th');
+  cell.scope = 'col';
   cell.textContent = text;
   return cell;
 }
@@ -478,6 +508,7 @@ function th (text) {
  */
 function lampHead (text, who, why) {
   const cell = document.createElement('th');
+  cell.scope = 'col';
   cell.className = 'stagecol';
   const name = document.createElement('span');
   name.textContent = text;
@@ -493,8 +524,8 @@ function lampHead (text, who, why) {
 
 /**
  * One person, one document, one month.
- * @param {boolean} first is this the first of the person's two rows? only
- *        that one carries the name, so a person reads as one block
+ * @param {boolean} first is this the first of the person's two rows?
+ *        Each card keeps its name so it also makes sense on a phone.
  */
 function statusRow (name, kind, sub, first) {
   const tr = document.createElement('tr');
@@ -508,15 +539,13 @@ function statusRow (name, kind, sub, first) {
   const who = document.createElement('td');
   who.className = 'who';
   who.dataset.col = 'Consultant';
-  if (first) {
-    const b = document.createElement('b');
-    b.textContent = name;
-    who.appendChild(b);
-    if (sub && sub.invoice_no) {
-      const no = document.createElement('small');
-      no.textContent = sub.invoice_no;
-      who.appendChild(no);
-    }
+  const b = document.createElement('b');
+  b.textContent = name;
+  who.appendChild(b);
+  if (sub && sub.invoice_no) {
+    const no = document.createElement('small');
+    no.textContent = sub.invoice_no;
+    who.appendChild(no);
   }
   tr.appendChild(who);
 
@@ -527,6 +556,10 @@ function statusRow (name, kind, sub, first) {
   tag.className = 'doctag ' + kind;
   tag.textContent = kindLabel(kind);
   doc.appendChild(tag);
+  const status = document.createElement('span');
+  status.className = 'status-label ' + (sub ? sub.status : 'unsent');
+  status.textContent = sub ? (STATUS_TEXT[sub.status] || 'Status unavailable') : 'Not submitted';
+  doc.appendChild(status);
   tr.appendChild(doc);
 
   // Sent
@@ -537,7 +570,7 @@ function statusRow (name, kind, sub, first) {
   STAGES.forEach(st => {
     // an invoice has no HOD signature to place, so that column is not a
     // thing it is waiting for — it is a thing it does not have
-    if (sub && st.key === 'pending_signature' && !hasSignatureStage(sub)) {
+    if (st.key === 'pending_signature' && (kind === 'invoice' || (sub && !hasSignatureStage(sub)))) {
       tr.appendChild(lampCell('na', st.head,
         'an invoice carries no approver signature — nothing to place'));
       return;
@@ -565,11 +598,19 @@ function statusRow (name, kind, sub, first) {
   acts.className = 'statusacts';
   acts.dataset.col = '';
   if (sub) {
-    acts.appendChild(button('Read', 'ghost small', () => reviewSubmission(sub.id)));
+    const read = button('View', 'ghost small', () => reviewSubmission(sub.id));
+    read.setAttribute('aria-label', `View ${kindLabel(kind)} for ${name}, ${periodOf(sub)}`);
+    acts.appendChild(read);
     if (waitingOnMe(sub)) {
       const verb = sub.status === 'pending_signature' ? 'Sign' : 'Approve';
-      acts.appendChild(button(verb, 'small', () => toggleDecide(sub.id, 'approve')));
-      acts.appendChild(button('Reject', 'ghost small danger', () => toggleDecide(sub.id, 'return')));
+      const approve = button(verb, 'small', () => toggleDecide(sub.id, 'approve'));
+      approve.setAttribute('aria-expanded', String(openRow === sub.id && decideAction === 'approve'));
+      approve.setAttribute('aria-label', `${verb} ${kindLabel(kind)} for ${name}, ${periodOf(sub)}`);
+      acts.appendChild(approve);
+      const reject = button('Send back', 'ghost small danger', () => toggleDecide(sub.id, 'return'));
+      reject.setAttribute('aria-expanded', String(openRow === sub.id && decideAction === 'return'));
+      reject.setAttribute('aria-label', `Send back ${kindLabel(kind)} for ${name}, ${periodOf(sub)}`);
+      acts.appendChild(reject);
     }
     /* An invoice approved before CCS filed them itself is finished but has
        no copy on record, so it never reached whoever collects the paper.
@@ -614,7 +655,14 @@ function lampCell (state, head, why) {
     : state === 'waiting' ? '●'
     : state === 'na' ? '–' : '';
   lamp.title = `${head} — ${why}`;
+  lamp.setAttribute('aria-hidden', 'true');
   cell.appendChild(lamp);
+  const text = document.createElement('span');
+  text.className = 'stage-status ' + state;
+  text.textContent = state === 'done' ? 'Done' : state === 'waiting' ? 'Waiting'
+    : state === 'returned' ? 'Returned' : state === 'na' ? 'N/A' : 'Pending';
+  cell.setAttribute('aria-label', `${head}: ${why}`);
+  cell.appendChild(text);
   return cell;
 }
 
@@ -668,16 +716,17 @@ function bulkBar (waiting) {
   bar.className = 'bulkbar';
 
   const said = document.createElement('span');
-  said.textContent = 'Clear them in one go:';
+  said.textContent = `Bulk review · ${MONTHS[statusMonth.m]} ${statusMonth.y} · ${waiting.length} documents`;
   bar.appendChild(said);
 
   const note = document.createElement('input');
   note.className = 'dinput';
   note.placeholder = 'Reason — needed to reject';
+  note.setAttribute('aria-label', 'Reason for sending all listed documents back');
   bar.appendChild(note);
 
-  bar.appendChild(button('Approve all', 'small', () => bulk(waiting, 'approve', note.value.trim())));
-  bar.appendChild(button('Reject all', 'ghost small danger',
+  bar.appendChild(button(`Approve all (${waiting.length})`, 'small', () => bulk(waiting, 'approve', note.value.trim())));
+  bar.appendChild(button(`Send all back (${waiting.length})`, 'ghost small danger',
                          () => bulk(waiting, 'return', note.value.trim())));
   return bar;
 }
@@ -751,6 +800,10 @@ function toggleDecide (id, action) {
   openRow = (openRow === id && decideAction === action) ? '' : id;
   decideAction = action;
   paintApprovals();
+  if (openRow) {
+    const panel = document.querySelector('#approvalList .decidebox');
+    if (panel) panel.focus();
+  }
 }
 
 /** the expanded panel, as a row of its own under the row it belongs to */
@@ -767,12 +820,16 @@ function decideRow (sub) {
 function decideBox (sub) {
   const box = document.createElement('div');
   box.className = 'decidebox';
+  box.tabIndex = -1;
+  box.setAttribute('role', 'region');
+  box.setAttribute('aria-labelledby', 'approvalDecisionHeading');
   const signs = decideAction === 'approve' ? signsFor(sub) : null;
   const signing = decideAction === 'approve' && mustSign(sub);
   const stage = STAGE_BY_KEY[sub.status] || {};
 
   const head = document.createElement('p');
   head.className = 'decidehead';
+  head.id = 'approvalDecisionHeading';
   head.textContent =
     decideAction === 'return' ? 'Send this document back — say what needs fixing'
     : decideAction === 'resubmit' ? 'Send this document back for approval'
@@ -784,6 +841,10 @@ function decideBox (sub) {
       ? 'Close the invoice — there is no signature to place on one'
       : `Approve the ${kindLabel(kindOf(sub)).toLowerCase()}`;
   box.appendChild(head);
+  const context = document.createElement('p');
+  context.className = 'status-context';
+  context.textContent = `${sub.consultant || 'Consultant'} · ${kindLabel(kindOf(sub))} · ${periodOf(sub)}`;
+  box.appendChild(context);
 
   let pad = null;
   if (signs) {
@@ -811,11 +872,12 @@ function decideBox (sub) {
     drop.appendChild(cap);
     const inp = document.createElement('input');
     inp.type = 'file';
+    inp.setAttribute('aria-label', `Upload the signed ${kindLabel(kindOf(sub)).toLowerCase()}`);
     inp.accept = '.pdf,.png,.jpg,.jpeg,image/*,application/pdf';
     drop.appendChild(inp);
     const why = document.createElement('small');
     why.textContent = signs
-      ? 'Either is enough — draw above, or upload here. Whatever is uploaded is kept on file.'
+      ? 'Draw above or upload a signed copy. PDF or image, up to 12 MB. Uploaded copies are kept on file.'
       : `An ${kindLabel(kindOf(sub)).toLowerCase()} has no box for an approver to sign, so the ` +
         'signed file is the only thing there is to put your name to.';
     drop.appendChild(why);
@@ -823,9 +885,16 @@ function decideBox (sub) {
     filed = inp;
   }
 
+  const noteLabel = document.createElement('label');
+  noteLabel.className = 'fieldlabel';
+  noteLabel.htmlFor = 'approvalDecisionNote';
+  noteLabel.textContent = decideAction === 'return' ? 'Reason for returning (required)' : 'Note to the consultant (optional)';
+  box.appendChild(noteLabel);
   const note = document.createElement('textarea');
+  note.id = 'approvalDecisionNote';
   note.className = 'decidenote';
   note.rows = 2;
+  note.required = decideAction === 'return';
   note.placeholder = decideAction === 'return'
     ? 'What needs to change? The consultant sees this.'
     : 'Anything to add (optional)';
@@ -839,7 +908,16 @@ function decideBox (sub) {
       : sub.status === 'pending_signature' ? (signing ? 'Mark it signed' : 'Close it')
       : signing ? 'Sign and pass it on' : 'Confirm',
     decideAction === 'return' ? 'danger' : 'primary',
-    () => decide(sub, note.value.trim(), pad, filed, go));
+    () => {
+      if (decideAction === 'return' && !note.value.trim()) {
+        note.setCustomValidity('Explain what the consultant needs to change.');
+        note.reportValidity();
+        note.focus();
+        return;
+      }
+      decide(sub, note.value.trim(), pad, filed, go);
+    });
+  note.addEventListener('input', () => note.setCustomValidity(''));
   bar.appendChild(go);
   bar.appendChild(button('Cancel', 'ghost', () => { openRow = ''; paintApprovals(); }));
   box.appendChild(bar);

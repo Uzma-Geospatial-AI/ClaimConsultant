@@ -42,20 +42,26 @@ async function renderArchive (force) {
   }
 
   if (force || !archiveLoaded) {
-    host.innerHTML = '<p class="emptynote">Loading…</p>';
-    archive = await Sync.stored('', '');
-    archiveLoaded = true;
+    workflowMessage(host, 'Loading signed copies…');
+    host.setAttribute('aria-busy', 'true');
+    try {
+      archive = await Sync.stored('', '');
+      archiveLoaded = true;
+    } catch (err) {
+      workflowMessage(host, 'Signed copies could not be loaded. ' +
+        (err.message || 'Check your connection and try again.'), () => renderArchive(true));
+      return;
+    } finally {
+      host.removeAttribute('aria-busy');
+    }
   }
 
   /* The archive is newer than the rest of the storage and may not be
      deployed yet. "Nothing filed" would be a lie in that case, and the kind
      that has somebody hunting for files that were never uploaded. */
   if (!Sync.archiveOn) {
-    host.innerHTML =
-      '<p class="emptynote"><b>The archive is not switched on yet.</b> ' +
-      'BDOS has not shipped the storage for signed copies — see ' +
-      'docs/BDOS-CCS-Endpoints.md. Everything else works as it does now; keep ' +
-      'the signed files where they are and put them here once it is there.</p>';
+    workflowMessage(host, 'Signed copy storage is not available yet. Keep your signed files ' +
+      'on your device and contact your administrator to enable uploads.');
     return;
   }
   paintArchive();
@@ -168,8 +174,9 @@ function paintArchive () {
   if (!rows.length) {
     const empty = document.createElement('p');
     empty.className = 'emptynote';
-    empty.textContent = `Nothing on file for ${MONTHS[when.m]} ${when.y} yet. ` +
-      'When a document comes back signed, upload it above.';
+    empty.textContent = `No signed copies for ${MONTHS[when.m]} ${when.y} yet. ` +
+      (canFileSigned() ? 'Upload signed documents using the form above.'
+        : 'Signed copies will appear here when they are uploaded.');
     host.appendChild(empty);
     return;
   }
@@ -214,11 +221,8 @@ async function renderHistory (force) {
   if (head) head.textContent = collecting ? 'Documents to collect' : 'History';
   if (lead) {
     lead.textContent = collecting
-      ? 'Every signed form on file, for everybody, newest first. Download all takes a copy ' +
-        'of whatever is listed — narrow it by person or year first if you only want part of it.'
-      : 'Every signed copy ever filed, for everybody, newest first. The Status step shows one ' +
-        'month; this is the whole record, which is what Finance asks for when they ask about ' +
-        'last March.';
+      ? 'Find signed time sheets and invoices by consultant or year. View individual files or download the results as one ZIP.'
+      : 'Browse signed documents across all months. Filter by consultant or year, then view or download the files you need.';
   }
 
   if (!Sync.on) {
@@ -230,15 +234,23 @@ async function renderHistory (force) {
   }
 
   if (force) archiveLoaded = false;
-  host.innerHTML = '<p class="emptynote">Loading…</p>';
-  await ensureArchive();
+  workflowMessage(host, 'Loading document history…');
+  const download = document.getElementById('btnDownloadAll');
+  if (download) download.disabled = true;
+  host.setAttribute('aria-busy', 'true');
+  try {
+    await ensureArchive();
+  } catch (err) {
+    workflowMessage(host, 'Document history could not be loaded. ' +
+      (err.message || 'Check your connection and try again.'), () => renderHistory(true));
+    return;
+  } finally {
+    host.removeAttribute('aria-busy');
+  }
 
   if (!Sync.archiveOn) {
-    host.innerHTML =
-      '<p class="emptynote"><b>The archive is not switched on yet.</b> ' +
-      'BDOS has not shipped the storage for signed copies — see ' +
-      'docs/BDOS-CCS-Endpoints.md. Once it is there, every month filed from the ' +
-      'Status step appears here.</p>';
+    workflowMessage(host, 'Document history is not available yet. Contact your administrator ' +
+      'to enable signed copy storage. Your existing files should be kept on your device.');
     return;
   }
   paintHistory();
@@ -255,7 +267,7 @@ function paintHistory () {
        person who has sent nothing is a fair question — the answer is the
        line of "Not available" that says so. */
     const names = filingNames();
-    fillSelect(who, 'everybody', names, names.map(n => n));
+    fillSelect(who, 'All consultants', names, names.map(n => n));
     who.value = names.indexOf(historyWho) >= 0 ? historyWho : '';
     historyWho = who.value;
     who.onchange = () => { historyWho = who.value; paintHistory(); };
@@ -263,7 +275,7 @@ function paintHistory () {
   if (year) {
     const years = [...new Set(archive.map(r => Number(r.period_year)).filter(Boolean))]
       .sort((a, b) => b - a);
-    fillSelect(year, 'every year', years.map(String), years.map(String));
+    fillSelect(year, 'All years', years.map(String), years.map(String));
     year.value = years.map(String).indexOf(historyYear) >= 0 ? historyYear : '';
     historyYear = year.value;
     year.onchange = () => { historyYear = year.value; paintHistory(); };
@@ -273,19 +285,32 @@ function paintHistory () {
   host.innerHTML = '';
   const count = document.createElement('p');
   count.className = 'historycount';
+  count.setAttribute('role', 'status');
   const files = rows.reduce((n, r) => n + ((r.files || []).length), 0);
   count.textContent = rows.length
-    ? `${rows.length} record${rows.length > 1 ? 's' : ''}, ${files} file${files > 1 ? 's' : ''}.`
+    ? `${rows.length} record${rows.length === 1 ? '' : 's'} · ${files} file${files === 1 ? '' : 's'} available`
     : '';
+  const download = document.getElementById('btnDownloadAll');
+  if (download) {
+    download.disabled = !files || downloading;
+    download.textContent = files ? `Download all (${files})` : 'Download all';
+    download.title = 'Download the files matching these filters as one ZIP';
+  }
   if (rows.length) host.appendChild(count);
 
   if (!rows.length) {
     const empty = document.createElement('p');
     empty.className = 'emptynote';
     empty.textContent = (historyWho || historyYear)
-      ? 'Nothing on file for that.'
-      : 'Nothing has been filed yet.';
+      ? 'No signed documents match these filters. Choose another consultant or year.'
+      : 'No signed documents have been filed yet. Completed documents will appear here after they are filed.';
     host.appendChild(empty);
+    if (historyWho || historyYear) host.appendChild(button('Clear filters', 'ghost small', () => {
+      historyWho = '';
+      historyYear = '';
+      paintHistory();
+      if (who) who.focus();
+    }));
     return;
   }
 
@@ -384,6 +409,7 @@ function historyTable (records, roster) {
     row.appendChild(person);
     ['claim', 'invoice'].forEach(kind => {
       const cell = document.createElement('td');
+      cell.setAttribute('data-label', kind === 'claim' ? 'Time sheet' : 'Invoice');
       // Older records contained both documents and did not carry a kind.
       const matching = copies.filter(r => !r.kind || r.kind === kind);
       let fileCount = 0;
@@ -423,8 +449,12 @@ function historyTable (records, roster) {
         const what = `${kind === 'claim' ? 'time sheet' : 'invoice'} \u2014 ${name}`;
         ['view', 'download'].forEach(action => {
           const label = (action === 'view' ? 'View the ' : 'Download the ') + what;
-          actions.appendChild(iconButton(action, label, 'ghost small history-icon',
-            control => openHistoryFile(r, index, action, control)));
+          const control = iconButton(action, label, 'ghost small history-icon',
+            control => openHistoryFile(r, index, action, control));
+          const text = document.createElement('span');
+          text.textContent = action === 'view' ? 'View' : 'Download';
+          control.appendChild(text);
+          actions.appendChild(control);
         });
         item.appendChild(words);
         item.appendChild(actions);
@@ -457,7 +487,7 @@ async function openHistoryFile (record, index, action, control) {
     const bytes = dataUrlToBytes('data:' + type + ';base64,' + file.content);
     const blob = new Blob([bytes], { type });
     const filename = file.name || archiveFileName(record, file);
-    if (action === 'view') openFilePreview(filename, filename, blob);
+    if (action === 'view') openFilePreview(filename, filename, blob, control);
     else saveAs(blob, filename);
   } catch (err) {
     toast(err.message || 'Could not open that file. Please try again.', true);
@@ -499,6 +529,7 @@ async function downloadAllHistory (btn) {
   const say = (text, bad) => {
     if (!note) return;
     note.hidden = false;
+    note.setAttribute('role', bad ? 'alert' : 'status');
     note.className = 'keynote' + (bad ? ' warn' : '');
     note.textContent = text;
   };
@@ -655,7 +686,8 @@ function archiveRow (r, namePerson) {
   (r.files || []).forEach((f, i) => {
     const b = button(f.name || ('Document ' + (i + 1)), 'ghost small',
                      () => downloadStored(r.id, i, f.name));
-    b.title = f.size ? Math.round(f.size / 1024) + ' KB' : '';
+    b.setAttribute('aria-label', 'Download ' + (f.name || 'document') + ' for ' + (r.consultant || 'consultant'));
+    b.title = f.size ? 'Download · ' + Math.round(f.size / 1024) + ' KB' : 'Download document';
     files.appendChild(b);
   });
   if (!(r.files || []).length) {
@@ -728,12 +760,21 @@ function archiveUploadCard () {
 
   const note = document.createElement('input');
   note.className = 'dinput archnote';
-  note.placeholder = 'Anything worth saying about this month (optional)';
-  card.appendChild(note);
+  note.placeholder = 'Add details about these copies';
+  const noteLabel = document.createElement('label');
+  noteLabel.className = 'fieldlabel';
+  noteLabel.appendChild(document.createTextNode('Filing note (optional)'));
+  noteLabel.appendChild(note);
+  card.appendChild(noteLabel);
+
+  const hint = document.createElement('p');
+  hint.className = 'fieldhint';
+  hint.textContent = 'Upload a PDF or image, up to 12 MB per file. Check the consultant and month above before filing.';
+  card.appendChild(hint);
 
   const bar = document.createElement('div');
   bar.className = 'btnrow';
-  const go = button('File them', 'primary', () => fileSigned(inputs, note, go));
+  const go = button('File signed copies', 'primary', () => fileSigned(inputs, note, go));
   bar.appendChild(go);
   card.appendChild(bar);
   return card;

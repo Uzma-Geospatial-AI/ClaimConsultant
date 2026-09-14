@@ -286,6 +286,33 @@ const adopting = () => {
   check('wrapped as { data }',       put.body.data.consultant.name, 'Ahmad bin Abdullah');
   check('and the push is timestamped', localStorage.getItem('ccs.syncedAt') ? 'yes' : 'no', 'yes');
 
+  console.log('\nArchive errors stay distinct from an empty archive');
+  reset({
+    'GET /ccs/draft': { status: 200, body: { draft: null } },
+    'GET /ccs/profiles': { status: 200, body: { profiles: [] } },
+    'GET /ccs/archive': { status: 503, body: { detail: 'Storage temporarily unavailable' } }
+  });
+  ctx.S = filledState();
+  await run('Sync.init(S, adopt)');
+  let archiveError;
+  try { await run("Sync.stored('', '')"); }
+  catch (err) { archiveError = err; }
+  check('a storage failure is surfaced for retry', archiveError && archiveError.status, 503);
+  check('a temporary failure does not disable the archive', run('Sync.archiveOn'), true);
+  check('or the rest of syncing', run('Sync.on'), true);
+  routes['GET /ccs/archive'] = { status: 200, body: { records: [{ id: 'signed-copy' }] } };
+  const recovered = await run("Sync.stored('', '')");
+  check('retry returns the filed records', recovered[0] && recovered[0].id, 'signed-copy');
+
+  routes['GET /ccs/archive'] = { status: 404, body: { detail: 'Not Found' } };
+  const unavailable = await run("Sync.stored('', '')");
+  check('optional storage still tolerates a missing endpoint', unavailable.length, 0);
+  check('missing storage is reported as unavailable', run('Sync.archiveOn'), false);
+  check('missing storage leaves the rest of syncing working', run('Sync.on'), true);
+  const requestsBefore = sent.length;
+  await run("Sync.stored('', '')");
+  check('the missing endpoint is not repeatedly requested', sent.length, requestsBefore);
+
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('\nFailures:');

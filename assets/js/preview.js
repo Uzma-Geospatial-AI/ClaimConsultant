@@ -14,6 +14,9 @@
 let previewUrl  = null;      // the live blob: URL, or null when closed
 let previewBlob = null;
 let previewName = '';
+let previewTrigger = null;
+let previewBackground = [];
+let previewScroll = '';
 
 function pdfViewerNodes () {
   return {
@@ -24,7 +27,7 @@ function pdfViewerNodes () {
   };
 }
 
-function closePdfPreview () {
+function closePdfPreview (restoreFocus = true) {
   const { box, frame, tab } = pdfViewerNodes();
   if (!box) return;
   box.hidden = true;
@@ -33,6 +36,11 @@ function closePdfPreview () {
   if (previewUrl) { URL.revokeObjectURL(previewUrl); previewUrl = null; }
   previewBlob = null;
   previewName = '';
+  previewBackground.forEach(([el, wasInert]) => { el.inert = wasInert; });
+  previewBackground = [];
+  document.body.style.overflow = previewScroll;
+  if (restoreFocus && previewTrigger && previewTrigger.isConnected) previewTrigger.focus();
+  previewTrigger = null;
 }
 
 /**
@@ -41,8 +49,8 @@ function closePdfPreview () {
  * @param {string} filename  the name it takes if downloaded from here
  * @param {object} doc       a jsPDF document
  */
-function openPdfPreview (label, filename, doc) {
-  openFilePreview(label, filename, doc.output('blob'));
+function openPdfPreview (label, filename, doc, trigger) {
+  openFilePreview(label, filename, doc.output('blob'), trigger);
 }
 
 /**
@@ -55,11 +63,18 @@ function openPdfPreview (label, filename, doc) {
  *
  * @param {Blob} blob  the file itself; a PDF or an image
  */
-function openFilePreview (label, filename, blob) {
+function openFilePreview (label, filename, blob, returnTo) {
   const { box, frame, title, tab } = pdfViewerNodes();
   if (!box || !frame) return;
 
-  closePdfPreview();                       // never stack two blobs
+  const trigger = returnTo || previewTrigger || document.activeElement;
+  if (previewUrl) closePdfPreview(false);  // never stack two blobs
+  previewTrigger = trigger;
+  previewScroll = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  previewBackground = Array.from(document.body.children)
+    .filter(el => el !== box && el.tagName !== 'SCRIPT' && el.id !== 'toast')
+    .map(el => { const wasInert = el.inert; el.inert = true; return [el, wasInert]; });
 
   previewBlob = blob;
   previewName = filename;
@@ -72,6 +87,8 @@ function openFilePreview (label, filename, blob) {
   frame.src = previewUrl + '#view=FitH';
   if (tab) tab.href = previewUrl;
   box.hidden = false;
+  const close = document.getElementById('pdfViewClose');
+  if (close) close.focus();
 }
 
 function mountPdfViewer () {
@@ -79,7 +96,7 @@ function mountPdfViewer () {
   if (!box) return;
 
   const close = document.getElementById('pdfViewClose');
-  if (close) close.addEventListener('click', closePdfPreview);
+  if (close) close.addEventListener('click', () => closePdfPreview());
 
   const dl = document.getElementById('pdfViewDownload');
   if (dl) dl.addEventListener('click', () => {
@@ -91,6 +108,14 @@ function mountPdfViewer () {
   box.addEventListener('click', e => { if (e.target === box) closePdfPreview(); });
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && !box.hidden) closePdfPreview();
+    if (box.hidden) return;
+    if (e.key === 'Escape') { e.preventDefault(); closePdfPreview(); }
+    if (e.key === 'Tab') {
+      const controls = Array.from(box.querySelectorAll('a[href], button:not(:disabled), iframe'));
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
   });
 }

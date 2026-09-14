@@ -104,17 +104,19 @@ function renderTimesheet (S, onChange) {
 
   const table = document.createElement('table');
   table.className = 'uz-grid';
+  table.setAttribute('aria-label', `Activity timesheet for ${MONTHS[ts.month]} ${ts.year}`);
+  table.setAttribute('aria-describedby', 'timesheetHelp');
 
   /* ---- header ---- */
   let days = '';
-  for (let d = 1; d <= 31; d++) days += `<th class="c-day">${d}</th>`;
+  for (let d = 1; d <= 31; d++) days += `<th scope="col" class="c-day">${d}</th>`;
   table.innerHTML = `
     <thead><tr>
-      <th class="c-act">WORK ACTIVITY &amp; DATE</th>
-      <th class="c-job">JOB ID<br>NUMBER</th>
+      <th scope="col" class="c-act">WORK ACTIVITY &amp; DATE</th>
+      <th scope="col" class="c-job">JOB ID<br>NUMBER</th>
       ${days}
-      ${B_HEADS.map(h => `<th class="c-tot">${h}</th>`).join('')}
-      <th class="c-del"></th>
+      ${B_HEADS.map(h => `<th scope="col" class="c-tot">${h}</th>`).join('')}
+      <th scope="col" class="c-del"><span class="sr-only">Actions</span></th>
     </tr></thead>
     <tbody></tbody>`;
   const tbody = table.querySelector('tbody');
@@ -125,14 +127,18 @@ function renderTimesheet (S, onChange) {
 
     const tdAct = document.createElement('td');
     tdAct.className = 'c-act';
-    tdAct.innerHTML = `<input class="dinput" placeholder="e.g. Developing Platform (${MONTHS[ts.month]} ${ts.year})">`;
+    tdAct.innerHTML = `<input class="dinput" aria-label="Activity ${ai + 1}: description" placeholder="e.g. Developing Platform (${MONTHS[ts.month]} ${ts.year})">`;
     tdAct.querySelector('input').value = act.name;
-    tdAct.querySelector('input').addEventListener('input', e => { act.name = e.target.value; onChange(); });
+    tdAct.querySelector('input').addEventListener('input', e => {
+      act.name = e.target.value;
+      tr.querySelectorAll('.day-toggle').forEach(button => paintDay(button.parentNode, ts, act, Number(button.dataset.day)));
+      onChange();
+    });
     tr.appendChild(tdAct);
 
     const tdJob = document.createElement('td');
     tdJob.className = 'c-job';
-    tdJob.innerHTML = '<input class="dinput" placeholder="if any">';
+    tdJob.innerHTML = `<input class="dinput" aria-label="Activity ${ai + 1}: job ID" placeholder="if any">`;
     tdJob.querySelector('input').value = act.jobId;
     tdJob.querySelector('input').addEventListener('input', e => { act.jobId = e.target.value; onChange(); });
     tr.appendChild(tdJob);
@@ -145,7 +151,17 @@ function renderTimesheet (S, onChange) {
         td.style.background = '#f0f2f4';
         td.title = `${MONTHS[ts.month]} ${ts.year} has only ${dim} days`;
       } else {
-        td.addEventListener('click', () => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'day-toggle';
+        button.dataset.day = String(d);
+        button.dataset.activity = String(ai);
+        // One tab stop per row; arrow keys reach the rest of the calendar.
+        button.tabIndex = d === 1 ? 0 : -1;
+        button.addEventListener('focus', () => {
+          tr.querySelectorAll('.day-toggle').forEach(day => { day.tabIndex = day === button ? 0 : -1; });
+        });
+        button.addEventListener('click', () => {
           const cur = act.days[d] || '';
           const step = nextDayMark(S, cur);
           if (step.value) act.days[d] = step.value; else delete act.days[d];
@@ -159,6 +175,7 @@ function renderTimesheet (S, onChange) {
           }
           onChange();
         });
+        td.appendChild(button);
         paintDay(td, ts, act, d);
       }
       tr.appendChild(td);
@@ -170,7 +187,7 @@ function renderTimesheet (S, onChange) {
 
     const tdB = document.createElement('td');
     tdB.className = 'c-tot';
-    tdB.innerHTML = '<input class="dinput" type="number" step="0.5" placeholder="0">';
+    tdB.innerHTML = `<input class="dinput" type="number" inputmode="decimal" step="0.5" aria-label="Activity ${ai + 1}: allocated projected days" placeholder="0">`;
     tdB.querySelector('input').value = act.allocated || '';
     tdB.querySelector('input').addEventListener('input', e => {
       act.allocated = Number(e.target.value) || 0; updateRow(tr, S, act, ai); onChange();
@@ -179,7 +196,7 @@ function renderTimesheet (S, onChange) {
 
     const tdC = document.createElement('td');
     tdC.className = 'c-tot';
-    tdC.innerHTML = '<input class="dinput" type="number" step="0.5" placeholder="0">';
+    tdC.innerHTML = `<input class="dinput" type="number" inputmode="decimal" step="0.5" aria-label="Activity ${ai + 1}: past claimed days" placeholder="0">`;
     tdC.querySelector('input').value = act.pastClaim || '';
     tdC.querySelector('input').addEventListener('input', e => {
       act.pastClaim = Number(e.target.value) || 0; updateRow(tr, S, act, ai); onChange();
@@ -192,12 +209,16 @@ function renderTimesheet (S, onChange) {
 
     const tdDel = document.createElement('td');
     tdDel.className = 'c-del';
-    tdDel.innerHTML = '<button class="rowdel" title="Delete this row">&times;</button>';
+    tdDel.innerHTML = `<button type="button" class="rowdel" title="Delete this row" aria-label="Delete activity ${ai + 1}">&times;</button>`;
     tdDel.querySelector('button').addEventListener('click', () => {
       if (ts.activities.length === 1) { toast('At least one activity row is required.', true); return; }
       ts.activities.splice(ai, 1);
       renderTimesheet(S, onChange);
       onChange();
+      const rows = host.querySelectorAll('.c-act input');
+      const focus = rows[Math.min(ai, rows.length - 1)];
+      if (focus) focus.focus();
+      toast('Activity row removed.');
     });
     tr.appendChild(tdDel);
 
@@ -216,6 +237,25 @@ function renderTimesheet (S, onChange) {
     `<td class="c-tot">${t.C}</td><td class="c-tot">${t.balance}</td><td class="c-del"></td>`;
   tbody.appendChild(total);
 
+  table.addEventListener('keydown', e => {
+    const button = e.target.closest('.day-toggle');
+    if (!button || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    let day = Number(button.dataset.day);
+    let row = Number(button.dataset.activity);
+    if (e.key === 'ArrowLeft') day--;
+    else if (e.key === 'ArrowRight') day++;
+    else if (e.key === 'ArrowUp') row--;
+    else if (e.key === 'ArrowDown') row++;
+    else if (e.key === 'Home') day = 1;
+    else if (e.key === 'End') day = dim;
+    else return;
+    e.preventDefault();
+    day = Math.max(1, Math.min(dim, day));
+    row = Math.max(0, Math.min(ts.activities.length - 1, row));
+    const target = table.querySelector(`.day-toggle[data-activity="${row}"][data-day="${day}"]`);
+    if (target) target.focus();
+  });
+
   host.innerHTML = '';
   host.appendChild(table);
   renderSummary(S);
@@ -228,9 +268,15 @@ function paintDay (td, ts, act, d) {
   if (manual === '/') td.classList.add('work');
   else if (MARKS[manual]) td.classList.add(MARKS[manual]);
   else if (shown === 'SAT' || shown === 'SUN') td.classList.add('we');
-  td.textContent = manual || shown || '';
-  const what = MARK_NAMES[manual] || (manual === '/' ? 'worked' : shown);
-  td.title = `${d} ${MONTHS[ts.month]} ${ts.year}` + (what ? ` — ${what}` : '') + '  (click to change)';
+  const button = td.querySelector('.day-toggle');
+  const what = MARK_NAMES[manual] || (manual === '/' ? 'worked' : shown === 'SAT' ? 'Saturday' : shown === 'SUN' ? 'Sunday' : 'unmarked');
+  const label = `${d} ${MONTHS[ts.month]} ${ts.year}: ${what}`;
+  if (button) {
+    button.textContent = manual || shown || '–';
+    button.setAttribute('aria-label', `${act.name || 'Activity ' + (Number(button.dataset.activity) + 1)}, ${label}. Activate to change.`);
+    button.title = label + ' — select to change';
+  }
+  td.title = label;
 }
 
 function updateRow (tr, S, act, index) {

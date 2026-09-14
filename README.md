@@ -659,10 +659,13 @@ refuses a local file without a stamp, or a set of files that do not share one.
 ## Testing & CI
 
 ```bash
-node test/page.test.js        # 37 checks — the markup and the stylesheet
-node test/auth.test.js        # 29 checks — the sign-in gate
-node test/sync.test.js        # 38 checks — the database sync
-node test/generate.test.js    # 73 checks — the arithmetic and the four documents
+node test/page.test.js        # markup, stylesheet and workflow contracts
+node test/auth.test.js        # sign-in and role rules
+node test/sync.test.js        # database sync, unavailable storage and retry recovery
+node test/generate.test.js    # arithmetic and all four document formats
+node test/zip.test.js         # the download archive
+node test/history.test.js     # filed document grouping and downloads
+node test/profile-access.test.js # profile ownership and action guards
 ```
 
 No `npm install`, and nothing touches the network. Three of the suites load the application
@@ -699,9 +702,22 @@ and nothing else, and the app is left exactly as it was. It then checks that a d
 only when no work can be lost, that profiles converge in both directions, and that a recorded
 claim carries the month as 1&ndash;12 rather than the 0&ndash;11 the form uses internally.
 
-GitHub Actions runs all four on every push across Node 20 and 22, alongside a JavaScript syntax
+GitHub Actions runs all seven on every push across Node 20 and 22, alongside a JavaScript syntax
 check, a vendored-library check, and a scan that fails the build if a real IC number or bank
 account number ever lands in the repository.
+
+For a local browser audit, run `node test/ui-smoke.cjs` with Node 24 and Chrome installed.
+Set `CHROME_PATH` to your Chromium executable if it is not at the default Windows location.
+The audit starts an isolated browser and local fixture server, blocks external requests, and
+uses synthetic profiles for every role. It checks desktop and phone layouts, control labels,
+password visibility and PDF dialog focus. Screenshots and its JSON report go to a temporary
+directory printed at the end. It never signs in to BDOS or submits a real claim.
+
+The workspace supports keyboard navigation through the day grid: Tab enters an activity row,
+arrow keys move between days and rows, Home/End jump to the first/last day, and Enter/Space
+changes the selected day's entry. Document previews return focus to the original control when
+closed. On phones, records stack into cards and editable documents scroll inside their own
+area while retaining the original PDF, Excel and Word layouts.
 
 ---
 

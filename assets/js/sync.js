@@ -313,9 +313,13 @@ async function storedClaims (consultant, year) {
     const body = await ccsFetch('/archive' + (q.length ? '?' + q.join('&') : ''), { method: 'GET' });
     return (body && body.records) || [];
   } catch (err) {
-    if (err.status === 404) archiveMissing = true;      // asked once, that is enough
-    console.warn(err.message || err);
-    return [];
+    if (err.status === 404) {
+      archiveMissing = true;                         // optional storage is not deployed
+      return [];
+    }
+    // A failed request is not an empty archive. Let the screen offer a retry
+    // without replacing its cached records or claiming nothing was filed.
+    throw err;
   }
 }
 

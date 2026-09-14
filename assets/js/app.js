@@ -58,10 +58,14 @@ function refreshAutoDates () {
 let toastTimer = null;
 function toast (msg, bad) {
   const el = document.getElementById('toast');
+  el.setAttribute('role', bad ? 'alert' : 'status');
+  el.setAttribute('aria-live', bad ? 'assertive' : 'polite');
+  el.setAttribute('aria-atomic', 'true');
   el.textContent = msg;
   el.className = 'toast show' + (bad ? ' bad' : '');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.className = 'toast'; }, 3200);
+  // Long feedback stays readable on a phone and with magnification.
+  toastTimer = setTimeout(() => { el.className = 'toast'; }, Math.min(12000, Math.max(5000, msg.length * 55)));
 }
 
 /* =======================================================================
@@ -246,6 +250,7 @@ function renderStepper () {
   const list = activeSteps();
   const host = document.getElementById('stepper');
   host.innerHTML = '';
+  host.setAttribute('aria-label', 'Claim preparation and records');
 
   const steps = document.createElement('div');
   steps.className = 'stepgroup';
@@ -263,6 +268,8 @@ function renderStepper () {
 
     const b = document.createElement('button');
     b.type = 'button';
+    b.setAttribute('aria-controls', 'p-' + s.id);
+    b.setAttribute('aria-label', (isView ? '' : 'Step ' + number + ': ') + s.label);
     if (i === stepIndex) b.setAttribute('aria-current', 'step');
     b.className = 'step' + (isView ? ' view' : '') +
       (i === stepIndex ? ' active' : (!isView && !onView && i < stepIndex ? ' done' : ''));
@@ -313,6 +320,7 @@ function renderNavRows () {
     const first = list.findIndex(s => !s.view);
     if (first >= 0) {
       const back = document.createElement('button');
+      back.type = 'button';
       back.className = 'btn ghost';
       back.textContent = '← Back to the form';
       back.addEventListener('click', () =>
@@ -324,8 +332,9 @@ function renderNavRows () {
   }
 
   const back = document.createElement('button');
+  back.type = 'button';
   back.className = 'btn ghost';
-  back.textContent = '← Back';
+  back.textContent = stepIndex > 0 ? '← ' + list[stepIndex - 1].label : '← Back';
   back.disabled = stepIndex === 0;
   back.addEventListener('click', () => goToStep(stepIndex - 1, true));
   row.appendChild(back);
@@ -346,8 +355,14 @@ function renderNavRows () {
   const nextAt = list.findIndex((s, i) => i > stepIndex && !s.view);
   if (nextAt >= 0) {
     const next = document.createElement('button');
+    next.type = 'button';
     next.className = 'btn';
-    next.textContent = 'Next →';
+    const nextLabels = {
+      choose: 'Choose documents', claim: 'Complete claim form', invoice: 'Review invoice',
+      generate: 'Preview & download', submit: 'Review submission',
+      resubmit: 'Review returned documents', todownload: 'Download documents', toupload: 'Upload signed documents'
+    };
+    next.textContent = (nextLabels[list[nextAt].id] || list[nextAt].label) + ' →';
     /* On step 1, Next is not offered while there is a reason it would be
        refused. A button that can be pressed and then says no is a button
        that has wasted the press. */
@@ -356,6 +371,7 @@ function renderNavRows () {
       next.disabled = !!missing.length || profileDirty;
       next.title = missing.length ? 'Still needed: ' + missing.join(', ')
         : profileDirty ? 'Press Save Profile first' : '';
+      if (next.disabled) next.setAttribute('aria-describedby', 'profileGate');
     }
     next.addEventListener('click', () => goToStep(nextAt));
     row.appendChild(next);
@@ -367,7 +383,9 @@ function renderNavRows () {
 
 function paintChoices () {
   document.querySelectorAll('.choice').forEach(c => {
-    c.classList.toggle('selected', c.dataset.mode === S.mode);
+    const selected = c.dataset.mode === S.mode;
+    c.classList.toggle('selected', selected);
+    c.setAttribute('aria-pressed', String(selected));
   });
 }
 
@@ -741,7 +759,12 @@ function renderItems () {
       <td><input class="dinput ta-c" data-f="position" placeholder="e.g. Full Stack Developer"></td>
       <td><input class="dinput" data-f="period" placeholder="e.g. 1 - 31 Aug 2026"></td>
       <td><input class="dinput ta-r" data-f="amount" type="number" step="0.01" placeholder="0.00"></td>
-      <td><button class="rowdel" title="Delete this item">&times;</button></td>`;
+      <td><button type="button" class="rowdel" title="Delete this item" aria-label="Delete invoice item ${i + 1}">&times;</button></td>`;
+    const fieldNames = { desc: 'Description', position: 'Position', period: 'Service period', amount: 'Amount in Malaysian ringgit' };
+    tr.querySelectorAll('input').forEach(inp => {
+      inp.setAttribute('aria-label', 'Item ' + (i + 1) + ': ' + fieldNames[inp.dataset.f]);
+      if (inp.dataset.f === 'amount') inp.setAttribute('inputmode', 'decimal');
+    });
     tr.querySelector('[data-f="desc"]').value = it.desc || '';
     tr.querySelector('[data-f="position"]').value = it.position || '';
     tr.querySelector('[data-f="period"]').value = it.period || '';
@@ -767,6 +790,10 @@ function renderItems () {
     tr.querySelector('.rowdel').addEventListener('click', () => {
       S.invoice.items.splice(i, 1);
       renderItems(); refreshTotals(); persist();
+      const remaining = tb.querySelectorAll('[data-f="desc"]');
+      const focus = remaining[Math.min(i, remaining.length - 1)] || document.getElementById('btnAddItem');
+      if (focus) focus.focus();
+      toast('Invoice item removed.');
     });
     tb.appendChild(tr);
   });
@@ -846,13 +873,27 @@ function renderGenSummary () {
   const T = invoiceTotals(S);
   const t = timesheetTotals(S.timesheet);
   const gi = document.getElementById('gsum_inv');
-  if (gi) gi.innerHTML =
-    `<b>${S.invoice.no || '(no invoice number)'}</b> &middot; ${fmtPeriod(S.invoice.pStart, S.invoice.pEnd) || '(no period)'}<br>
-     Total Due: <b>RM ${money(T.total)}</b>`;
+  if (gi) {
+    gi.innerHTML = '';
+    const number = document.createElement('b');
+    number.textContent = S.invoice.no || '(no invoice number)';
+    const amount = document.createElement('b');
+    amount.textContent = 'RM ' + money(T.total);
+    gi.append(number,
+      document.createTextNode(' · ' + (fmtPeriod(S.invoice.pStart, S.invoice.pEnd) || '(no period)')),
+      document.createElement('br'), document.createTextNode('Total due: '), amount);
+  }
   const gc = document.getElementById('gsum_claim');
-  if (gc) gc.innerHTML =
-    `${MONTHS[S.timesheet.month]} ${S.timesheet.year} &middot; ${S.consultant.name || '(no name)'}<br>
-     Total Days [A]: <b>${t.A}</b> &middot; Balance: <b>${t.balance}</b>`;
+  if (gc) {
+    gc.innerHTML = '';
+    const paid = document.createElement('b');
+    paid.textContent = String(t.A);
+    const balance = document.createElement('b');
+    balance.textContent = String(t.balance);
+    gc.append(document.createTextNode(`${MONTHS[S.timesheet.month]} ${S.timesheet.year} · ${S.consultant.name || '(no name)'}`),
+      document.createElement('br'), document.createTextNode('Paid days [A]: '), paid,
+      document.createTextNode(' · Balance: '), balance);
+  }
 }
 
 /* =======================================================================
@@ -1175,6 +1216,8 @@ function boot () {
     S.timesheet.activities.push(newActivity(''));
     renderTimesheet(S, afterTimesheetChange);
     persist();
+    const fields = document.querySelectorAll('#activities .c-act input');
+    if (fields.length) fields[fields.length - 1].focus();
   });
   document.getElementById('btnResetDays').addEventListener('click', () => {
     if (!confirm('Clear every day tick on every activity row?')) return;
@@ -1203,6 +1246,8 @@ function boot () {
   document.getElementById('btnAddItem').addEventListener('click', () => {
     S.invoice.items.push({ desc: '', position: S.consultant.position, period: '', amount: 0 });
     renderItems(); refreshTotals(); persist();
+    const fields = document.querySelectorAll('#itemTable [data-f="desc"]');
+    if (fields.length) fields[fields.length - 1].focus();
   });
 
   /* --- profiles --- */
@@ -1217,7 +1262,14 @@ function boot () {
     const box = document.getElementById('profileBox');
     if (box && !box.contains(e.target)) openProfiles(false);
   });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') openProfiles(false); });
+  document.addEventListener('keydown', e => {
+    const menu = document.getElementById('profileMenu');
+    if (e.key === 'Escape' && menu && !menu.hidden) {
+      const hadFocus = menu.contains(document.activeElement);
+      openProfiles(false);
+      if (hadFocus) document.getElementById('btnProfiles').focus();
+    }
+  });
 
   /* --- reset everything --- */
   document.getElementById('btnReset').addEventListener('click', () => {
@@ -1389,7 +1441,7 @@ function wireView (id, build, nameOf, label) {
     btn.disabled = true;
     btn.textContent = 'Preparing…';
     try {
-      openPdfPreview(label, `${nameOf(S)}.pdf`, await build(S));
+      openPdfPreview(label, `${nameOf(S)}.pdf`, await build(S), btn);
     } catch (err) {
       toast(`${label} could not be rendered.`, true);
       console.error(err);

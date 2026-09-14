@@ -49,20 +49,24 @@ function byMonthThenName (a, b) {
 }
 
 /** read what is with the PA, and what has been through them */
-async function loadSigning (host) {
+async function loadSigning (host, retry) {
   if (!Sync.on) {
     host.innerHTML = Sync.offlineNote(
       'The claims live in the shared database, which this browser cannot reach right now.');
     return false;
   }
-  host.innerHTML = '<p class="emptynote">Loading…</p>';
+  workflowMessage(host, 'Loading time sheets and signed copies…');
+  host.setAttribute('aria-busy', 'true');
   try {
     signingSubs = await Sync.submissions('');
+    if (typeof ensureArchive === 'function') await ensureArchive();
   } catch (err) {
-    host.innerHTML = `<p class="emptynote">Could not read the claims: ${err.message}</p>`;
+    workflowMessage(host, 'Time sheets could not be loaded. ' +
+      (err.message || 'Check your connection and try again.'), retry);
     return false;
+  } finally {
+    host.removeAttribute('aria-busy');
   }
-  if (typeof ensureArchive === 'function') await ensureArchive();
   return true;
 }
 
@@ -120,7 +124,7 @@ function monthGroups (host, rows, card) {
 async function renderSignDownload () {
   const host = document.getElementById('signDownloadList');
   if (!host) return;
-  if (!(await loadSigning(host))) return;
+  if (!(await loadSigning(host, renderSignDownload))) return;
   await learnSigningKinds();
 
   host.innerHTML = '';
@@ -137,6 +141,11 @@ async function renderSignDownload () {
 
   const bar = document.createElement('div');
   bar.className = 'btnrow';
+  const count = document.createElement('p');
+  count.className = 'historycount';
+  count.setAttribute('role', 'status');
+  count.textContent = `${rows.length} time sheet${rows.length === 1 ? '' : 's'} ready to download for signing.`;
+  host.appendChild(count);
   const all = button(`Download all (${rows.length})`, 'small',
                      () => downloadAllForSigning(rows, all));
   bar.appendChild(all);
@@ -148,9 +157,12 @@ async function renderSignDownload () {
     card.appendChild(signingHead(sub));
     const acts = document.createElement('div');
     acts.className = 'archfiles';
-    const dl = button('Download', 'primary small', () => downloadForSigning(sub, dl));
+    const dl = button('Download PDF', 'primary small', () => downloadForSigning(sub, dl));
+    dl.setAttribute('aria-label', `Download time sheet for ${sub.consultant || 'consultant'}, ${periodOf(sub)}`);
     acts.appendChild(dl);
-    acts.appendChild(button('Read', 'ghost small', () => reviewSubmission(sub.id)));
+    const view = button('View document', 'ghost small', () => reviewSubmission(sub.id));
+    view.setAttribute('aria-label', `View time sheet for ${sub.consultant || 'consultant'}, ${periodOf(sub)}`);
+    acts.appendChild(view);
     card.appendChild(acts);
     return card;
   });
@@ -229,17 +241,14 @@ const attached = new Map();
 async function renderSignUpload () {
   const host = document.getElementById('signUploadList');
   if (!host) return;
-  if (!(await loadSigning(host))) return;
+  if (!(await loadSigning(host, renderSignUpload))) return;
   await learnSigningKinds();
 
   host.innerHTML = '';
 
   if (!Sync.archiveOn) {
-    host.innerHTML =
-      '<p class="emptynote"><b>The archive is not switched on yet.</b> ' +
-      'BDOS has not shipped the storage for signed copies — see ' +
-      'docs/BDOS-CCS-Endpoints.md. Keep the signed files where they are and put them ' +
-      'here once it is there.</p>';
+    workflowMessage(host, 'Signed copy uploads are not available yet. Keep the files on your ' +
+      'device and contact your administrator to enable signed copy storage.');
     return;
   }
 
@@ -252,7 +261,7 @@ async function renderSignUpload () {
   [...attached.keys()].forEach(id => { if (!live.has(id)) attached.delete(id); });
 
   const h1 = document.createElement('h3');
-  h1.textContent = 'Waiting for the signed copy';
+  h1.textContent = `Waiting for signed copies (${waiting.length})`;
   host.appendChild(h1);
 
   if (!waiting.length) {
@@ -267,13 +276,12 @@ async function renderSignUpload () {
 
   if (done.length) {
     const h2 = document.createElement('h3');
-    h2.textContent = 'Already sent — upload a newer copy';
+    h2.textContent = `Already filed (${done.length})`;
     host.appendChild(h2);
     const lead = document.createElement('p');
     lead.className = 'archlead';
-    lead.textContent = 'These have been through. Put a newer scan on one if a better copy ' +
-      'turns up, or the wrong file went in: once it is submitted, that is the copy ' +
-      'everybody sees from then on.';
+    lead.textContent = 'Upload a replacement if a clearer scan is available or the wrong file was filed. ' +
+      'The replacement becomes the current copy after you submit it.';
     host.appendChild(lead);
     monthGroups(host, done, sub => uploadCard(sub, true));
   }
@@ -317,7 +325,7 @@ function uploadCard (sub, again) {
        only thing worse than the wrong scan is the wrong scan nobody read. */
     const ready = document.createElement('span');
     ready.className = 'signready';
-    ready.textContent = file.name;
+    ready.textContent = `${file.name} · ${Math.max(1, Math.round(file.size / 1024))} KB · Ready to submit`;
     row.appendChild(ready);
     row.appendChild(button('View', 'ghost small', () =>
       openFilePreview(sub.consultant + ' — ' + periodOf(sub), file.name, file)));
@@ -328,6 +336,7 @@ function uploadCard (sub, again) {
   } else {
     const inp = document.createElement('input');
     inp.type = 'file';
+    inp.setAttribute('aria-label', `Signed time sheet for ${sub.consultant || 'consultant'}, ${periodOf(sub)}`);
     inp.accept = '.pdf,.png,.jpg,.jpeg,image/*,application/pdf';
     inp.addEventListener('change', () => {
       const picked = inp.files && inp.files[0];
@@ -344,9 +353,8 @@ function uploadCard (sub, again) {
     row.appendChild(inp);
     const hint = document.createElement('small');
     hint.className = 'signhint';
-    hint.textContent = again
-      ? 'Choose a newer scan to replace the one on file.'
-      : 'Choose the signed time sheet.';
+    hint.textContent = (again ? 'Choose a replacement signed copy. ' : 'Choose the signed time sheet. ') +
+      'PDF or image, up to 12 MB.';
     row.appendChild(hint);
   }
   card.appendChild(row);
@@ -389,12 +397,11 @@ function submitBar () {
 
   const said = document.createElement('p');
   said.className = 'signsaid';
+  said.setAttribute('role', 'status');
   said.textContent = ready
-    ? ready + ' signed cop' + (ready === 1 ? 'y is' : 'ies are') + ' ready. Nothing has gone ' +
-      'anywhere yet — Submit files ' + (ready === 1 ? 'it' : 'them') + ', closes the month and ' +
-      'hands it to ' + who + '.'
-    : 'Put the signed copies on the cards above. Nothing reaches ' + who +
-      ' until you press Submit.';
+    ? ready + ' signed cop' + (ready === 1 ? 'y is' : 'ies are') + ' ready to submit to ' + who +
+      '. Submitting files the copies and closes any waiting time sheets. Submit before leaving or reloading this page.'
+    : 'Choose signed copies above, then submit them to ' + who + '.';
   bar.appendChild(said);
 
   const row = document.createElement('div');
@@ -542,14 +549,12 @@ function filedRecords () {
 async function renderFiled () {
   const host = document.getElementById('filedList');
   if (!host) return;
-  if (!(await loadSigning(host))) return;
+  if (!(await loadSigning(host, renderFiled))) return;
   await learnSigningKinds();
 
   if (!Sync.archiveOn) {
-    host.innerHTML =
-      '<p class="emptynote"><b>The archive is not switched on yet.</b> ' +
-      'BDOS has not shipped the storage for signed copies — see ' +
-      'docs/BDOS-CCS-Endpoints.md.</p>';
+    workflowMessage(host, 'Filed documents are not available yet. Contact your administrator ' +
+      'to enable signed copy storage.');
     return;
   }
 
@@ -560,14 +565,15 @@ async function renderFiled () {
     return;
   }
 
-  host.innerHTML = '<p class="emptynote">Reading the sheets…</p>';
+  workflowMessage(host, 'Loading leave details from the time sheets…');
   const pairs = rows.map(r => ({ rec: r, sub: submissionForRecord(r) }));
   await learnLeave(pairs.map(p => p.sub && p.sub.id));
 
   host.innerHTML = '';
   const count = document.createElement('p');
   count.className = 'historycount';
-  count.textContent = `${rows.length} month${rows.length > 1 ? 's' : ''} sent on.`;
+  count.setAttribute('role', 'status');
+  count.textContent = `${rows.length} signed time sheet${rows.length === 1 ? '' : 's'} filed.`;
   host.appendChild(count);
   host.appendChild(filedTable(pairs));
 }
@@ -604,10 +610,12 @@ function filedTable (pairs) {
     row.appendChild(when);
 
     const who = document.createElement('td');
+    who.setAttribute('data-label', 'Consultant');
     who.textContent = String(rec.consultant || '').trim() || '(no name)';
     row.appendChild(who);
 
     const leave = document.createElement('td');
+    leave.setAttribute('data-label', 'Leave that month');
     const words = leaveWords(sub ? leaveByMonth.get(sub.id) : null);
     if (words) {
       leave.textContent = words;
@@ -620,6 +628,7 @@ function filedTable (pairs) {
     row.appendChild(leave);
 
     const copy = document.createElement('td');
+    copy.setAttribute('data-label', 'Signed copy');
     const item = document.createElement('div');
     item.className = 'history-document';
     const words2 = document.createElement('div');
@@ -639,10 +648,18 @@ function filedTable (pairs) {
     const acts = document.createElement('div');
     acts.className = 'history-document-actions';
     const label = `${rec.consultant || ''} — ${when.textContent}`;
-    acts.appendChild(iconButton('view', 'View the signed copy for ' + label,
-      'ghost small history-icon', () => viewStored(rec, when.textContent)));
-    acts.appendChild(iconButton('download', 'Download the signed copy for ' + label,
-      'ghost small history-icon', control => saveStored(rec, control)));
+    const view = iconButton('view', 'View the signed copy for ' + label,
+      'ghost small history-icon', () => viewStored(rec, when.textContent));
+    const viewLabel = document.createElement('span');
+    viewLabel.textContent = 'View';
+    view.appendChild(viewLabel);
+    acts.appendChild(view);
+    const download = iconButton('download', 'Download the signed copy for ' + label,
+      'ghost small history-icon', control => saveStored(rec, control));
+    const downloadLabel = document.createElement('span');
+    downloadLabel.textContent = 'Download';
+    download.appendChild(downloadLabel);
+    acts.appendChild(download);
     item.appendChild(acts);
     copy.appendChild(item);
     row.appendChild(copy);

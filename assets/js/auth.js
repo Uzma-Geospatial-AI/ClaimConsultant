@@ -321,20 +321,36 @@ function showGate (onUnlock) {
   const pass  = document.getElementById('authPassword');
   const btn   = document.getElementById('authSubmit');
   const err   = document.getElementById('authError');
+  const reveal = document.getElementById('authPasswordToggle');
   if (!gate || !form) return;
 
   gate.hidden = false;
   document.body.classList.add('locked');
   setTimeout(() => email.focus(), 50);
 
+  if (reveal) reveal.addEventListener('click', () => {
+    const visible = pass.type === 'password';
+    pass.type = visible ? 'text' : 'password';
+    reveal.textContent = visible ? 'Hide' : 'Show';
+    reveal.setAttribute('aria-pressed', String(visible));
+    reveal.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
+  });
+
   form.addEventListener('submit', async e => {
     e.preventDefault();
+    if (btn.disabled) return;
     err.hidden = true;
     btn.disabled = true;
     btn.textContent = 'Signing in…';
     try {
       const user = await bdosLogin(email.value, pass.value);
       pass.value = '';
+      pass.type = 'password';
+      if (reveal) {
+        reveal.textContent = 'Show';
+        reveal.setAttribute('aria-pressed', 'false');
+        reveal.setAttribute('aria-label', 'Show password');
+      }
       unlockApp(user, onUnlock);
     } catch (ex) {
       err.textContent = ex.message;

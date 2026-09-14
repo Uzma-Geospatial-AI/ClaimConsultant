@@ -21,6 +21,7 @@
 const FIXING_KEY = 'ccs.fixing';        // the submission open in the form, across reloads
 
 let returned = [];                      // what has come back, for this account
+let returnedError = '';
 let resubmitBusy = false;
 let putBack = null;                     // returns the borrowed step to its panel
 
@@ -92,11 +93,12 @@ function mineToFix (sub) {
  * anybody goes looking for it, and again whenever the status table reloads.
  */
 async function loadReturned () {
-  if (!Sync.on) { returned = []; return returned; }
+  if (!Sync.on) { returned = []; returnedError = ''; return returned; }
   try {
     returned = (await Sync.submissions('returned')).filter(mineToFix);
+    returnedError = '';
   } catch (err) {
-    returned = [];
+    returnedError = err.message || 'Check your connection and try again.';
   }
   return returned;
 }
@@ -150,11 +152,21 @@ async function renderResubmit () {
 
   host.innerHTML = '';
 
+  if (returnedError) {
+    workflowMessage(host, 'Returned documents could not be loaded. ' + returnedError, async () => {
+      workflowMessage(host, 'Loading returned documents…');
+      await loadReturned();
+      renderResubmit();
+      renderStepper();
+    });
+    return;
+  }
+
   if (!returned.length) {
     const ok = document.createElement('p');
     ok.className = 'emptynote';
-    ok.textContent = 'Nothing has been sent back. When something is, it appears here with ' +
-      'the reason it was sent back for.';
+    ok.setAttribute('role', 'status');
+    ok.textContent = 'No changes requested. Documents returned by an approver will appear here with the reason and next steps.';
     host.appendChild(ok);
     return;
   }
@@ -169,6 +181,11 @@ async function renderResubmit () {
   }
 
   host.innerHTML = '';
+  const count = document.createElement('p');
+  count.className = 'historycount';
+  count.setAttribute('role', 'status');
+  count.textContent = `${returned.length} document${returned.length === 1 ? '' : 's'} to update and resubmit.`;
+  host.appendChild(count);
   returned
     .slice()
     .sort((a, b) => (b.period_year - a.period_year) || (b.period_month - a.period_month))
@@ -188,6 +205,11 @@ function returnedCard (sub) {
   tag.className = 'doctag ' + kind;
   tag.textContent = kindLabel(kind);
   head.appendChild(tag);
+
+  const person = document.createElement('span');
+  person.className = 'status-context';
+  person.textContent = sub.consultant || 'Consultant';
+  head.appendChild(person);
 
   const what = document.createElement('b');
   what.textContent = periodOf(sub);
@@ -228,8 +250,8 @@ function returnedCard (sub) {
   if (open) {
     const now = document.createElement('p');
     now.className = 'backnow';
-    now.textContent = `This ${kindLabel(kind).toLowerCase()} is open below. Change whatever was ` +
-      'wrong with it, then send it back for approval — what goes up is the form as it stands.';
+    now.textContent = `Update the ${kindLabel(kind).toLowerCase()} below to address the reason above. ` +
+      'Then send your updated document for approval.';
     card.appendChild(now);
   }
   card.appendChild(editHost);
@@ -237,12 +259,18 @@ function returnedCard (sub) {
   const note = document.createElement('textarea');
   note.className = 'decidenote';
   note.rows = 2;
-  note.placeholder = 'What you changed (optional — the approver sees this)';
-  card.appendChild(note);
+  note.placeholder = 'Briefly explain the changes for your approver';
+  const noteLabel = document.createElement('label');
+  noteLabel.className = 'fieldlabel';
+  noteLabel.appendChild(document.createTextNode('What changed? (optional)'));
+  noteLabel.appendChild(note);
+  card.appendChild(noteLabel);
 
   const bar = document.createElement('div');
   bar.className = 'btnrow';
-  bar.appendChild(button('Read it', 'ghost small', () => reviewSubmission(sub.id)));
+  const view = button('View submitted copy', 'ghost small', () => reviewSubmission(sub.id));
+  view.setAttribute('aria-label', `View submitted ${kindLabel(kind)} for ${sub.consultant || 'consultant'}, ${periodOf(sub)}`);
+  bar.appendChild(view);
 
   /* Only a document that is not the one open in the form needs asking for:
      more than one came back, or opening this one would replace work that is

@@ -3,38 +3,50 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#223140">
+<meta name="description" content="Prepare your monthly claim and invoice, follow approvals, and collect signed documents with Geospatial AI.">
 <title>Consultant Claim System</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20260914t">
+<link rel="stylesheet" href="assets/css/style.css?v=20260914ux">
 </head>
 <body class="locked">
 <a class="skip-link" href="#main-content">Skip to main content</a>
 
 <!-- ============ SIGN IN ============ -->
 <div class="authgate" id="authGate">
+  <div class="auth-layout">
+  <div class="auth-intro">
+    <div class="auth-brand"><span class="gw-main">G<span class="gw-eo">[EO]</span>SPATIAL<span class="gw-ai">AI</span></span><span class="auth-company">An Uzma Company</span></div>
+    <p class="auth-eyebrow">Consultant workspace</p>
+    <h2>Your monthly claims.<br>All in one place.</h2>
+    <p class="auth-description">From the first working day to the final signed copy. Keep your claim, invoice and approvals together.</p>
+    <ol class="auth-journey">
+      <li><span aria-hidden="true">01</span><div><b>Prepare your documents</b><p>Save your details and complete the month.</p></div></li>
+      <li><span aria-hidden="true">02</span><div><b>Review and submit</b><p>Check your documents before sending them.</p></div></li>
+      <li><span aria-hidden="true">03</span><div><b>Follow every approval</b><p>See progress and find your signed copies.</p></div></li>
+    </ol>
+  </div>
   <!-- onsubmit="return false" is the safety net: if the script that handles this
      form ever fails to bind, the browser must not fall back to submitting it,
      which would put the password in the URL and in the server log. -->
   <form class="auth-card" id="authForm" autocomplete="on" onsubmit="return false">
-    <div class="auth-mark"><span class="gw-main">G<span class="gw-eo">[EO]</span>SPATIAL<span class="gw-ai">AI</span></span></div>
-    <h1>Consultant Claim System</h1>
-    <p class="auth-lead">Sign in with your <b>BDOS</b> account to continue.</p>
+    <div class="auth-heading"><p class="auth-eyebrow">Consultant Claim System</p><h1>Welcome back</h1></div>
+    <p class="auth-lead">Sign in with your <b>BDOS</b> account to open your workspace.</p>
 
     <label>Email
       <input type="email" id="authEmail" name="email" autocomplete="username"
-             placeholder="you@uzmagroup.com" required>
+             placeholder="you@uzmagroup.com" autocapitalize="none" spellcheck="false" required>
     </label>
-    <label>Password
+    <div class="password-field"><label>Password
       <input type="password" id="authPassword" name="password" autocomplete="current-password"
              placeholder="Your BDOS password" required>
-    </label>
+    </label><button class="password-toggle" id="authPasswordToggle" type="button" aria-controls="authPassword" aria-pressed="false" aria-label="Show password">Show</button></div>
 
     <p class="auth-error" id="authError" role="alert" hidden></p>
     <button type="submit" class="btn primary auth-submit" id="authSubmit">Sign in</button>
 
-    <p class="auth-note">
-      Use your authorised BDOS account. If you have forgotten your password, contact your BDOS administrator to reset it.
-    </p>
+    <p class="auth-note"><b>Need help signing in?</b><br>Use your authorised BDOS account. Contact your BDOS administrator if you need access or a password reset.</p>
   </form>
+  </div>
 </div>
 
 <header class="topbar">
@@ -43,13 +55,13 @@
     <span class="brand-rule"></span>
     <div class="brand-text">
       <h1>Consultant Claim System</h1>
-      <p>Invoice Timesheet &amp; Claim form &mdash; PDF / Excel / Word</p>
+      <p>Prepare documents. Track approvals. Find signed copies.</p>
     </div>
   </div>
   <div class="topbar-actions">
     <div class="profiles" id="profileBox">
       <button class="btn ghost profiles-toggle" id="btnProfiles" title="Saved profiles"
-              aria-haspopup="true" aria-expanded="false">
+              aria-controls="profileMenu" aria-expanded="false">
         <span id="profileCurrent">&mdash; Select a profile &mdash;</span><span class="caret" aria-hidden="true">&#9662;</span>
       </button>
       <!-- one row per profile: open it, rename it, or delete that one -->
@@ -67,7 +79,7 @@
 
 <!-- ============ STEP 1: DETAILS ============ -->
 <section class="panel active" id="p-consultant" data-step="consultant">
-  <h2>Step 1 &mdash; Whose claim is this?</h2>
+  <h2>Your profile</h2>
   <p class="lead">Choose your profile, check your details, then save any changes before continuing. Your saved details fill in the claim and invoice automatically.</p>
 
   <!-- a card each, with the year's leave on it, so the balance is visible
@@ -75,9 +87,9 @@
   <div class="profilecards" id="profileCards"></div>
 
   <div id="detailsBox" hidden>
-    <h3 id="detailsHead">The details on this profile <span class="hint">(edit anything &mdash; Save Profile keeps it)</span></h3>
+    <h3 id="detailsHead">Personal details <span class="hint">Save your changes before continuing.</span></h3>
     <div class="grid2">
-    <label>Full Name <span class="req">required</span><input id="c_name" data-bind="consultant.name" placeholder="e.g. Ahmad bin Abdullah"></label>
+    <label>Full Name <span class="req">required</span><input id="c_name" aria-required="true" data-bind="consultant.name" placeholder="e.g. Ahmad bin Abdullah"></label>
     <label>IC No.<input data-bind="consultant.ic" placeholder="e.g. 010203-04-0567"></label>
     <label>Address (Line 1) <span class="hint">(runs on to line 2)</span><input data-bind="consultant.addr1" placeholder="e.g. No 12, Jalan Contoh 1,"></label>
     <label>Address (Line 2)<input data-bind="consultant.addr2" placeholder="e.g. Taman Contoh, 40000 Shah Alam, Selangor"></label>
@@ -89,16 +101,16 @@
   <!-- Three things that belong to the office rather than to the person: the
        number series, the count, and which sign-in this profile is. One
        consultant deciding they are 07 is how two people both end up 07. -->
-  <h3>Set by the administrator <span class="hint">(locked for everybody else)</span></h3>
+  <h3>Account &amp; claim numbering <span class="hint">Managed by your administrator</span></h3>
   <div class="grid3" id="adminFields">
     <label class="keyfield">Unique ID <span class="req">required</span>
-      <span class="hint">two digits, this person's own &mdash; the middle of every invoice number they send</span>
-      <input data-bind="consultant.uniqueId" id="c_uniqueId" placeholder="01" maxlength="4" inputmode="numeric"></label>
+      <span class="hint">Your identifier in each invoice number.</span>
+      <input data-bind="consultant.uniqueId" id="c_uniqueId" aria-required="true" placeholder="01" maxlength="4" inputmode="numeric"></label>
     <label class="keyfield">Next claim number
-      <span class="hint">goes up by one each time a claim is submitted</span>
+      <span class="hint">Increases after each submitted claim.</span>
       <input type="number" min="1" step="1" data-bind="consultant.claimSeq" data-type="num" id="c_claimSeq" placeholder="1"></label>
     <label class="keyfield">Account
-      <span class="hint">whose sign-in sees this profile</span>
+      <span class="hint">The sign-in linked to this profile.</span>
       <select data-bind="consultant.email" id="c_email"></select></label>
   </div>
   <p class="keynote" id="invNoPreview"></p>
@@ -111,11 +123,11 @@
       <label>Account No.<input data-bind="consultant.accNo" placeholder="e.g. 1-23456-0001234-5"></label>
     </div>
 
-    <h3>Pay <span class="hint">(the invoice starts from this, and can be typed over)</span></h3>
+    <h3>Monthly rate <span class="hint">Used to calculate your invoice</span></h3>
     <div class="grid2">
       <label>Monthly Rate (RM) <span class="req">required</span>
-        <span class="hint">what the month is billed from &mdash; nothing goes past this step without it</span>
-        <input type="number" id="c_rate" data-bind="invoice.monthlyRate" data-type="num"
+        <span class="hint">Enter your agreed monthly rate before continuing.</span>
+        <input type="number" id="c_rate" aria-required="true" data-bind="invoice.monthlyRate" data-type="num"
                step="0.01" min="0" placeholder="e.g. 3500.00"></label>
     </div>
 
@@ -134,38 +146,38 @@
          anybody had typed in. -->
     <div class="saverow">
       <button class="btn primary" id="btnSaveProfile">Save Profile</button>
-      <span class="savehint" id="saveHint"></span>
+      <span class="savehint" id="saveHint" role="status" aria-live="polite"></span>
     </div>
     <!-- What is still missing, and whether anything on screen has not been
          saved. The step will not be left until both are answered. -->
-    <p class="keynote" id="profileGate" hidden></p>
+    <p class="keynote" id="profileGate" role="status" aria-live="polite" hidden></p>
   </div>
 </section>
 
 <!-- ============ STEP 2: CHOOSE ============ -->
 <section class="panel" id="p-choose" data-step="choose">
-  <h2>Step 2 &mdash; What do you need?</h2>
+  <h2>Choose your documents</h2>
   <p class="lead">Choose the documents you need for this month. You can review and download them before submitting for approval.</p>
 
   <div class="choices" id="choices">
     <button type="button" class="choice" data-mode="claim">
       <span class="choice-tag">A</span>
       <h3>Claim Form</h3>
-      <p>The Uzma Personnel Time Sheet, with the day grid ticked and the approval block.</p>
+      <p>Record your working days and leave on the Uzma Personnel Time Sheet.</p>
       <span class="choice-out">PDF + Word</span>
     </button>
 
     <button type="button" class="choice" data-mode="invoice">
       <span class="choice-tag">B</span>
       <h3>Invoice Timesheet</h3>
-      <p>Your invoice to the company, with the bank details and the amount for the period.</p>
+      <p>Prepare your monthly invoice with payment details and the amount due.</p>
       <span class="choice-out">PDF + Excel</span>
     </button>
 
     <button type="button" class="choice" data-mode="both">
       <span class="choice-tag">A + B</span>
-      <h3>Both</h3>
-      <p>The usual monthly submission &mdash; the signed timesheet and the invoice it backs.</p>
+      <h3>Both documents</h3>
+      <p>Prepare the claim form and invoice together for your monthly submission.</p>
       <span class="choice-out">PDF + Word + Excel</span>
     </button>
   </div>
@@ -174,41 +186,42 @@
 <!-- ============ STEP 3: INVOICE (document replica) ============ -->
 <section class="panel" id="p-invoice" data-step="invoice">
   <h2>Invoice</h2>
-  <p class="lead">This is the invoice itself. Type straight into it &mdash; what you see is what the PDF and Excel will contain.</p>
+  <p class="lead">Check your billing period, payment details and amount. Edit the fields directly, then preview your invoice before downloading.</p>
 
-  <div class="sheetwrap">
+  <p class="scroll-hint" id="invoiceScrollHint">Scroll horizontally to see the full invoice. Your downloaded document keeps its original layout.</p>
+  <div class="sheetwrap" tabindex="0" role="region" aria-label="Editable invoice" aria-describedby="invoiceScrollHint">
   <div class="doc doc-invoice">
 
     <div class="doc-band"><span>INVOICE</span></div>
 
     <div class="doc-head">
       <div class="doc-col">
-        <div class="drow"><span class="dlabel">Consultant:</span><input class="dinput" data-bind="consultant.name" placeholder="your full name"></div>
-        <div class="drow"><span class="dlabel">IC No.:</span><input class="dinput" data-bind="consultant.ic" placeholder="e.g. 010203-04-0567"></div>
-        <div class="drow"><span class="dlabel">Address:</span><input class="dinput" data-bind="consultant.addr1" placeholder="address line 1"></div>
-        <div class="drow"><span class="dlabel"></span><input class="dinput" data-bind="consultant.addr2" placeholder="address line 2"></div>
+        <div class="drow"><span class="dlabel">Consultant:</span><input class="dinput" data-bind="consultant.name" placeholder="your full name" aria-label="Full name"></div>
+        <div class="drow"><span class="dlabel">IC No.:</span><input class="dinput" data-bind="consultant.ic" placeholder="e.g. 010203-04-0567" aria-label="IC number"></div>
+        <div class="drow"><span class="dlabel">Address:</span><input class="dinput" data-bind="consultant.addr1" placeholder="address line 1" aria-label="Personal address, line 1"></div>
+        <div class="drow"><span class="dlabel"></span><input class="dinput" data-bind="consultant.addr2" placeholder="address line 2" aria-label="Personal address, line 2"></div>
       </div>
       <div class="doc-col">
-        <div class="drow"><span class="dlabel">Invoice No.:</span><input class="dinput ta-r" data-bind="invoice.no" id="i_no" placeholder="2026-01-001"></div>
-        <div class="drow"><span class="dlabel">Invoice Date:</span><input class="dinput ta-r" type="date" data-bind="invoice.date"></div>
+        <div class="drow"><span class="dlabel">Invoice No.:</span><input class="dinput ta-r" data-bind="invoice.no" id="i_no" placeholder="2026-01-001" aria-label="Invoice number"></div>
+        <div class="drow"><span class="dlabel">Invoice Date:</span><input class="dinput ta-r" type="date" data-bind="invoice.date" aria-label="Invoice date"></div>
         <div class="drow"><span class="dlabel">Period:</span>
           <span class="dpair">
-            <input class="dinput" type="date" data-bind="invoice.pStart" id="i_pstart">
+            <input class="dinput" type="date" data-bind="invoice.pStart" id="i_pstart" aria-label="Invoice period start">
             <b>&ndash;</b>
-            <input class="dinput" type="date" data-bind="invoice.pEnd">
+            <input class="dinput" type="date" data-bind="invoice.pEnd" aria-label="Invoice period end">
           </span>
         </div>
-        <div class="drow"><span class="dlabel">Due Date:</span><input class="dinput ta-r" type="date" data-bind="invoice.due"></div>
+        <div class="drow"><span class="dlabel">Due Date:</span><input class="dinput ta-r" type="date" data-bind="invoice.due" aria-label="Invoice due date"></div>
       </div>
     </div>
 
     <div class="doc-bar">BILL TO</div>
     <div class="doc-head one">
       <div class="doc-col">
-        <div class="drow"><span class="dlabel">Company:</span><input class="dinput" data-bind="company.name" placeholder="Geospatial AI Sdn Bhd"></div>
-        <div class="drow"><span class="dlabel">Company No.:</span><input class="dinput" data-bind="company.regNo" placeholder="200901001789 (844716-P)"></div>
-        <div class="drow"><span class="dlabel">Address:</span><input class="dinput" data-bind="company.addr1" placeholder="Uzma Tower, No 2, Jalan PJU 8/8A"></div>
-        <div class="drow"><span class="dlabel"></span><input class="dinput" data-bind="company.addr2" placeholder="Damansara Perdana, 47820 Petaling Jaya, Selangor"></div>
+        <div class="drow"><span class="dlabel">Company:</span><input class="dinput" data-bind="company.name" placeholder="Geospatial AI Sdn Bhd" aria-label="Bill to company name"></div>
+        <div class="drow"><span class="dlabel">Company No.:</span><input class="dinput" data-bind="company.regNo" placeholder="200901001789 (844716-P)" aria-label="Company registration number"></div>
+        <div class="drow"><span class="dlabel">Address:</span><input class="dinput" data-bind="company.addr1" placeholder="Uzma Tower, No 2, Jalan PJU 8/8A" aria-label="Company address, line 1"></div>
+        <div class="drow"><span class="dlabel"></span><input class="dinput" data-bind="company.addr2" placeholder="Damansara Perdana, 47820 Petaling Jaya, Selangor" aria-label="Company address, line 2"></div>
       </div>
     </div>
 
@@ -229,23 +242,23 @@
 
     <div class="doc-totals">
       <div><span>Subtotal</span><b id="t_sub">0.00</b></div>
-      <div><span>Tax (<input class="dinput mini" type="number" data-bind="invoice.taxPct" data-type="num" step="0.01">%)</span><b id="t_tax">0.00</b></div>
+      <div><span>Tax (<input class="dinput mini" type="number" data-bind="invoice.taxPct" data-type="num" step="0.01" aria-label="Tax percentage">%)</span><b id="t_tax">0.00</b></div>
       <div class="grand"><span>TOTAL DUE</span><b id="t_total">0.00</b></div>
     </div>
 
     <div class="doc-bar">PAYMENT DETAILS</div>
     <div class="doc-head one">
       <div class="doc-col">
-        <div class="drow"><span class="dlabel">Bank:</span><input class="dinput" data-bind="consultant.bank" placeholder="RHB BANK Berhad"></div>
-        <div class="drow"><span class="dlabel">Account Name:</span><input class="dinput" data-bind="consultant.accName" placeholder="name on the account"></div>
-        <div class="drow"><span class="dlabel">Account No.:</span><input class="dinput" data-bind="consultant.accNo" placeholder="e.g. 1-23456-0001234-5"></div>
+        <div class="drow"><span class="dlabel">Bank:</span><input class="dinput" data-bind="consultant.bank" placeholder="RHB BANK Berhad" aria-label="Bank name"></div>
+        <div class="drow"><span class="dlabel">Account Name:</span><input class="dinput" data-bind="consultant.accName" placeholder="name on the account" aria-label="Bank account name"></div>
+        <div class="drow"><span class="dlabel">Account No.:</span><input class="dinput" data-bind="consultant.accNo" placeholder="e.g. 1-23456-0001234-5" aria-label="Bank account number"></div>
       </div>
     </div>
 
     <div class="doc-sigline" id="invSigSlot"></div>
 
     <div class="doc-note">
-      <input class="dinput note" data-bind="invoice.note" placeholder="e.g. Invoice submitted with original timesheet signed by Consultant as per Clause 7.1 of the Service Agreement.">
+      <input class="dinput note" data-bind="invoice.note" placeholder="e.g. Invoice submitted with original timesheet signed by Consultant as per Clause 7.1 of the Service Agreement." aria-label="Invoice note">
     </div>
   </div>
   </div>
@@ -255,9 +268,10 @@
 <!-- ============ STEP 4: CLAIM (document replica) ============ -->
 <section class="panel" id="p-claim" data-step="claim">
   <h2>Claim Form</h2>
-  <p class="lead">A fillable copy of the Uzma Personnel Time Sheet. Every box sits where it sits on the printed form.</p>
+  <p class="lead">Check the month, confirm your working days and leave, then review the personnel and project details.</p>
 
-  <div class="sheetwrap">
+  <p class="scroll-hint" id="claimScrollHint">Scroll horizontally to see the full form. Your downloaded document keeps its original layout.</p>
+  <div class="sheetwrap" tabindex="0" role="region" aria-label="Editable claim form" aria-describedby="claimScrollHint">
   <div class="doc doc-claim">
 
     <div class="uz-top">
@@ -275,15 +289,15 @@
       <div class="uz-box">
         <div class="uz-boxhead">A. PERSONNEL DETAILS</div>
         <div class="uz-fields">
-          <div class="ufield"><span>Employee or BP Code No. <i>(SAP usage only)</i></span><b>:</b><input class="dinput" data-bind="consultant.empCode" placeholder="leave blank if you have none"></div>
-          <div class="ufield"><span>Name of Personnel</span><b>:</b><input class="dinput up" data-bind="consultant.name" placeholder="your full name"></div>
-          <div class="ufield"><span>Position</span><b>:</b><input class="dinput up" data-bind="consultant.position2" placeholder="FULL STACK DEVELOPER (CONSULTANT)"></div>
-          <div class="ufield"><span>Work Location</span><b>:</b><input class="dinput up" data-bind="consultant.workLoc" placeholder="UZMA TOWER"></div>
-          <div class="ufield"><span>Assignment Period <i>(follows Month / Year)</i></span><b>:</b><input class="dinput" data-bind="consultant.assignPeriod" id="c_assign" placeholder="Sep-26"></div>
+          <div class="ufield"><span>Employee or BP Code No. <i>(SAP usage only)</i></span><b>:</b><input class="dinput" data-bind="consultant.empCode" placeholder="leave blank if you have none" aria-label="Employee or BP code number"></div>
+          <div class="ufield"><span>Name of Personnel</span><b>:</b><input class="dinput up" data-bind="consultant.name" placeholder="your full name" aria-label="Full name"></div>
+          <div class="ufield"><span>Position</span><b>:</b><input class="dinput up" data-bind="consultant.position2" placeholder="FULL STACK DEVELOPER (CONSULTANT)" aria-label="Position on claim form"></div>
+          <div class="ufield"><span>Work Location</span><b>:</b><input class="dinput up" data-bind="consultant.workLoc" placeholder="UZMA TOWER" aria-label="Work location"></div>
+          <div class="ufield"><span>Assignment Period <i>(follows Month / Year)</i></span><b>:</b><input class="dinput" data-bind="consultant.assignPeriod" id="c_assign" placeholder="Sep-26" aria-label="Assignment period"></div>
           <div class="ufield"><span>Month / Year</span><b>:</b>
             <span class="dpair">
-              <select id="ts_month" data-bind="timesheet.month" data-type="num" class="dinput"></select>
-              <input class="dinput" type="number" id="ts_year" data-bind="timesheet.year" data-type="num" min="2000" max="2100">
+              <select id="ts_month" data-bind="timesheet.month" data-type="num" class="dinput" aria-label="Claim month"></select>
+              <input class="dinput" type="number" id="ts_year" data-bind="timesheet.year" data-type="num" min="2000" max="2100" aria-label="Claim year">
             </span>
           </div>
         </div>
@@ -292,19 +306,19 @@
       <div class="uz-box">
         <div class="uz-boxhead">PROJECT DETAILS (IF APPLICABLE)</div>
         <div class="uz-fields">
-          <div class="ufield"><span>Project Name</span><b>:</b><input class="dinput" data-bind="project.name" placeholder="e.g. Uzma Digital Earth Platform"></div>
-          <div class="ufield"><span>Client Name</span><b>:</b><input class="dinput" data-bind="project.client" placeholder="e.g. Petronas Carigali Sdn Bhd"></div>
-          <div class="ufield"><span>Charge to Client</span><b>:</b><input class="dinput" data-bind="project.charge" placeholder="YES / NO"></div>
-          <div class="ufield indent"><span>If YES, please provide the Profit Centres</span><b>:</b><input class="dinput" data-bind="project.profit" placeholder="if YES — e.g. PC-1001"></div>
-          <div class="ufield indent"><span>Project Code</span><b>:</b><input class="dinput" data-bind="project.code" placeholder="if YES — e.g. PRJ-2026-014"></div>
-          <div class="ufield indent"><span>If NO, please provide the Department Code</span><b>:</b><input class="dinput" data-bind="project.dept" placeholder="if NO — e.g. DEPT-GEO"></div>
-          <div class="ufield"><span>INVOICE TO CLIENT</span><b>:</b><input class="dinput" data-bind="project.invClient" placeholder="e.g. invoice reference to the client"></div>
+          <div class="ufield"><span>Project Name</span><b>:</b><input class="dinput" data-bind="project.name" placeholder="e.g. Uzma Digital Earth Platform" aria-label="Project name"></div>
+          <div class="ufield"><span>Client Name</span><b>:</b><input class="dinput" data-bind="project.client" placeholder="e.g. Petronas Carigali Sdn Bhd" aria-label="Client name"></div>
+          <div class="ufield"><span>Charge to Client</span><b>:</b><input class="dinput" data-bind="project.charge" placeholder="YES / NO" aria-label="Charge to client, yes or no"></div>
+          <div class="ufield indent"><span>If YES, please provide the Profit Centres</span><b>:</b><input class="dinput" data-bind="project.profit" placeholder="if YES — e.g. PC-1001" aria-label="Profit centre"></div>
+          <div class="ufield indent"><span>Project Code</span><b>:</b><input class="dinput" data-bind="project.code" placeholder="if YES — e.g. PRJ-2026-014" aria-label="Project code"></div>
+          <div class="ufield indent"><span>If NO, please provide the Department Code</span><b>:</b><input class="dinput" data-bind="project.dept" placeholder="if NO — e.g. DEPT-GEO" aria-label="Department code"></div>
+          <div class="ufield"><span>INVOICE TO CLIENT</span><b>:</b><input class="dinput" data-bind="project.invClient" placeholder="e.g. invoice reference to the client" aria-label="Invoice to client reference"></div>
         </div>
       </div>
     </div>
 
     <div class="uz-blabel">(B)</div>
-    <p class="uz-tip">Click a day cell to cycle it: <b>blank &rarr; &ldquo;/&rdquo; worked &rarr; &ldquo;PH&rdquo; public holiday &rarr; &ldquo;PTO&rdquo; paid time off &rarr; &ldquo;MC&rdquo; medical leave &rarr; &ldquo;UL&rdquo; unpaid leave &rarr; blank</b>. SAT and SUN fill themselves in from the calendar. Only the &ldquo;/&rdquo; days count into TOTAL DAYS [A].</p>
+    <p class="uz-tip" id="timesheetHelp">Select a day to change its entry: <b>blank &rarr; / worked &rarr; PH public holiday &rarr; PTO paid time off &rarr; MC medical leave &rarr; UL unpaid leave</b>. Use arrow keys to move between days and Enter or Space to change an entry. Weekends fill automatically. Total days [A] includes paid days; unpaid leave and unmarked weekdays are excluded.</p>
     <div class="uz-gridwrap" id="activities"></div>
     <div class="doc-underbar">
       <button class="btn ghost small" id="btnAddActivity">+ Add activity row</button>
@@ -334,17 +348,17 @@
         </tr>
         <tr>
           <td class="rl">Name</td>
-          <td><input class="dinput ta-c" data-bind="timesheet.prepName" placeholder="your name"></td>
-          <td><input class="dinput ta-c" data-bind="timesheet.reviewName" placeholder="project manager"></td>
-          <td><input class="dinput ta-c" data-bind="timesheet.apprName" placeholder="head of department"></td>
-          <td><input class="dinput ta-c" data-bind="timesheet.verifName" placeholder="leave blank &mdash; Finance fills this in"></td>
+          <td><input class="dinput ta-c" data-bind="timesheet.prepName" placeholder="your name" aria-label="Prepared by, name"></td>
+          <td><input class="dinput ta-c" data-bind="timesheet.reviewName" placeholder="project manager" aria-label="Reviewed by, name"></td>
+          <td><input class="dinput ta-c" data-bind="timesheet.apprName" placeholder="head of department" aria-label="Approved by, name"></td>
+          <td><input class="dinput ta-c" data-bind="timesheet.verifName" placeholder="leave blank &mdash; Finance fills this in" aria-label="Verified by, name"></td>
         </tr>
         <tr>
           <td class="rl">Date</td>
-          <td><input class="dinput ta-c" data-bind="timesheet.prepDate" placeholder="26.8.2026"></td>
-          <td><input class="dinput ta-c" data-bind="timesheet.reviewDate" placeholder="26.8.2026"></td>
-          <td><input class="dinput ta-c" data-bind="timesheet.apprDate" placeholder="26.8.2026"></td>
-          <td><input class="dinput ta-c" data-bind="timesheet.verifDate" placeholder="leave blank &mdash; Finance fills this in"></td>
+          <td><input class="dinput ta-c" data-bind="timesheet.prepDate" placeholder="26.8.2026" aria-label="Prepared date"></td>
+          <td><input class="dinput ta-c" data-bind="timesheet.reviewDate" placeholder="26.8.2026" aria-label="Reviewed date"></td>
+          <td><input class="dinput ta-c" data-bind="timesheet.apprDate" placeholder="26.8.2026" aria-label="Approved date"></td>
+          <td><input class="dinput ta-c" data-bind="timesheet.verifDate" placeholder="leave blank &mdash; Finance fills this in" aria-label="Verified date"></td>
         </tr>
       </tbody>
     </table>
@@ -390,27 +404,25 @@
     </div>
   </div>
 
-  <div id="genlog" class="genlog"></div>
+  <div id="genlog" class="genlog" role="log" aria-live="polite" aria-label="Document downloads"></div>
 </section>
 
 <!-- ============ STEP 6: SUBMIT ============ -->
 <section class="panel" id="p-submit" data-step="submit">
   <h2>Send it for approval</h2>
-  <p class="lead">Each document goes to the project manager first, then to the HOD, and the
-    HOD&rsquo;s signature is placed by their PA. They travel separately, so each one has its
-    own status &mdash; follow them on the next step.</p>
+  <p class="lead">Review the details below and choose which documents to send. Each goes to the project manager, then the HOD. Claim forms also go to the PA for the HOD&rsquo;s signature. Track each document in Status.</p>
 
   <div class="submitcard" id="card_submit">
     <!-- Two documents, two approvals. Send one, or both — a time sheet that
          is ready need not wait for an invoice that is still being argued
          about. -->
     <fieldset class="submitpick">
-      <legend>Which documents go?</legend>
+      <legend>Documents to submit</legend>
       <div id="submitPick"></div>
     </fieldset>
 
     <div class="submitfacts" id="submitFacts"></div>
-    <p class="submitwarn" id="submitWarn" hidden></p>
+    <p class="submitwarn" id="submitWarn" role="status" aria-live="polite" hidden></p>
     <label class="submitnote">Anything the project manager should know <span class="hint">(optional)</span>
       <textarea class="decidenote" id="submitNote" rows="3"
                 placeholder="e.g. two days of the period were spent at the client site"></textarea>
@@ -419,18 +431,14 @@
   </div>
 
   <p class="emptynote" id="submitOffline" hidden>
-    <b>Not connected to the database.</b> A claim travels between five people on five
-    machines, so it needs the shared database &mdash; which this browser cannot reach right
-    now. Nothing is lost: the form is still saved here, and the documents still download.
+    <b>Connect to submit your claim.</b> The shared service is currently unavailable. You can continue editing and downloading documents. Check your connection and try again.
   </p>
 </section>
 
 <!-- ============ RE-SUBMIT — only while something has come back ============ -->
 <section class="panel" id="p-resubmit" data-step="resubmit">
-  <h2>Put it right and send it again</h2>
-  <p class="lead">Something you sent was read and sent back. The reason is below, in the words
-    of whoever sent it. Fix that one thing, then send it round again &mdash; it goes the same
-    way it went the first time: the project manager, then the HOD, then the PA.</p>
+  <h2>Returned documents</h2>
+  <p class="lead">Read the reviewer&rsquo;s feedback, update the returned document, then submit it again. It will restart the approval process.</p>
   <div class="btnrow">
     <button class="btn ghost small" id="btnRefreshReturned">Refresh</button>
   </div>
@@ -441,7 +449,7 @@
 <section class="panel" id="p-approvals" data-step="approvals">
   <h2 id="approvalHead">Status</h2>
   <p class="lead" id="approvalLead">Where every claim has got to, and what is waiting on you.</p>
-  <!-- The month, and whether to show only what is waiting on you, are built
+  <!-- The month and the status counts are built
        by approvals.js — they are part of the table rather than a toolbar
        above it. Refresh reloads both the approvals and the signed copies. -->
   <div class="btnrow">
@@ -452,21 +460,17 @@
   <!-- The signed paper, once it exists. Everything above is the form as
        software holds it; this is what was actually signed. -->
   <h3 class="archivehead" id="archiveHead">Signed copies on file</h3>
-  <p class="lead">When a document comes back signed, upload it here. Copies are kept
-    against the person and the month, so any month can be produced again later without
-    hunting through anybody&rsquo;s downloads.</p>
+  <p class="lead">Find signed documents by person and month. If your role allows uploads, you can file a signed copy here.</p>
   <div id="archiveList" class="archive"></div>
 </section>
 
 <!-- ============ STEP 8: HISTORY (administrator only) ============ -->
 <section class="panel" id="p-history" data-step="history">
   <h2 id="historyHead">History</h2>
-  <p class="lead" id="historyLead">Every signed copy ever filed, for everybody, newest first.
-    The Status step shows one month; this is the whole record, which is what Finance asks for
-    when they ask about last March.</p>
+  <p class="lead" id="historyLead">Find filed documents by consultant and year. Preview a copy or download the selected records in one ZIP file.</p>
   <div class="archivebar">
     <button class="btn ghost" id="btnRefreshHistory">Refresh</button>
-    <label class="archivefilter">Who
+    <label class="archivefilter">Consultant
       <select id="historyWho"><option value="">everybody</option></select>
     </label>
     <label class="archivefilter">Year
@@ -474,15 +478,14 @@
     </label>
     <button class="btn" id="btnDownloadAll">Download all</button>
   </div>
-  <p class="keynote" id="downloadNote" hidden></p>
+  <p class="keynote" id="downloadNote" role="status" aria-live="polite" hidden></p>
   <div id="historyList" class="archive"></div>
 </section>
 
 <!-- ============ THE PA: DOWNLOAD, THEN UPLOAD ============ -->
 <section class="panel" id="p-todownload" data-step="todownload">
   <h2>Download for signature</h2>
-  <p class="lead">Every time sheet the HOD has approved and not yet signed. Download it, print
-    it, and put it in front of him. Once it is signed, upload it on the next page.</p>
+  <p class="lead">Download the approved claim forms and arrange the HOD&rsquo;s signature. Then open Upload to attach and submit the signed copies.</p>
   <div class="btnrow">
     <button class="btn ghost small" id="btnRefreshSignDownload">Refresh</button>
   </div>
@@ -490,10 +493,8 @@
 </section>
 
 <section class="panel" id="p-filed" data-step="filed">
-  <h2>What has gone through</h2>
-  <p class="lead">Every signed time sheet sent on from here, newest first, with the leave
-    that month carried. The leave is read off the sheet the copy was filed against, so it is
-    the sheet's own answer rather than anybody's note of it.</p>
+  <h2>Filed claim forms</h2>
+  <p class="lead">Signed claim forms sent to Group People &amp; Finance, newest first. Each record includes the leave recorded on that month&rsquo;s form.</p>
   <div class="btnrow">
     <button class="btn ghost small" id="btnRefreshFiled">Refresh</button>
   </div>
@@ -502,11 +503,7 @@
 
 <section class="panel" id="p-toupload" data-step="toupload">
   <h2>Upload the signed copy</h2>
-  <p class="lead">Put the signed time sheet on its card, then look at it. Nothing is sent
-    while it sits there &mdash; the one <b>Submit</b> at the bottom files every copy, closes
-    those months and hands them to Group People &amp; Finance. A month that has already been
-    through can be given a newer scan the same way, and the newest is what everybody sees
-    from then on.</p>
+  <p class="lead">Attach each signed claim form and preview it. When everything is ready, use <b>Submit</b> below to send the copies to Group People &amp; Finance. Uploading a newer scan replaces the filed copy.</p>
   <div class="btnrow">
     <button class="btn ghost small" id="btnRefreshSignUpload">Refresh</button>
   </div>
@@ -525,7 +522,7 @@
 </footer>
 
 <!-- ============ PDF VIEWER ============ -->
-<div class="pdfview" id="pdfView" hidden>
+<div class="pdfview" id="pdfView" role="dialog" aria-modal="true" aria-labelledby="pdfViewTitle" hidden>
   <div class="pdfview-bar">
     <b id="pdfViewTitle"></b>
     <!-- iOS Safari will not render a PDF inside an iframe; it shows one blank
@@ -548,28 +545,28 @@
      fetches the page again but keeps the old JavaScript for up to ten minutes
      — which reads as "the fix did not work". Bump this stamp whenever
      anything under assets/ changes and a reload picks it all up at once. -->
-<script src="vendor/jspdf.umd.min.js?v=20260914t"></script>
-<script src="vendor/jspdf.plugin.autotable.min.js?v=20260914t"></script>
-<script src="vendor/carlito.js?v=20260914t"></script>
-<script src="vendor/exceljs.min.js?v=20260914t"></script>
-<script src="vendor/FileSaver.min.js?v=20260914t"></script>
-<script src="vendor/signature_pad.umd.min.js?v=20260914t"></script>
-<script src="vendor/docx.umd.js?v=20260914t"></script>
-<script src="assets/js/state.js?v=20260914t"></script>
-<script src="assets/js/holidays.js?v=20260914t"></script>
-<script src="assets/js/logo.js?v=20260914t"></script>
-<script src="assets/js/timesheet.js?v=20260914t"></script>
-<script src="assets/js/signature.js?v=20260914t"></script>
-<script src="assets/js/gen-invoice.js?v=20260914t"></script>
-<script src="assets/js/gen-claim.js?v=20260914t"></script>
-<script src="assets/js/preview.js?v=20260914t"></script>
-<script src="assets/js/auth.js?v=20260914t"></script>
-<script src="assets/js/sync.js?v=20260914t"></script>
-<script src="assets/js/zip.js?v=20260914t"></script>
-<script src="assets/js/approvals.js?v=20260914t"></script>
-<script src="assets/js/archive.js?v=20260914t"></script>
-<script src="assets/js/resubmit.js?v=20260914t"></script>
-<script src="assets/js/signing.js?v=20260914t"></script>
-<script src="assets/js/app.js?v=20260914t"></script>
+<script src="vendor/jspdf.umd.min.js?v=20260914ux"></script>
+<script src="vendor/jspdf.plugin.autotable.min.js?v=20260914ux"></script>
+<script src="vendor/carlito.js?v=20260914ux"></script>
+<script src="vendor/exceljs.min.js?v=20260914ux"></script>
+<script src="vendor/FileSaver.min.js?v=20260914ux"></script>
+<script src="vendor/signature_pad.umd.min.js?v=20260914ux"></script>
+<script src="vendor/docx.umd.js?v=20260914ux"></script>
+<script src="assets/js/state.js?v=20260914ux"></script>
+<script src="assets/js/holidays.js?v=20260914ux"></script>
+<script src="assets/js/logo.js?v=20260914ux"></script>
+<script src="assets/js/timesheet.js?v=20260914ux"></script>
+<script src="assets/js/signature.js?v=20260914ux"></script>
+<script src="assets/js/gen-invoice.js?v=20260914ux"></script>
+<script src="assets/js/gen-claim.js?v=20260914ux"></script>
+<script src="assets/js/preview.js?v=20260914ux"></script>
+<script src="assets/js/auth.js?v=20260914ux"></script>
+<script src="assets/js/sync.js?v=20260914ux"></script>
+<script src="assets/js/zip.js?v=20260914ux"></script>
+<script src="assets/js/approvals.js?v=20260914ux"></script>
+<script src="assets/js/archive.js?v=20260914ux"></script>
+<script src="assets/js/resubmit.js?v=20260914ux"></script>
+<script src="assets/js/signing.js?v=20260914ux"></script>
+<script src="assets/js/app.js?v=20260914ux"></script>
 </body>
 </html>
