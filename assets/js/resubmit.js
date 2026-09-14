@@ -142,10 +142,9 @@ async function renderResubmit () {
   releaseEditor();          // the card it lives in is about to be rebuilt
 
   if (!Sync.on) {
-    host.innerHTML =
-      '<p class="emptynote"><b>Not connected to the database.</b> ' +
+    host.innerHTML = Sync.offlineNote(
       'A document that came back lives in the shared database, which this browser cannot ' +
-      'reach right now.</p>';
+      'reach right now.');
     return;
   }
 

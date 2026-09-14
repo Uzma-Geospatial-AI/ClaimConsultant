@@ -21,6 +21,8 @@ const SYNCED_KEY  = 'ccs.syncedAt';    // when we last pushed the draft up
 const PUSH_DELAY  = 5000;              // draft pushes are lazy, not per-keystroke
 
 let syncOn      = false;               // did the probe find the endpoints?
+let probing     = false;               // is the probe still out?
+let probed      = false;               // has it even been sent yet?
 let pushTimer   = null;
 let pushing     = false;
 let pendingPush = null;
@@ -451,16 +453,20 @@ async function actOnSubmission (id, action, note, data) {
  */
 async function initSync (S, adopt) {
   const result = { on: false, adopted: false, gained: 0, sent: 0 };
+  probed = true;
   if (!Auth.token()) return result;
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return result;
 
   let draft;
+  probing = true;
   try {
     draft = await pullDraft();
   } catch (err) {
     // Not deployed yet, not permitted, or unreachable — all the same to us.
     console.info('CCS sync unavailable; working from this browser only.');
     return result;
+  } finally {
+    probing = false;
   }
 
   syncOn = true;
@@ -536,6 +542,21 @@ const Sync = {
   storedOne: storedClaim,
   forget: forgetSync,
   get on () { return syncOn; },
+  /* The probe answers after the first paint. Until it has, a screen that
+     needs the database is waiting for it, not cut off from it. */
+  get connecting () {
+    if (probing) return true;
+    // the first paint comes before the probe is even sent; a signed-in
+    // browser that is online is about to connect, not cut off
+    return !probed && !!Auth.token() &&
+      !(typeof navigator !== 'undefined' && navigator.onLine === false);
+  },
+  /** what a screen that needs the database says while it has none */
+  offlineNote (what) {
+    return this.connecting
+      ? '<p class="emptynote">Connecting to the database…</p>'
+      : '<p class="emptynote"><b>Not connected to the database.</b> ' + what + '</p>';
+  },
   /** is there an archive to file into? false while BDOS has not shipped one */
   get archiveOn () { return syncOn && !archiveMissing; }
 };

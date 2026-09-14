@@ -653,6 +653,9 @@ body.locked > .sitefoot{display:none}
 .archslot span{font-weight:600}
 .archslot input[type=file]{font-size:12.5px}
 .archnote{margin-top:12px;width:100%}
+/* the PA's upload card: the file box and its button, side by side */
+.signrow{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:10px}
+.signrow input[type=file]{font-size:12.5px;flex:1 1 220px;min-width:0}
 
 /* ---------- Save Profile, where the details it saves end ---------- */
 .saverow{

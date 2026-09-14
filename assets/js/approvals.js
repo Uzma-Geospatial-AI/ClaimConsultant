@@ -264,11 +264,10 @@ async function renderApprovals () {
   }
 
   if (!Sync.on) {
-    host.innerHTML = `
-      <p class="emptynote"><b>Not connected to the database.</b>
-      Approvals travel between five people on five machines, so they need the
-      shared database — which this browser cannot reach right now. Nothing has
-      been lost: the form is still saved here.</p>`;
+    host.innerHTML = Sync.offlineNote(
+      'Approvals travel between five people on five machines, so they need the ' +
+      'shared database — which this browser cannot reach right now. Nothing has ' +
+      'been lost: the form is still saved here.');
     return;
   }
 

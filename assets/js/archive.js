@@ -34,11 +34,10 @@ async function renderArchive (force) {
 
   if (!Sync.on) {
     archiveLoaded = false;
-    host.innerHTML =
-      '<p class="emptynote"><b>Not connected to the database.</b> ' +
+    host.innerHTML = Sync.offlineNote(
       'Signed copies are kept in the shared database, which this browser cannot ' +
       'reach right now. Nothing has been lost &mdash; the files are still wherever ' +
-      'they were downloaded to.</p>';
+      'they were downloaded to.');
     return;
   }
 
@@ -98,7 +97,27 @@ function archiveFor (consultant, year, month, kind, stage) {
     Number(r.period_year) === Number(year) &&
     Number(r.period_month) === Number(month) + 1 &&
     (!r.kind || r.kind === kind) &&
-    stageOf(r) === want)[0] || null;
+    stageOf(r) === want).sort(newestFirst)[0] || null;
+}
+
+/* A copy uploaded again replaces the one before it — a better scan, or the
+   wrong file put right — so wherever one copy stands for a document, it is
+   the newest. The older records stay in the database; they just stop being
+   the answer. */
+const newestFirst = (a, b) =>
+  String(b.created_at || '').localeCompare(String(a.created_at || '')) ||
+  String(b.id || '').localeCompare(String(a.id || ''));
+
+/** one record per person, month, document and stage: the newest */
+function latestCopies (rows) {
+  const seen = new Set();
+  return rows.slice().sort(newestFirst).filter(r => {
+    const key = [String(r.consultant || '').trim(), r.period_year, r.period_month,
+                 r.kind || '', stageOf(r)].join('|');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 const archiveHas = (consultant, year, month, kind, stage) =>
@@ -138,7 +157,7 @@ function paintArchive () {
   // always the PA at the end, because placing the signature is their part
   if (canFileSigned()) host.appendChild(archiveUploadCard());
 
-  const rows = archive
+  const rows = latestCopies(archive)
     .filter(r => Number(r.period_year) === when.y && Number(r.period_month) === when.m + 1)
     // a consultant sees their own filed copies, the way they see their own rows
     .filter(r => Auth.seesEveryone() ||
@@ -208,10 +227,9 @@ async function renderHistory (force) {
 
   if (!Sync.on) {
     archiveLoaded = false;
-    host.innerHTML =
-      '<p class="emptynote"><b>Not connected to the database.</b> ' +
+    host.innerHTML = Sync.offlineNote(
       'The history lives in the shared database, which this browser cannot reach ' +
-      'right now.</p>';
+      'right now.');
     return;
   }
 
@@ -297,7 +315,7 @@ function paintHistory () {
 
 /** what the History step is showing, after its three filters */
 function historyRows () {
-  return archive
+  return latestCopies(archive)
     .filter(r => !historyWho || String(r.consultant || '').trim() === historyWho)
     .filter(r => !historyYear || String(r.period_year) === historyYear)
     .filter(r => historyStage !== 'final' || stageOf(r) === ARCHIVE_FINAL)

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Consultant Claim System</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20260913h">
+<link rel="stylesheet" href="assets/css/style.css?v=20260914a">
 </head>
 <body class="locked">
 
@@ -494,6 +494,28 @@
   <div id="historyList" class="archive"></div>
 </section>
 
+<!-- ============ THE PA: DOWNLOAD, THEN UPLOAD ============ -->
+<section class="panel" id="p-todownload" data-step="todownload">
+  <h2>Download for signature</h2>
+  <p class="lead">Every time sheet the HOD has approved and not yet signed. Download it, print
+    it, and put it in front of him. Once it is signed, upload it on the next page.</p>
+  <div class="btnrow">
+    <button class="btn ghost small" id="btnRefreshSignDownload">Refresh</button>
+  </div>
+  <div id="signDownloadList" class="archive"></div>
+</section>
+
+<section class="panel" id="p-toupload" data-step="toupload">
+  <h2>Upload the signed copy</h2>
+  <p class="lead">Put the signed time sheet back here. It is filed against the person and the
+    month, the month is marked signed, and from then on the copy everybody sees is this one.
+    Upload again if a better scan turns up &mdash; the newest copy always wins.</p>
+  <div class="btnrow">
+    <button class="btn ghost small" id="btnRefreshSignUpload">Refresh</button>
+  </div>
+  <div id="signUploadList" class="archive"></div>
+</section>
+
 </main>
 
 <footer class="sitefoot">
@@ -529,26 +551,27 @@
      fetches the page again but keeps the old JavaScript for up to ten minutes
      — which reads as "the fix did not work". Bump this stamp whenever
      anything under assets/ changes and a reload picks it all up at once. -->
-<script src="vendor/jspdf.umd.min.js?v=20260913h"></script>
-<script src="vendor/jspdf.plugin.autotable.min.js?v=20260913h"></script>
-<script src="vendor/carlito.js?v=20260913h"></script>
-<script src="vendor/exceljs.min.js?v=20260913h"></script>
-<script src="vendor/FileSaver.min.js?v=20260913h"></script>
-<script src="vendor/signature_pad.umd.min.js?v=20260913h"></script>
-<script src="vendor/docx.umd.js?v=20260913h"></script>
-<script src="assets/js/state.js?v=20260913h"></script>
-<script src="assets/js/holidays.js?v=20260913h"></script>
-<script src="assets/js/logo.js?v=20260913h"></script>
-<script src="assets/js/timesheet.js?v=20260913h"></script>
-<script src="assets/js/signature.js?v=20260913h"></script>
-<script src="assets/js/gen-invoice.js?v=20260913h"></script>
-<script src="assets/js/gen-claim.js?v=20260913h"></script>
-<script src="assets/js/preview.js?v=20260913h"></script>
-<script src="assets/js/auth.js?v=20260913h"></script>
-<script src="assets/js/sync.js?v=20260913h"></script>
-<script src="assets/js/approvals.js?v=20260913h"></script>
-<script src="assets/js/archive.js?v=20260913h"></script>
-<script src="assets/js/resubmit.js?v=20260913h"></script>
-<script src="assets/js/app.js?v=20260913h"></script>
+<script src="vendor/jspdf.umd.min.js?v=20260914a"></script>
+<script src="vendor/jspdf.plugin.autotable.min.js?v=20260914a"></script>
+<script src="vendor/carlito.js?v=20260914a"></script>
+<script src="vendor/exceljs.min.js?v=20260914a"></script>
+<script src="vendor/FileSaver.min.js?v=20260914a"></script>
+<script src="vendor/signature_pad.umd.min.js?v=20260914a"></script>
+<script src="vendor/docx.umd.js?v=20260914a"></script>
+<script src="assets/js/state.js?v=20260914a"></script>
+<script src="assets/js/holidays.js?v=20260914a"></script>
+<script src="assets/js/logo.js?v=20260914a"></script>
+<script src="assets/js/timesheet.js?v=20260914a"></script>
+<script src="assets/js/signature.js?v=20260914a"></script>
+<script src="assets/js/gen-invoice.js?v=20260914a"></script>
+<script src="assets/js/gen-claim.js?v=20260914a"></script>
+<script src="assets/js/preview.js?v=20260914a"></script>
+<script src="assets/js/auth.js?v=20260914a"></script>
+<script src="assets/js/sync.js?v=20260914a"></script>
+<script src="assets/js/approvals.js?v=20260914a"></script>
+<script src="assets/js/archive.js?v=20260914a"></script>
+<script src="assets/js/resubmit.js?v=20260914a"></script>
+<script src="assets/js/signing.js?v=20260914a"></script>
+<script src="assets/js/app.js?v=20260914a"></script>
 </body>
 </html>

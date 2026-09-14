@@ -241,7 +241,7 @@ check('and approving is a capability too',
 // asked an administrator opening the app to see whether Amila had sent
 // September to choose a document they were never going to produce.
 check('a reporting step is not gated behind the form',
-  /const INFO_STEPS = \['approvals', 'history', 'resubmit'\]/.test(appjs) &&
+  /const INFO_STEPS = \['approvals', 'history', 'resubmit', 'todownload', 'toupload'\]/.test(appjs) &&
   /!skipGuard && !reporting/.test(appjs), true);
 check('the stage headings name who does the stage',
   /Auth\.personFor\(st\.who\)/.test(approvals), true);
@@ -387,6 +387,31 @@ check('and the status table resubmits the same way',
   /fixingId\(\) === sub\.id/.test(approvals), true);
 
 /* -----------------------------------------------------------------------
+   The PA's two pages. Their part is a signature on paper: the time sheet
+   goes out to be signed and comes back as a scan. So they get Download and
+   Upload, not the status table — and a scan uploaded again replaces the one
+   before it, for everybody.
+   ----------------------------------------------------------------------- */
+console.log('\nThe PA: download, then upload');
+
+const signingjs = fs.readFileSync(path.join(ROOT, 'assets/js/signing.js'), 'utf8');
+check('both pages are in the page',
+  /id="p-todownload"/.test(html) && /id="p-toupload"/.test(html), true);
+check('and the PA sees those two and nothing else',
+  /if \(Auth\.places\(\)\) return all\.filter\(s => s\.signs\)/.test(appjs), true);
+check('Download lists what is waiting for the HOD’s signature',
+  /s\.status === SIGNING_STATUS && kindOf\(s\) === 'claim'/.test(signingjs), true);
+check('Upload files the scan before it marks the month signed',
+  /await Sync\.store\([\s\S]{0,200}if \(!again\) await Sync\.act\(sub\.id, 'approve'/.test(signingjs), true);
+check('a month already signed can be uploaded again',
+  /s\.status === 'complete' && kindOf\(s\) === 'claim'/.test(signingjs), true);
+check('and the newest copy is the one everybody reads',
+  /sort\(newestFirst\)\[0\]/.test(archivejs) &&
+  /latestCopies\(archive\)/.test(archivejs), true);
+check('the first paint waits for the database rather than calling it absent',
+  /get connecting \(\)/.test(syncjs) && /if \(!r\.adopted\) showStep\(\)/.test(appjs), true);
+
+/* -----------------------------------------------------------------------
    The PA places the HOD's signature, and an invoice has no HOD signature on
    it — so an invoice has nothing for them to do and should never reach
    them. Routing it there anyway was a bill sitting in somebody's queue for
@@ -437,6 +462,10 @@ check('the generators come before preview.js',
 check('approvals.js comes after the generator and the viewer',
   at('gen-claim.js') < at('approvals.js') && at('preview.js') < at('approvals.js'), true);
 check('and before app.js, which calls into it', at('approvals.js') < at('app.js'), true);
+// signing.js reads the status table's helpers and the archive's
+check('signing.js comes after approvals.js and archive.js, before app.js',
+  at('approvals.js') < at('signing.js') && at('archive.js') < at('signing.js') &&
+  at('signing.js') < at('app.js'), true);
 // holidays.js is read by the time sheet when it fills a month in
 check('holidays.js comes before timesheet.js', at('holidays.js') < at('timesheet.js'), true);
 // archive.js borrows button() from approvals.js and is called from app.js

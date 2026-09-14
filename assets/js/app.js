@@ -93,12 +93,19 @@ const STEPS = [
      for everybody else. */
   /* The whole record, for the two accounts whose job it is: the
      administrator, and whoever keeps the finished paper. */
-  { id: 'history',    label: 'History', records: true }
+  { id: 'history',    label: 'History', records: true },
+  /* The PA's two pages, and their only two: the time sheets waiting for the
+     HOD's signature, to print; and the same list with a box for the signed
+     scan, to file. The admin stands in everywhere, so the admin gets them
+     too — after everything else. */
+  { id: 'todownload', label: 'Download', signs: true },
+  { id: 'toupload',   label: 'Upload',   signs: true }
 ];
 
 /** steps this account is allowed to see at all, right now */
 const permittedSteps = () => STEPS.filter(s =>
   (!s.records || Auth.keepsRecords()) &&
+  (!s.signs || Auth.places()) &&
   (!s.whenReturned || (typeof returnedCount === 'function' && returnedCount() > 0)));
 
 let stepIndex = 0;
@@ -116,11 +123,16 @@ function activeSteps () {
        approvers get the queue, and whoever collects the finished forms gets
        the shelf they end up on and nothing else. A queue of decisions that
        will never be yours to make is not information, it is furniture. */
+    /* The PA is the exception among the approvers: their part is a
+       signature on paper, so their app is the paper going out and coming
+       back — two pages, and not the table. */
+    if (Auth.places()) return all.filter(s => s.signs);
     return all.filter(s =>
       (s.id === 'approvals' && Auth.approves()) ||
       (s.id === 'history' && Auth.keepsRecords()));
   }
-  const tail = all.filter(s => s.id === 'resubmit' || s.id === 'approvals' || s.id === 'history');
+  const tail = all.filter(s => s.id === 'resubmit' || s.id === 'approvals' ||
+                              s.id === 'history' || s.signs);
   if (!S.mode) {
     return all.filter(s => s.id === 'consultant' || s.id === 'choose').concat(tail);
   }
@@ -160,7 +172,7 @@ function canLeave (id) {
    September should not first be asked to pick a document they are not going
    to produce, and somebody whose invoice was rejected should not have to
    finish a fresh claim before they can read why. */
-const INFO_STEPS = ['approvals', 'history', 'resubmit'];
+const INFO_STEPS = ['approvals', 'history', 'resubmit', 'todownload', 'toupload'];
 
 function goToStep (i, skipGuard) {
   const list = activeSteps();
@@ -197,6 +209,8 @@ function showStep () {
   if (step.id === 'approvals') { renderApprovals(); renderArchive(); }
   if (step.id === 'history') renderHistory();
   if (step.id === 'resubmit') renderResubmit();
+  if (step.id === 'todownload') renderSignDownload();
+  if (step.id === 'toupload') renderSignUpload();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -1168,6 +1182,10 @@ function boot () {
   if (btnHist) btnHist.addEventListener('click', () => renderHistory(true));
   const btnAll = document.getElementById('btnDownloadAll');
   if (btnAll) btnAll.addEventListener('click', () => downloadAllHistory(btnAll));
+  const btnDl = document.getElementById('btnRefreshSignDownload');
+  if (btnDl) btnDl.addEventListener('click', () => renderSignDownload());
+  const btnUp = document.getElementById('btnRefreshSignUpload');
+  if (btnUp) btnUp.addEventListener('click', () => renderSignUpload());
   const btnBack = document.getElementById('btnRefreshReturned');
   if (btnBack) btnBack.addEventListener('click', async () => {
     await loadReturned();
@@ -1238,6 +1256,10 @@ function boot () {
     renderAll();
     Store.saveCurrent(S);
   }).then(r => {
+    /* The first paint happened while the probe was still out, so whatever
+       step is open drew itself without the database — a PA saw "connecting"
+       where their list goes. Now that the answer is in, draw it again. */
+    if (!r.adopted) showStep();
     if (!r.on) return;
     if (r.adopted)     toast('Loaded the draft saved from your other device.');
     else if (r.gained) toast(`${r.gained} shared profile(s) loaded.`);
