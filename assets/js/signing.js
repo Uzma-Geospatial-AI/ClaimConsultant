@@ -372,15 +372,20 @@ async function viewFiled (rec, sub) {
    Submitting
    ------------------------------------------------------------------- */
 
-/** whoever collects the finished paper, named rather than described */
-const collectorName = () => Auth.roleName('finance') || 'Group People & Finance';
+/* Whoever collects the finished paper. Two names for two jobs: the button
+   says what the office calls her, because a button is read once and pressed;
+   the sentence above it says the whole name, because that is where somebody
+   who does not know who Jiha is finds out. */
+const collectorShort = () => Auth.shortFor('finance') || 'Group People & Finance';
+const collectorFull = () => Auth.personFor('finance') ||
+                            Auth.roleName('finance') || 'Group People & Finance';
 
 function submitBar () {
   const bar = document.createElement('div');
   bar.className = 'signsubmit';
 
   const ready = attached.size;
-  const who = collectorName();
+  const who = collectorFull();
 
   const said = document.createElement('p');
   said.className = 'signsaid';
@@ -394,8 +399,7 @@ function submitBar () {
 
   const row = document.createElement('div');
   row.className = 'btnrow';
-  const go = button(ready ? 'Submit ' + ready + ' to ' + who : 'Submit',
-                    'primary', () => submitSigned(go));
+  const go = button('Submit to ' + collectorShort(), 'primary', () => submitSigned(go));
   go.disabled = !ready;
   row.appendChild(go);
   bar.appendChild(row);
@@ -418,7 +422,7 @@ async function submitSigned (go) {
     .filter(j => j.sub);
   if (!jobs.length) { toast('Nothing has been put on a card yet.', true); return; }
 
-  const who = collectorName();
+  const who = collectorFull();
   if (!confirm(
     'Submit ' + jobs.length + ' signed cop' + (jobs.length === 1 ? 'y' : 'ies') +
     ' to ' + who + '?\n\n' +

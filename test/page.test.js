@@ -416,6 +416,11 @@ check('the copy already on file can be read too',
 check('one Submit at the bottom sends them',
   /host\.appendChild\(submitBar\(\)\)/.test(signingjs) &&
   /go\.disabled = !ready/.test(signingjs), true);
+/* The button says the name the office uses; the sentence above it says the
+   whole name, for whoever does not know who that is. */
+check('and it is named for the person who gets them',
+  /'Submit to ' \+ collectorShort\(\)/.test(signingjs) &&
+  /finance: 'Jiha'/.test(authjs), true);
 check('and it files the scan before it closes the month',
   /await Sync\.store\([\s\S]{0,220}if \(!again\) await Sync\.act\(sub\.id, 'approve'/.test(signingjs), true);
 check('a month already signed can be uploaded again',

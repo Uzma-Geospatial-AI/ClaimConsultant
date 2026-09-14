@@ -90,6 +90,18 @@ const ROLE_PEOPLE = {
   finance:    'Sharifah Najihah Syed Mohd Zakir'
 };
 
+/* What the office calls them. A button is read in a second and pressed
+   without being read twice, so it says the name the person would answer to
+   rather than the name on their identity card or the name of their
+   department. "Submit to Jiha" is a sentence somebody can check; "Submit 1
+   to Group People & Finance" is a form field. Changed with ROLE_PEOPLE. */
+const ROLE_SHORT = {
+  manager: 'Hanis',
+  boss:    'Fadhli',
+  pa:      'Fatin',
+  finance: 'Jiha'
+};
+
 /* The admin prepares claims like a consultant and can also move any claim at
    any stage — somebody has to be able to finish a month when the project
    manager is on leave and the HOD is on a plane. BDOS decides this too; the
@@ -377,6 +389,8 @@ const Auth = {
   roleName: r => ROLE_NAMES[r || currentRole()] || '',
   /** the person who holds that part, by name */
   personFor: r => ROLE_PEOPLE[r] || '',
+  /** the name the office uses, falling back to the full one */
+  shortFor: r => ROLE_SHORT[r] || ROLE_PEOPLE[r] || '',
   prepares: () => prepares(currentRole()),
   places: () => places(currentRole()),
   keepsRecords: () => keepsRecords(currentRole()),
