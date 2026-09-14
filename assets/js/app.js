@@ -109,8 +109,15 @@ const STEPS = [
   { id: 'todownload', label: 'Download', signs: true },
   { id: 'toupload',   label: 'Upload',   signs: true },
   /* Not a step either: the job behind, rather than the job in front. */
-  { id: 'filed',      label: 'Filed',    signs: true, view: true }
+  /* Called History for the PA, who has no other: it is where a confirmed
+     month lives, under the person's name. The administrator already has a
+     History of everything, so theirs keeps the narrower name. */
+  { id: 'filed',      label: 'Filed',    signs: true, view: true,
+    labelFor: () => (Auth.keepsRecords() ? 'Filed' : 'History') }
 ];
+
+/** what a step is called for the account looking at it */
+const stepLabel = s => (s.labelFor ? s.labelFor() : s.label);
 
 /** steps this account is allowed to see at all, right now */
 const permittedSteps = () => STEPS.filter(s =>
@@ -269,7 +276,7 @@ function renderStepper () {
     const b = document.createElement('button');
     b.type = 'button';
     b.setAttribute('aria-controls', 'p-' + s.id);
-    b.setAttribute('aria-label', (isView ? '' : 'Step ' + number + ': ') + s.label);
+    b.setAttribute('aria-label', (isView ? '' : 'Step ' + number + ': ') + stepLabel(s));
     if (i === stepIndex) b.setAttribute('aria-current', 'step');
     b.className = 'step' + (isView ? ' view' : '') +
       (i === stepIndex ? ' active' : (!isView && !onView && i < stepIndex ? ' done' : ''));
@@ -281,7 +288,7 @@ function renderStepper () {
       b.appendChild(num);
     }
     const label = document.createElement('span');
-    label.textContent = s.label;          // step names are ours, not markup
+    label.textContent = stepLabel(s);     // step names are ours, not markup
     b.appendChild(label);
 
     const n = s.whenReturned && typeof returnedCount === 'function' ? returnedCount() : 0;

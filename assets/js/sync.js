@@ -556,6 +556,18 @@ function forgetSync () {
   clearTimeout(pushTimer);
 }
 
+/**
+ * Take one filed copy off the record.
+ *
+ * Only ever used for a copy a newer one has just replaced. BDOS allows it for
+ * the administrator and whoever filed the copy; anything else is refused, and
+ * the caller treats that as "leave it", because the newer copy is already the
+ * one every screen reads.
+ */
+async function unstoreSigned (id) {
+  await ccsFetch('/archive/' + encodeURIComponent(id), { method: 'DELETE' });
+}
+
 const Sync = {
   init: initSync,
   me: whoAmI,
@@ -577,6 +589,7 @@ const Sync = {
   store: storeSigned,
   stored: storedClaims,
   storedOne: storedClaim,
+  unstore: unstoreSigned,
   forget: forgetSync,
   get on () { return syncOn; },
   /* The probe answers after the first paint. Until it has, a screen that

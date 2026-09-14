@@ -35,14 +35,6 @@ function waitingSignature () {
     .sort(byMonthThenName);
 }
 
-/** the time sheets already signed and closed — the ones a newer scan can replace */
-function signedAlready () {
-  return signingSubs
-    .filter(s => s.status === 'complete' && kindOf(s) === 'claim')
-    .slice()
-    .sort(byMonthThenName);
-}
-
 function byMonthThenName (a, b) {
   return (b.period_year - a.period_year) || (b.period_month - a.period_month) ||
     String(a.consultant || '').localeCompare(String(b.consultant || ''));
@@ -252,12 +244,14 @@ async function renderSignUpload () {
     return;
   }
 
+  /* Only what is still waiting. A month that has gone to Group People &
+     Finance is confirmed: it is not reopened from here, and it lives in
+     History under that name and that month, one copy each. */
   const waiting = waitingSignature();
-  const done = signedAlready();
 
   /* A scan is held in this browser until Submit sends it, so one put on a
      card that is no longer in the list has nowhere to go. */
-  const live = new Set(waiting.concat(done).map(s => s.id));
+  const live = new Set(waiting.map(s => s.id));
   [...attached.keys()].forEach(id => { if (!live.has(id)) attached.delete(id); });
 
   const h1 = document.createElement('h3');
@@ -271,30 +265,15 @@ async function renderSignUpload () {
       'signed and sent on.';
     host.appendChild(empty);
   } else {
-    monthGroups(host, waiting, sub => uploadCard(sub, false));
+    monthGroups(host, waiting, sub => uploadCard(sub));
   }
 
-  if (done.length) {
-    const h2 = document.createElement('h3');
-    h2.textContent = `Already filed (${done.length})`;
-    host.appendChild(h2);
-    const lead = document.createElement('p');
-    lead.className = 'archlead';
-    lead.textContent = 'Upload a replacement if a clearer scan is available or the wrong file was filed. ' +
-      'The replacement becomes the current copy after you submit it.';
-    host.appendChild(lead);
-    monthGroups(host, done, sub => uploadCard(sub, true));
-  }
 
   host.appendChild(submitBar());
 }
 
-/**
- * One time sheet, and whatever has been put on it.
- * @param {boolean} again  it has been through already: a newer scan replaces
- *        the copy on file rather than closing the month
- */
-function uploadCard (sub, again) {
+/** One time sheet waiting for its signed copy, and whatever has been put on it. */
+function uploadCard (sub) {
   const card = document.createElement('div');
   card.className = 'archrow signcard';
   card.appendChild(signingHead(sub));
@@ -306,8 +285,9 @@ function uploadCard (sub, again) {
   if (filed) {
     const on = document.createElement('p');
     on.className = 'subnote';
-    on.textContent = 'On file — uploaded by ' + (filed.created_by || 'somebody') +
-      (filed.created_at ? ' on ' + new Date(filed.created_at).toLocaleDateString() : '') + '.';
+    on.textContent = 'A copy is already on file, uploaded by ' + (filed.created_by || 'somebody') +
+      (filed.created_at ? ' on ' + new Date(filed.created_at).toLocaleDateString() : '') +
+      '. Submitting a new one replaces it.';
     card.appendChild(on);
     const bar = document.createElement('div');
     bar.className = 'archfiles';
@@ -353,7 +333,7 @@ function uploadCard (sub, again) {
     row.appendChild(inp);
     const hint = document.createElement('small');
     hint.className = 'signhint';
-    hint.textContent = (again ? 'Choose a replacement signed copy. ' : 'Choose the signed time sheet. ') +
+    hint.textContent = (filed ? 'Choose the replacement. ' : 'Choose the signed time sheet. ') +
       'PDF or image, up to 12 MB.';
     row.appendChild(hint);
   }
@@ -373,6 +353,39 @@ async function viewFiled (rec, sub) {
                     f.name || 'signed.pdf', new Blob([bytes], { type: type }));
   } catch (err) {
     toast(err.message || 'Could not open that file.', true);
+  }
+}
+
+/**
+ * The copies already on file for this time sheet's person and month.
+ *
+ * Only the time sheet's own finished copies. A record old enough not to say
+ * which document it is covers the invoice as well, and taking it off the
+ * record would take the invoice with it.
+ */
+function copiesOnFile (sub) {
+  const who = String(sub.consultant || '').trim();
+  return archive.filter(r =>
+    String(r.consultant || '').trim() === who &&
+    Number(r.period_year) === Number(sub.period_year) &&
+    Number(r.period_month) === Number(sub.period_month) &&
+    r.kind === 'claim' && stageOf(r) === ARCHIVE_FINAL);
+}
+
+/**
+ * One month, one copy: take the replaced ones off the record.
+ *
+ * BDOS clears the slot itself when the new copy goes up, so once it has that
+ * change these are already gone and the requests find nothing. Until then this
+ * does it, for the copies this account is allowed to remove. A refusal is
+ * left alone: the newer copy is the one every screen reads either way.
+ */
+async function dropSuperseded (before, kept) {
+  const mine = myEmail();
+  for (const r of before) {
+    if (kept && r.id === kept.id) continue;
+    if (!Auth.isAdmin() && String(r.created_by || '').toLowerCase() !== mine) continue;
+    try { await Sync.unstore(r.id); } catch (err) { /* already gone, or not ours */ }
   }
 }
 
@@ -418,9 +431,8 @@ function submitBar () {
  *
  * The scan is filed first and the month closed second. A scan on record for
  * a month still open is a small oddity; a month closed with the scan lost to
- * a failed upload is a month nobody can produce. A month that has already
- * been through is only refiled — there is nothing left to close, and the
- * newer copy is simply the one everybody reads from then on.
+ * a failed upload is a month nobody can produce. Once the month is closed
+ * the copy it replaced is taken off the record, so a month keeps one.
  */
 async function submitSigned (go) {
   if (signingBusy) return;
@@ -434,7 +446,7 @@ async function submitSigned (go) {
     'Submit ' + jobs.length + ' signed cop' + (jobs.length === 1 ? 'y' : 'ies') +
     ' to ' + who + '?\n\n' +
     jobs.map(j => j.sub.consultant + ' · ' + periodOf(j.sub)).join('\n') +
-    '\n\nThe months are closed and cannot be taken back.')) return;
+    '\n\nThose months are confirmed. They move to History, and any earlier copy for them is replaced.')) return;
 
   signingBusy = true;
   const was = go.textContent;
@@ -452,11 +464,13 @@ async function submitSigned (go) {
         const state = mergeDefaults((full && full.data) || {});
         const payload = await Sync.readFile(jobs[i].file);
         payload.name = kindLabel('claim') + ' (signed) — ' + payload.name;
-        const again = sub.status !== SIGNING_STATUS;
-        await Sync.store(state, [payload],
+        // noted before the new copy goes up, since it is about to replace them
+        const before = copiesOnFile(sub);
+        const kept = await Sync.store(state, [payload],
           kindLabel('claim') + ' signed by ' + by +
-          (again ? ' · replaces the earlier copy' : ''), 'claim', SIGNING_STATUS);
-        if (!again) await Sync.act(sub.id, 'approve', '');
+          (before.length ? ' · replaces the earlier copy' : ''), 'claim', SIGNING_STATUS);
+        if (sub.status === SIGNING_STATUS) await Sync.act(sub.id, 'approve', '');
+        await dropSuperseded(before, kept);
         attached.delete(sub.id);
         done++;
       } catch (err) {
@@ -472,7 +486,8 @@ async function submitSigned (go) {
   archiveLoaded = false;            // everybody else reads the newest copy
   toast(failed.length
     ? done + ' sent. ' + failed.length + ' could not be: ' + failed[0]
-    : done + ' signed cop' + (done === 1 ? 'y' : 'ies') + ' sent to ' + who + '.',
+    : done + ' signed cop' + (done === 1 ? 'y' : 'ies') + ' sent to ' + who +
+      '. ' + (done === 1 ? 'That month is' : 'Those months are') + ' in History now.',
     !!failed.length);
   await renderSignUpload();
 }

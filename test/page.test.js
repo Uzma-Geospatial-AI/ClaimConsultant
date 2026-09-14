@@ -536,13 +536,26 @@ check('a scan still goes through the box over the ink before it is kept',
   /buildCropper\(crop, canvas,\s*url => \{ store\.set\(url\)/.test(sigjs), true);
 check('and the older way of calling the cropper still writes the form',
   /typeof target === 'function'[\s\S]{0,80}target\.sig\.personnel = url/.test(sigjs), true);
+/* One month, one copy. Uploading again replaces what is on file rather than
+   adding beside it, and once a month has gone to Group People & Finance it
+   is confirmed and lives in History, not in the Upload queue. */
+check('submitting takes the replaced copy off the record',
+  /async function dropSuperseded/.test(signingjs) && /Sync\.unstore\(r\.id\)/.test(signingjs) &&
+  /unstore: unstoreSigned/.test(syncjs), true);
+check('and only a copy this account may remove',
+  /!Auth\.isAdmin\(\) && String\(r\.created_by \|\| ''\)\.toLowerCase\(\) !== mine/.test(signingjs), true);
+check('a combined record is never taken, since it covers the invoice too',
+  /r\.kind === 'claim' && stageOf\(r\) === ARCHIVE_FINAL/.test(signingjs), true);
+check("the PA's record of confirmed months is called History",
+  /labelFor: \(\) => \(Auth\.keepsRecords\(\) \? 'Filed' : 'History'\)/.test(appjs) &&
+  /label\.textContent = stepLabel\(s\)/.test(appjs), true);
 check('and it is named for the person who gets them',
   /'Submit to ' \+ collectorShort\(\)/.test(signingjs) &&
   /finance: 'Jiha'/.test(authjs), true);
 check('and it files the scan before it closes the month',
-  /await Sync\.store\([\s\S]{0,220}if \(!again\) await Sync\.act\(sub\.id, 'approve'/.test(signingjs), true);
-check('a month already signed can be uploaded again',
-  /s\.status === 'complete' && kindOf\(s\) === 'claim'/.test(signingjs), true);
+  /await Sync\.store\([\s\S]{0,220}if \(sub\.status === SIGNING_STATUS\) await Sync\.act\(sub\.id, 'approve'/.test(signingjs), true);
+check('a confirmed month is not offered for upload again',
+  !/Already filed/.test(signingjs) && !/uploadCard\(sub, true\)/.test(signingjs), true);
 check('and the newest copy is the one everybody reads',
   /sort\(newestFirst\)\[0\]/.test(archivejs) &&
   /latestCopies\(archive\)/.test(archivejs), true);
