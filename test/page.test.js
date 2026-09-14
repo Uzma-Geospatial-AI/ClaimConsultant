@@ -475,6 +475,13 @@ check('and every control in it is the same height',
   /\.archivefilter select\{[^}]*height:38px/.test(css), true);
 check('with each word left-aligned over its own picker',
   /\.archivefilter\{[^}]*align-items:flex-start/.test(css), true);
+/* The collect list is the finished copies and nothing else, so the picker
+   that offered to widen it offered a choice nobody made. */
+check('the collect list is finished copies, with no filter for it',
+  !/historyStage/.test(html + archivejs) &&
+  /stageOf\(r\) === ARCHIVE_FINAL\)/.test(archivejs), true);
+check('and the Who picker offers everybody, not only those who filed',
+  /const names = filingNames\(\)/.test(archivejs), true);
 check('and it is named for the person who gets them',
   /'Submit to ' \+ collectorShort\(\)/.test(signingjs) &&
   /finance: 'Jiha'/.test(authjs), true);

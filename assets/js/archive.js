@@ -199,10 +199,6 @@ function paintArchive () {
 
 let historyWho = '';
 let historyYear = '';
-/* Which copies the History step is listing. Finished by default: the ones
-   the PA put back after the signatures were on them, which is what anybody
-   asking for "September" actually means. */
-let historyStage = 'final';
 let downloading = false;
 
 async function renderHistory (force) {
@@ -255,8 +251,10 @@ function paintHistory () {
   if (!host) return;
 
   if (who) {
-    const names = [...new Set(archive.map(r => String(r.consultant || '').trim()))]
-      .filter(Boolean).sort();
+    /* Everybody, not only those who have filed something. Narrowing to a
+       person who has sent nothing is a fair question — the answer is the
+       line of "Not available" that says so. */
+    const names = filingNames();
     fillSelect(who, 'everybody', names, names.map(n => n));
     who.value = names.indexOf(historyWho) >= 0 ? historyWho : '';
     historyWho = who.value;
@@ -269,12 +267,6 @@ function paintHistory () {
     year.value = years.map(String).indexOf(historyYear) >= 0 ? historyYear : '';
     historyYear = year.value;
     year.onchange = () => { historyYear = year.value; paintHistory(); };
-  }
-
-  const stage = document.getElementById('historyStage');
-  if (stage) {
-    stage.value = historyStage;
-    stage.onchange = () => { historyStage = stage.value; paintHistory(); };
   }
 
   const rows = historyRows();
@@ -319,8 +311,7 @@ function paintHistory () {
  * every machine. Anybody who has filed something is added even if their
  * profile has gone, because the record outlives the profile.
  */
-function collectorRoster () {
-  if (historyWho) return [historyWho];        // narrowed to one person already
+function filingNames () {
   const names = new Set();
   try {
     const all = Store.profiles();
@@ -329,13 +320,18 @@ function collectorRoster () {
       if (who && Auth.owns(mergeDefaults(all[n]))) names.add(who);
     });
   } catch (err) {
-    // no profiles on this machine yet: the table is what has been filed
+    // no profiles on this machine yet: the list is what has been filed
   }
   archive.forEach(r => {
     const who = String(r.consultant || '').trim();
     if (who) names.add(who);
   });
   return [...names].sort((a, b) => a.localeCompare(b));
+}
+
+/** the people the table draws a line for — one of them once it is narrowed */
+function collectorRoster () {
+  return historyWho ? [historyWho] : filingNames();
 }
 
 /**
@@ -410,13 +406,13 @@ function historyTable (records, roster) {
 
         const description = document.createElement('span');
         description.className = 'history-document-meta';
-        /* A reviewed copy is worth saying, and so is a record old enough to
-           predate the two documents being told apart. Everything else on
-           this line is already in the column it sits under, and repeating
-           it is how a table stops being readable. */
+        /* A record old enough to predate the two documents being told apart
+           is worth saying. Everything else on this line is already in the
+           column it sits under, and repeating it is how a table stops being
+           readable — the list is finished copies only, so saying so under
+           every one of them says nothing. */
         description.textContent = [
           r.invoice_no || '',
-          stageOf(r) === ARCHIVE_FINAL ? '' : 'Reviewed copy',
           !r.kind ? 'Combined record' : '',
           (r.files || []).length > 1 ? `File ${index + 1}` : ''
         ].filter(Boolean).join(' \u00B7 ');
@@ -476,7 +472,12 @@ function historyRows () {
   return latestCopies(archive)
     .filter(r => !historyWho || String(r.consultant || '').trim() === historyWho)
     .filter(r => !historyYear || String(r.period_year) === historyYear)
-    .filter(r => historyStage !== 'final' || stageOf(r) === ARCHIVE_FINAL)
+    /* The finished copies, and only those: the ones the PA put back with the
+       signatures on them, which is what anybody asking for "September"
+       means. The project manager's reviewed copy is evidence that a claim
+       was read on the way through, not a document to collect — it is still
+       on the Status step, against the month it belongs to. */
+    .filter(r => stageOf(r) === ARCHIVE_FINAL)
     .slice()
     .sort((a, b) =>
       (b.period_year - a.period_year) || (b.period_month - a.period_month) ||
