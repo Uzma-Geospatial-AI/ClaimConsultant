@@ -303,11 +303,47 @@ function paintHistory () {
     if (!months.has(key)) months.set(key, []);
     months.get(key).push(r);
   });
-  months.forEach(records => host.appendChild(historyTable(records)));
+  const roster = collectorRoster();
+  months.forEach(records => host.appendChild(historyTable(records, roster)));
 }
 
-/** Keep the two document types together for each person in a month. */
-function historyTable (records) {
+/**
+ * Everybody who could have a document in a month, not only those who do.
+ *
+ * A list of what has arrived answers half the question. Whoever collects the
+ * paper is chasing what has not, and a person who has handed in nothing is
+ * invisible in a table built only from what was handed in — which is the one
+ * person they needed to see.
+ *
+ * The profiles are shared through BDOS, so this is the same set of people on
+ * every machine. Anybody who has filed something is added even if their
+ * profile has gone, because the record outlives the profile.
+ */
+function collectorRoster () {
+  if (historyWho) return [historyWho];        // narrowed to one person already
+  const names = new Set();
+  try {
+    const all = Store.profiles();
+    Object.keys(all).forEach(n => {
+      const who = String(n).trim();
+      if (who && Auth.owns(mergeDefaults(all[n]))) names.add(who);
+    });
+  } catch (err) {
+    // no profiles on this machine yet: the table is what has been filed
+  }
+  archive.forEach(r => {
+    const who = String(r.consultant || '').trim();
+    if (who) names.add(who);
+  });
+  return [...names].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Keep the two document types together for each person in a month.
+ * @param {string[]} [roster] everybody to list, whether or not they have
+ *        filed anything — the ones who have not are the point of the list
+ */
+function historyTable (records, roster) {
   const wrap = document.createElement('div');
   wrap.className = 'history-table-wrap';
   wrap.tabIndex = 0;
@@ -332,12 +368,19 @@ function historyTable (records) {
   table.appendChild(head);
   const body = document.createElement('tbody');
   const people = new Map();
+  // everybody first, so somebody who has filed nothing still has a line
+  (roster || []).forEach(name => people.set(name, []));
   records.forEach(r => {
     const name = String(r.consultant || '').trim() || '(no name)';
     if (!people.has(name)) people.set(name, []);
     people.get(name).push(r);
   });
-  people.forEach((copies, name) => {
+  /* A Map keeps the order things were put into it, and re-setting a key it
+     already has does not move it — so the order is made here rather than
+     there. Alphabetical, which is how anybody looks for a name in a list. */
+  [...people.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .forEach(([name, copies]) => {
     const row = document.createElement('tr');
     const person = document.createElement('th');
     person.scope = 'row';
@@ -402,6 +445,7 @@ function historyTable (records) {
     body.appendChild(row);
   });
   table.appendChild(body);
+
   wrap.appendChild(table);
   return wrap;
 }

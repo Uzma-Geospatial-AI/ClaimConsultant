@@ -22,6 +22,13 @@ const ctx = vm.createContext({
 vm.runInContext(fs.readFileSync('assets/js/archive.js','utf8'),ctx);
 const record = {id:1,consultant:'Person <A>',period_month:1,period_year:2026,kind:'claim',files:[{name:'signed.pdf'}]};
 const wrap = ctx.historyTable([record,{...record,id:2,kind:'invoice'}]);
+// everybody on the roster gets a line, even with nothing filed
+const full = ctx.historyTable([record],['Zulkifli','Person <A>']);
+const fullBody = full.children[0].children[2];
+assert.equal(fullBody.children.length,2);
+assert.equal(fullBody.children[0].children[0].textContent,'Person <A>');
+assert.equal(fullBody.children[1].children[0].textContent,'Zulkifli');
+assert.equal(fullBody.children[1].children[1].children[0].textContent,'Not available');
 const body = wrap.children[0].children[2];
 assert.equal(body.children.length,1);
 assert.equal(body.children[0].children.length,3);

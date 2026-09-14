@@ -443,6 +443,12 @@ check('and each still carries the word for it',
 check('the profile controls belong to whoever prepares claims',
   /if \(box\) box\.hidden = !canPrepare/.test(appjs) &&
   /if \(reset\) reset\.hidden = !canPrepare/.test(appjs), true);
+/* A list of what has arrived answers half the question. Whoever collects
+   the paper is chasing what has not, and somebody who has handed in nothing
+   is invisible in a table built only from what was handed in. */
+check('the collect table lists everybody, not only those who filed',
+  /function collectorRoster/.test(archivejs) &&
+  /\(roster \|\| \[\]\)\.forEach\(name => people\.set\(name, \[\]\)\)/.test(archivejs), true);
 check('and it is named for the person who gets them',
   /'Submit to ' \+ collectorShort\(\)/.test(signingjs) &&
   /finance: 'Jiha'/.test(authjs), true);
