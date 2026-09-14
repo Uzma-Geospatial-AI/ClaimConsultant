@@ -354,21 +354,24 @@ function historyTable (records) {
         item.className = 'history-document';
         const description = document.createElement('span');
         description.className = 'history-document-meta';
-        description.textContent = [r.invoice_no,
-          stageOf(r) === ARCHIVE_FINAL ? 'Final copy' : 'Reviewed copy',
+        /* A reviewed copy is worth saying, and so is a record old enough to
+           predate the two documents being told apart. Everything else on
+           this line is already in the column it sits under, and repeating
+           it is how a table stops being readable. */
+        description.textContent = [
+          r.invoice_no || '',
+          stageOf(r) === ARCHIVE_FINAL ? '' : 'Reviewed copy',
           !r.kind ? 'Combined record' : '',
-          (r.files || []).length > 1 ? `File ${index + 1}` : ''].filter(Boolean).join(' ? ');
-        description.title = [f.name, r.note].filter(Boolean).join(' ? ');
+          (r.files || []).length > 1 ? `File ${index + 1}` : ''
+        ].filter(Boolean).join(' \u00B7 ');
+        description.title = [f.name, r.invoice_no, r.note].filter(Boolean).join(' \u00B7 ');
         const actions = document.createElement('div');
         actions.className = 'history-document-actions';
+        const what = `${kind === 'claim' ? 'time sheet' : 'invoice'} \u2014 ${name}`;
         ['view', 'download'].forEach(action => {
-          const label = `${action === 'view' ? 'View' : 'Download'} ${kind === 'claim' ? 'Time Sheet' : 'Invoice'} ? ${name} ? ${f.name || 'document'}`;
-          const control = button(action === 'view' ? '\u{1F441}\uFE0E' : '?', 'ghost small history-icon',
-            () => openHistoryFile(r, index, action, control));
-          control.type = 'button';
-          control.title = label;
-          control.setAttribute('aria-label', label);
-          actions.appendChild(control);
+          const label = (action === 'view' ? 'View the ' : 'Download the ') + what;
+          actions.appendChild(iconButton(action, label, 'ghost small history-icon',
+            control => openHistoryFile(r, index, action, control)));
         });
         item.appendChild(description);
         item.appendChild(actions);
@@ -377,7 +380,7 @@ function historyTable (records) {
       if (!fileCount) {
         const empty = document.createElement('span');
         empty.className = 'history-missing';
-        empty.textContent = 'Not available';
+        empty.textContent = 'Nothing on file';
         cell.appendChild(empty);
       }
       row.appendChild(cell);

@@ -1083,8 +1083,18 @@ textarea:focus{outline:2px solid #bcd6ea;border-color:var(--navy-soft)}
 .history-document+.history-document{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
 .history-document-meta{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
 .history-document-actions{display:flex;gap:8px}
-.history-icon{width:44px;height:44px;padding:0!important;font-size:23px!important;display:inline-grid;place-items:center}
-.history-missing{font-size:13px;color:var(--muted)}
+.history-missing{font-size:13px;color:var(--muted);font-style:italic}
+
+/* A button that is a drawing rather than a word. Square, big enough for a
+   thumb, and the drawing inside takes the colour of the button's text — so
+   it darkens on hover with everything else rather than staying flat. */
+.iconbtn{
+  width:38px;height:38px;min-height:38px;padding:0;
+  display:inline-grid;place-items:center;
+}
+.iconbtn svg{display:block;width:17px;height:17px}
+.iconbtn[disabled]{opacity:.5;cursor:progress}
+.history-icon{width:38px;height:38px}
 @media(max-width:700px){
   .history-table{min-width:520px}
   .history-table th,.history-table td{padding:12px}

@@ -74,3 +74,11 @@ jobs:
 
       - name: Test document generation (PDF / Excel / Word)
         run: node test/generate.test.js
+
+      # Added with the screens they cover, but never run — a test nothing
+      # runs is a comment that takes longer to write.
+      - name: Test the documents-to-collect table
+        run: node test/history.test.js
+
+      - name: Test who gets the profile controls
+        run: node test/profile-access.test.js

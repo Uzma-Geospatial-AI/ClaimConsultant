@@ -12,6 +12,9 @@ const ctx = vm.createContext({
   document: { createElement: tag => new Element(tag) },
   MONTHS: ['January'], Blob,
   button: (text, cls, handler) => Object.assign(new Element('button'), {textContent:text, className:cls, handler}),
+  // approvals.js draws these; archive.js only asks for one
+  iconButton: (name, label, cls, handler) => Object.assign(new Element('button'),
+    {icon:name, title:label, className:cls, handler}),
   Sync: { storedOne: async () => ({files:[{name:'signed.pdf',type:'application/pdf',content:'YQ=='}]}) },
   dataUrlToBytes: () => new Uint8Array([97]),
   openFilePreview: () => viewed++, saveAs: () => saved++, toast: () => errors++
@@ -24,7 +27,7 @@ assert.equal(body.children.length,1);
 assert.equal(body.children[0].children.length,3);
 assert.equal(body.children[0].children[0].textContent,'Person <A>');
 const missing = ctx.historyTable([record]).children[0].children[2].children[0].children[2];
-assert.equal(missing.children[0].textContent,'Not available');
+assert.equal(missing.children[0].textContent,'Nothing on file');
 (async()=>{
  const control = new Element('button');
  await ctx.openHistoryFile(record,0,'view',control);

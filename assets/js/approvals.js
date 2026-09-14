@@ -1082,6 +1082,75 @@ function button (label, cls, onClick) {
   return b;
 }
 
+/* -------------------------------------------------------------------
+   Icons
+
+   A button that does one obvious thing to one obvious file reads better
+   as a picture than as a word, and a row of them reads better still: two
+   words repeated down a column is noise, two shapes is a pattern.
+
+   Drawn rather than typed. An emoji is a font question — whichever font
+   the machine happens to have decides whether an eye is an eye or a
+   hollow box, and on the machine this was found on the download arrow
+   came out as a question mark. An inline SVG is the same drawing
+   everywhere, takes the colour of the text around it, and scales with it.
+
+   Every icon still travels with a word: `title` for the mouse and
+   `aria-label` for a screen reader, because a picture alone is a guess.
+   ------------------------------------------------------------------- */
+
+const ICON_PATHS = {
+  /* an eye — look at it without taking it away */
+  view: 'M1.7 8S4.5 3.2 8 3.2 14.3 8 14.3 8 11.5 12.8 8 12.8 1.7 8 1.7 8Z|M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z',
+  /* an arrow into a tray — take a copy away */
+  download: 'M8 2.6v6.9|M5.2 7.1 8 9.9l2.8-2.8|M2.8 11.4v1.1a1 1 0 0 0 1 1h8.4a1 1 0 0 0 1-1v-1.1'
+};
+
+/**
+ * One icon, as an inline SVG that inherits the text colour around it.
+ * @param {string} name  a key of ICON_PATHS
+ */
+function icon (name) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', '16');
+  svg.setAttribute('height', '16');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.5');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('focusable', 'false');
+  // the word beside it is what is read out; the drawing is decoration
+  svg.setAttribute('aria-hidden', 'true');
+  String(ICON_PATHS[name] || '').split('|').filter(Boolean).forEach(d => {
+    const path = document.createElementNS(NS, 'path');
+    path.setAttribute('d', d);
+    svg.appendChild(path);
+  });
+  return svg;
+}
+
+/**
+ * A button that is a picture, with the word it stands for kept where
+ * anybody who needs it can still get at it.
+ *
+ * @param {string} name   which icon
+ * @param {string} label  what it does, in words — the tooltip and the
+ *                        label a screen reader reads
+ * @param {function} onClick  handed the button itself, since one that is
+ *                        fetching something has to be able to disable it
+ */
+function iconButton (name, label, cls, onClick) {
+  const b = button('', 'iconbtn ' + (cls || ''), () => onClick(b));
+  b.type = 'button';
+  b.appendChild(icon(name));
+  b.title = label;
+  b.setAttribute('aria-label', label);
+  return b;
+}
+
 /** rebuild the document exactly as it was submitted, and show it */
 async function reviewSubmission (id) {
   try {

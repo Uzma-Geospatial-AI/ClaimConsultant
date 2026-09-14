@@ -429,6 +429,20 @@ check('one Submit at the bottom sends them',
   /go\.disabled = !ready/.test(signingjs), true);
 /* The button says the name the office uses; the sentence above it says the
    whole name, for whoever does not know who that is. */
+/* A button that is a drawing must be drawn, not typed. Whichever font the
+   machine has decides what an emoji looks like, and on one of them the
+   download arrow came out as a question mark. */
+check('the view and download buttons are drawn, not typed',
+  /function icon \(name\)/.test(approvals) &&
+  /createElementNS/.test(approvals) &&
+  !/\u\{1F441\}/.test(archivejs), true);
+check('and each still carries the word for it',
+  /b\.setAttribute\('aria-label', label\)/.test(approvals), true);
+/* Nobody who cannot prepare a claim has a profile to pick or saved data of
+   their own to erase, so neither control is drawn for them. */
+check('the profile controls belong to whoever prepares claims',
+  /if \(box\) box\.hidden = !canPrepare/.test(appjs) &&
+  /if \(reset\) reset\.hidden = !canPrepare/.test(appjs), true);
 check('and it is named for the person who gets them',
   /'Submit to ' \+ collectorShort\(\)/.test(signingjs) &&
   /finance: 'Jiha'/.test(authjs), true);
