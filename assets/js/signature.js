@@ -394,7 +394,32 @@ async function cropToSignature (canvas, box) {
  * @param {function} onChange   called whenever the signature changes
  */
 function mountProfileSignature (host, S, onChange) {
+  return mountSignaturePicker(host, {
+    get: () => S.sig && S.sig.personnel,
+    set: url => { S.sig.personnel = url; },
+    refresh: () => Sig.refresh(),
+    drawKey: 'personnel'
+  }, onChange);
+}
+
+/**
+ * The same block, keeping its signature wherever it is told to.
+ *
+ * Signing is one act wherever it happens, so it is one control: the Profile
+ * step, and an approver putting their name to a sheet, both show what is
+ * on record, offer to draw it or read it off a scan, and put a scanned page
+ * through the same box-over-the-ink and preview before anything is kept.
+ * An approver was getting a bare canvas and an image picker instead, which
+ * could not read a PDF and kept a whole photographed page as a signature.
+ *
+ * @param {Element}  host
+ * @param {object}   store     { get(), set(url), refresh?(), drawKey? } —
+ *        drawKey binds drawing to a form pad; without it the pad is loose
+ * @param {function} onChange  called whenever the signature changes
+ */
+function mountSignaturePicker (host, store, onChange) {
   if (!host) return;
+  onChange = onChange || (() => {});
   disposeSignatureCropper(host.querySelector('.sigcrop'));
   host.innerHTML = `
     <div class="sigshow">
@@ -418,10 +443,11 @@ function mountProfileSignature (host, S, onChange) {
   let uploadVersion = 0;
 
   const paintCurrent = () => {
-    const have = !!(S.sig && S.sig.personnel);
+    const current = store.get();
+    const have = !!current;
     img.hidden = !have;
     none.hidden = have;
-    if (have) img.src = S.sig.personnel;
+    if (have) img.src = current;
     host.classList.toggle('has', have);
   };
 
@@ -431,8 +457,12 @@ function mountProfileSignature (host, S, onChange) {
     crop.hidden = true;
     draw.hidden = !draw.hidden;
     if (!draw.hidden) {
-      Sig.mount(draw, 'personnel');
-      setTimeout(() => Sig.resizeAll(), 30);
+      if (store.drawKey) {
+        Sig.mount(draw, store.drawKey);
+        setTimeout(() => Sig.resizeAll(), 30);
+      } else {
+        mountLoosePad(draw, url => { store.set(url); paintCurrent(); onChange(); });
+      }
     }
   });
 
@@ -440,10 +470,10 @@ function mountProfileSignature (host, S, onChange) {
   host.querySelector('[data-a="clear"]').addEventListener('click', () => {
     uploadVersion++;
     disposeSignatureCropper(crop);
-    S.sig.personnel = '';
+    store.set('');
     draw.hidden = true;
     crop.hidden = true;
-    Sig.refresh();
+    if (store.refresh) store.refresh();
     paintCurrent();
     onChange();
   });
@@ -460,7 +490,9 @@ function mountProfileSignature (host, S, onChange) {
     try {
       const canvas = await uploadToCanvas(f);
       if (version !== uploadVersion || !crop.isConnected || !host.contains(crop)) return;
-      buildCropper(crop, canvas, S, () => { paintCurrent(); onChange(); });
+      buildCropper(crop, canvas,
+        url => { store.set(url); if (store.refresh) store.refresh(); },
+        () => { paintCurrent(); onChange(); });
     } catch (err) {
       if (version !== uploadVersion || !crop.isConnected || !host.contains(crop)) return;
       crop.innerHTML = '';
@@ -482,7 +514,13 @@ function mountProfileSignature (host, S, onChange) {
  * The confirmation step: the page as it was read, a box over what looks like
  * the signature, and a preview of exactly what will be kept.
  */
-function buildCropper (host, canvas, S, done) {
+function buildCropper (host, canvas, target, done) {
+  /* A function is told what was chosen. A state object has its signature
+     written, which is what every caller did before the block learned to
+     keep its value elsewhere, and what the browser audit still does. */
+  const keep = typeof target === 'function'
+    ? target
+    : url => { target.sig.personnel = url; Sig.refresh(); };
   disposeSignatureCropper(host);
   const helpId = 'signatureCropHelp' + (++signatureCropId);
   const handles = {
@@ -675,10 +713,9 @@ function buildCropper (host, canvas, S, done) {
 
   listen(use, 'click', () => {
     if (!pending || use.disabled || gesture) return;
-    S.sig.personnel = pending;
+    keep(pending);
     cleanup();
     host.hidden = true;
-    Sig.refresh();
     done();
   });
   listen(host.querySelector('[data-a="cancel"]'), 'click', () => {
@@ -694,4 +731,42 @@ function buildCropper (host, canvas, S, done) {
   showBox();
   listen(window, 'resize', showBox);
   refreshPreview();
+}
+
+/**
+ * A drawing pad bound to nothing but the callback it is given.
+ *
+ * The form's pads write into the claim's own state, which is right for the
+ * person filling it in and wrong for an approver, who is not.
+ */
+function mountLoosePad (container, onDrawn) {
+  container.innerHTML = `
+    <div class="sigslot">
+      <canvas role="img" aria-label="Draw your signature here"></canvas>
+      <div class="sigbtns"><button type="button" data-a="clear">Clear</button></div>
+      <span class="sighint">Draw here</span>
+    </div>`;
+  const canvas = container.querySelector('canvas');
+  const hint = container.querySelector('.sighint');
+  const pad = new SignaturePad(canvas, {
+    backgroundColor: 'rgba(255,255,255,0)', penColor: '#0b1f4b', minWidth: 0.6, maxWidth: 1.9
+  });
+  const fit = () => {
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width) return;
+    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+    canvas.width = rect.width * ratio;
+    canvas.height = rect.height * ratio;
+    canvas.getContext('2d').scale(ratio, ratio);
+    pad.clear();
+  };
+  setTimeout(fit, 30);
+  pad.addEventListener('endStroke', () => {
+    hint.textContent = '✓ Drawn';
+    onDrawn(pad.toDataURL('image/png'));
+  });
+  container.querySelector('[data-a="clear"]').addEventListener('click', () => {
+    pad.clear();
+    hint.textContent = 'Draw here';
+  });
 }

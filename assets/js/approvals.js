@@ -98,70 +98,6 @@ function workflowMessage (host, message, retry) {
   host.appendChild(box);
 }
 
-/* -------------------------------------------------------------------
-   A signature pad that belongs to nothing else
-
-   The pads in the form are bound to the form's own state. An approver is
-   not filling that form in, so this one stands alone: draw or upload, and
-   hand back a PNG when asked.
-   ------------------------------------------------------------------- */
-function makePad (host, initial) {
-  host.innerHTML = `
-    <div class="sigslot">
-      <canvas role="img" aria-label="Draw your signature here, or use Upload signature"></canvas>
-      <div class="sigbtns">
-        <button type="button" data-a="clear">Clear signature</button>
-        <button type="button" data-a="upload">Upload signature</button>
-        <input type="file" accept="image/*" aria-label="Upload a signature image" hidden>
-      </div>
-      <span class="sighint" role="status">Draw here, or upload an image</span>
-    </div>`;
-
-  const canvas = host.querySelector('canvas');
-  const hint = host.querySelector('.sighint');
-  const pad = new SignaturePad(canvas, {
-    backgroundColor: 'rgba(255,255,255,0)', penColor: '#0b1f4b',
-    minWidth: 0.6, maxWidth: 1.9
-  });
-  let uploaded = '';
-
-  const fit = () => {
-    const ratio = Math.max(window.devicePixelRatio || 1, 1);
-    const w = canvas.offsetWidth || 260, h = canvas.offsetHeight || 62;
-    canvas.width = w * ratio; canvas.height = h * ratio;
-    canvas.getContext('2d').scale(ratio, ratio);
-    pad.clear();
-  };
-  setTimeout(fit, 20);
-
-  const say = on => { hint.textContent = on ? '✓ Signed' : 'Draw here, or upload an image'; };
-
-  host.querySelector('[data-a="clear"]').addEventListener('click', () => {
-    pad.clear(); uploaded = ''; say(false);
-  });
-  const file = host.querySelector('input[type=file]');
-  host.querySelector('[data-a="upload"]').addEventListener('click', () => file.click());
-  file.addEventListener('change', () => {
-    const f = file.files && file.files[0];
-    if (!f) return;
-    const r = new FileReader();
-    r.onload = () => { uploaded = String(r.result || ''); pad.clear(); say(true); };
-    r.readAsDataURL(f);
-    file.value = '';
-  });
-  pad.addEventListener('endStroke', () => { uploaded = ''; say(true); });
-
-  if (initial) {
-    uploaded = initial;
-    say(true);
-  }
-
-  return {
-    value: () => uploaded || (pad.isEmpty() ? '' : pad.toDataURL('image/png')),
-    isEmpty: () => !uploaded && pad.isEmpty()
-  };
-}
-
 function myLastSignature () {
   try { return localStorage.getItem(LAST_SIG_KEY) || ''; } catch (e) { return ''; }
 }
@@ -849,11 +785,15 @@ function decideBox (sub) {
   let pad = null;
   if (signs) {
     const padHost = document.createElement('div');
-    padHost.className = 'decidepad';
+    padHost.className = 'decidepad sigprofile';
     box.appendChild(padHost);
-    // an approver signs the same way every month; theirs is remembered on
-    // this machine so it does not have to be drawn again each time
-    pad = makePad(padHost, myLastSignature());
+    /* The same control the Profile step uses: what is on record, then draw
+       it or read it off a scan, with the box over the ink and a preview
+       before anything is kept. An approver signs the same way every month,
+       so theirs is remembered on this machine and shown already chosen. */
+    let chosen = myLastSignature();
+    mountSignaturePicker(padHost, { get: () => chosen, set: url => { chosen = url; } });
+    pad = { value: () => chosen, isEmpty: () => !chosen };
   }
 
   /* Signing happens two ways, and both are real. In the app, where the

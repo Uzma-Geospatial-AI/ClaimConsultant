@@ -439,7 +439,8 @@ label.check input{width:auto}
   display:flex;flex-direction:column;gap:10px;
 }
 .decidehead{margin:0;font-weight:700;font-size:13px}
-.decidepad{max-width:300px}
+/* wide enough for a scanned page and the box over its ink */
+.decidepad{max-width:560px}
 .decidepad .sigslot canvas{height:70px}
 .decidenote{
   width:100%;font-family:inherit;font-size:13px;padding:8px 10px;

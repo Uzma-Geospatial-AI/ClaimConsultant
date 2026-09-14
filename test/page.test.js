@@ -331,7 +331,7 @@ check('a scan can be a PDF',
   /accept="\.pdf/.test(sigjs) && /pdfjsLib\.getDocument/.test(sigjs), true);
 check('the ink on the page is found for you', /function detectInkBox/.test(sigjs), true);
 check('and shown back before it is kept',
-  /Use this signature/.test(sigjs) && /S\.sig\.personnel = pending/.test(sigjs), true);
+  /Use this signature/.test(sigjs) && /keep\(pending\)/.test(sigjs), true);
 // pdf.js is a third of a megabyte and is used once per person, while the
 // approvers — the ones most likely to be on a phone — never touch it
 check('the PDF reader is fetched only when it is needed',
@@ -525,6 +525,17 @@ check('and the lookup is bounded, like every other one',
   /want\.slice\(0, KIND_LOOKUP_MAX\)/.test(signingjs), true);
 check('each row can be read and taken away',
   /function viewStored/.test(signingjs) && /function saveStored/.test(signingjs), true);
+/* Signing is one act wherever it happens, so it is one control. An approver
+   was given a bare canvas and an image picker that could not read a PDF and
+   kept a whole photographed page as a signature. */
+check('the approval panel signs with the Profile control',
+  /mountSignaturePicker\(padHost/.test(approvals) && !/function makePad/.test(approvals), true);
+check('and Profile is that same control, keeping its value in the form',
+  /function mountProfileSignature[\s\S]{0,80}return mountSignaturePicker\(/.test(sigjs), true);
+check('a scan still goes through the box over the ink before it is kept',
+  /buildCropper\(crop, canvas,\s*url => \{ store\.set\(url\)/.test(sigjs), true);
+check('and the older way of calling the cropper still writes the form',
+  /typeof target === 'function'[\s\S]{0,80}target\.sig\.personnel = url/.test(sigjs), true);
 check('and it is named for the person who gets them',
   /'Submit to ' \+ collectorShort\(\)/.test(signingjs) &&
   /finance: 'Jiha'/.test(authjs), true);
