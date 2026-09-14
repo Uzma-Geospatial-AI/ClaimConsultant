@@ -43,6 +43,31 @@ jobs:
         with:
           path: .
 
+      # Pages refuses a new deployment while it still holds the one before,
+      # and it can hold one for minutes after the run that made it has gone
+      # green — "Please cancel <sha> first or wait for it to complete". The
+      # queue above stops two of our own runs overlapping; it cannot help
+      # with a deployment the Pages service has not let go of yet. So the
+      # deploy waits and asks again rather than failing the push.
       - name: Deploy
         id: deployment
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      - name: Wait for the one before to clear
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 120
+
+      - name: Deploy, second attempt
+        id: deployment2
+        if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      - name: Wait longer
+        if: steps.deployment.outcome == 'failure' && steps.deployment2.outcome == 'failure'
+        run: sleep 300
+
+      - name: Deploy, last attempt
+        if: steps.deployment.outcome == 'failure' && steps.deployment2.outcome == 'failure'
         uses: actions/deploy-pages@v4
