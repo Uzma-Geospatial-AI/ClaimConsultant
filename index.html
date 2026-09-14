@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Consultant Claim System</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20260914s">
+<link rel="stylesheet" href="assets/css/style.css?v=20260914t">
 </head>
 <body class="locked">
 <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -489,6 +489,17 @@
   <div id="signDownloadList" class="archive"></div>
 </section>
 
+<section class="panel" id="p-filed" data-step="filed">
+  <h2>What has gone through</h2>
+  <p class="lead">Every signed time sheet sent on from here, newest first, with the leave
+    that month carried. The leave is read off the sheet the copy was filed against, so it is
+    the sheet's own answer rather than anybody's note of it.</p>
+  <div class="btnrow">
+    <button class="btn ghost small" id="btnRefreshFiled">Refresh</button>
+  </div>
+  <div id="filedList" class="archive"></div>
+</section>
+
 <section class="panel" id="p-toupload" data-step="toupload">
   <h2>Upload the signed copy</h2>
   <p class="lead">Put the signed time sheet on its card, then look at it. Nothing is sent
@@ -537,28 +548,28 @@
      fetches the page again but keeps the old JavaScript for up to ten minutes
      — which reads as "the fix did not work". Bump this stamp whenever
      anything under assets/ changes and a reload picks it all up at once. -->
-<script src="vendor/jspdf.umd.min.js?v=20260914s"></script>
-<script src="vendor/jspdf.plugin.autotable.min.js?v=20260914s"></script>
-<script src="vendor/carlito.js?v=20260914s"></script>
-<script src="vendor/exceljs.min.js?v=20260914s"></script>
-<script src="vendor/FileSaver.min.js?v=20260914s"></script>
-<script src="vendor/signature_pad.umd.min.js?v=20260914s"></script>
-<script src="vendor/docx.umd.js?v=20260914s"></script>
-<script src="assets/js/state.js?v=20260914s"></script>
-<script src="assets/js/holidays.js?v=20260914s"></script>
-<script src="assets/js/logo.js?v=20260914s"></script>
-<script src="assets/js/timesheet.js?v=20260914s"></script>
-<script src="assets/js/signature.js?v=20260914s"></script>
-<script src="assets/js/gen-invoice.js?v=20260914s"></script>
-<script src="assets/js/gen-claim.js?v=20260914s"></script>
-<script src="assets/js/preview.js?v=20260914s"></script>
-<script src="assets/js/auth.js?v=20260914s"></script>
-<script src="assets/js/sync.js?v=20260914s"></script>
-<script src="assets/js/zip.js?v=20260914s"></script>
-<script src="assets/js/approvals.js?v=20260914s"></script>
-<script src="assets/js/archive.js?v=20260914s"></script>
-<script src="assets/js/resubmit.js?v=20260914s"></script>
-<script src="assets/js/signing.js?v=20260914s"></script>
-<script src="assets/js/app.js?v=20260914s"></script>
+<script src="vendor/jspdf.umd.min.js?v=20260914t"></script>
+<script src="vendor/jspdf.plugin.autotable.min.js?v=20260914t"></script>
+<script src="vendor/carlito.js?v=20260914t"></script>
+<script src="vendor/exceljs.min.js?v=20260914t"></script>
+<script src="vendor/FileSaver.min.js?v=20260914t"></script>
+<script src="vendor/signature_pad.umd.min.js?v=20260914t"></script>
+<script src="vendor/docx.umd.js?v=20260914t"></script>
+<script src="assets/js/state.js?v=20260914t"></script>
+<script src="assets/js/holidays.js?v=20260914t"></script>
+<script src="assets/js/logo.js?v=20260914t"></script>
+<script src="assets/js/timesheet.js?v=20260914t"></script>
+<script src="assets/js/signature.js?v=20260914t"></script>
+<script src="assets/js/gen-invoice.js?v=20260914t"></script>
+<script src="assets/js/gen-claim.js?v=20260914t"></script>
+<script src="assets/js/preview.js?v=20260914t"></script>
+<script src="assets/js/auth.js?v=20260914t"></script>
+<script src="assets/js/sync.js?v=20260914t"></script>
+<script src="assets/js/zip.js?v=20260914t"></script>
+<script src="assets/js/approvals.js?v=20260914t"></script>
+<script src="assets/js/archive.js?v=20260914t"></script>
+<script src="assets/js/resubmit.js?v=20260914t"></script>
+<script src="assets/js/signing.js?v=20260914t"></script>
+<script src="assets/js/app.js?v=20260914t"></script>
 </body>
 </html>

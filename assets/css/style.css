@@ -1109,6 +1109,11 @@ textarea:focus{outline:2px solid #bcd6ea;border-color:var(--navy-soft)}
 .history-table th,.history-table td{padding:16px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
 .history-table thead th{background:#eef3f7;font-size:13px;color:var(--navy)}
 .history-table th:first-child{width:34%}
+/* four columns of their own widths: the month is short, the copy is not */
+.filedtable th:first-child{width:16%}
+.filedtable th:nth-child(2){width:28%}
+.filedtable th:nth-child(3){width:18%}
+.filedtable td:nth-child(3){white-space:nowrap}
 .history-table tbody th{font-size:14px;font-weight:600;overflow-wrap:anywhere}
 .history-table tbody tr:last-child>*{border-bottom:0}
 .history-table tbody tr:hover{background:#fafcfd}

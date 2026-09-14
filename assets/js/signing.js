@@ -469,3 +469,219 @@ async function submitSigned (go) {
     !!failed.length);
   await renderSignUpload();
 }
+
+/* -------------------------------------------------------------------
+   Filed — what this account has sent on
+
+   Download and Upload are the job in front of you. This is the job
+   behind: every signed time sheet that has gone through here, a row
+   each, so somebody asked "did September go?" can answer without
+   opening a queue that no longer holds it.
+
+   It carries the leave as well. A signed sheet is the month's evidence,
+   and the first thing anybody asks about a month after it is closed is
+   how many days of it were not worked. That answer is inside the form
+   the copy was filed against, so it is read from there rather than
+   typed anywhere: nobody can get it wrong, and nobody has to.
+   ------------------------------------------------------------------- */
+
+const leaveByMonth = new Map();      // submission id → { pto, mc, ul } | null
+
+/** the submission a filed copy belongs to, so its form can be read */
+function submissionForRecord (r) {
+  const who = String(r.consultant || '').trim();
+  return signingSubs.filter(s =>
+    String(s.consultant || '').trim() === who &&
+    Number(s.period_year) === Number(r.period_year) &&
+    Number(s.period_month) === Number(r.period_month) &&
+    kindOf(s) === 'claim')[0] || null;
+}
+
+/**
+ * Read the leave off the forms these copies were filed against.
+ *
+ * One request each, so it is bounded the way the status table bounds its
+ * own lookups — a year of history must not turn opening a tab into a
+ * download. A month that was not read says so rather than saying zero.
+ */
+async function learnLeave (ids) {
+  const want = [...new Set(ids.filter(id => id && !leaveByMonth.has(id)))];
+  await Promise.all(want.slice(0, KIND_LOOKUP_MAX).map(async id => {
+    try {
+      const full = await Sync.submission(id);
+      const state = mergeDefaults((full && full.data) || {});
+      leaveByMonth.set(id, monthLeaveCounts(state.timesheet));
+    } catch (err) {
+      leaveByMonth.set(id, null);
+    }
+  }));
+}
+
+/** the leave of one month, said in words — '' when it was never read */
+function leaveWords (counts) {
+  if (!counts) return '';
+  const said = LEAVE_KINDS
+    .map(mark => ({ mark: mark, days: Number(counts[LEAVE_KEYS[mark]]) || 0 }))
+    .filter(x => x.days > 0)
+    .map(x => `${x.days} ${x.mark}`);
+  return said.length ? said.join(' · ') : 'None';
+}
+
+/** the copies this account filed — everything, for the account that stands in */
+function filedRecords () {
+  const mine = myEmail();
+  return latestCopies(archive)
+    .filter(r => (r.kind || 'claim') === 'claim' && stageOf(r) === ARCHIVE_FINAL)
+    .filter(r => Auth.isAdmin() ||
+                 String(r.created_by || '').toLowerCase() === mine)
+    .sort((a, b) => (b.period_year - a.period_year) ||
+                    (b.period_month - a.period_month) ||
+                    String(a.consultant || '').localeCompare(String(b.consultant || '')));
+}
+
+async function renderFiled () {
+  const host = document.getElementById('filedList');
+  if (!host) return;
+  if (!(await loadSigning(host))) return;
+  await learnSigningKinds();
+
+  if (!Sync.archiveOn) {
+    host.innerHTML =
+      '<p class="emptynote"><b>The archive is not switched on yet.</b> ' +
+      'BDOS has not shipped the storage for signed copies — see ' +
+      'docs/BDOS-CCS-Endpoints.md.</p>';
+    return;
+  }
+
+  const rows = filedRecords();
+  if (!rows.length) {
+    host.innerHTML = '<p class="emptynote">Nothing has gone through here yet. ' +
+      'A signed time sheet appears in this list once it is submitted on the Upload page.</p>';
+    return;
+  }
+
+  host.innerHTML = '<p class="emptynote">Reading the sheets…</p>';
+  const pairs = rows.map(r => ({ rec: r, sub: submissionForRecord(r) }));
+  await learnLeave(pairs.map(p => p.sub && p.sub.id));
+
+  host.innerHTML = '';
+  const count = document.createElement('p');
+  count.className = 'historycount';
+  count.textContent = `${rows.length} month${rows.length > 1 ? 's' : ''} sent on.`;
+  host.appendChild(count);
+  host.appendChild(filedTable(pairs));
+}
+
+function filedTable (pairs) {
+  const wrap = document.createElement('div');
+  wrap.className = 'history-table-wrap';
+  wrap.tabIndex = 0;
+  wrap.setAttribute('role', 'region');
+  wrap.setAttribute('aria-label', 'Time sheets sent on');
+
+  const table = document.createElement('table');
+  table.className = 'history-table filedtable';
+
+  const head = document.createElement('thead');
+  const titles = document.createElement('tr');
+  ['Month', 'Consultant', 'Leave that month', 'Signed copy'].forEach(label => {
+    const cell = document.createElement('th');
+    cell.scope = 'col';
+    cell.textContent = label;
+    titles.appendChild(cell);
+  });
+  head.appendChild(titles);
+  table.appendChild(head);
+
+  const body = document.createElement('tbody');
+  pairs.forEach(({ rec, sub }) => {
+    const row = document.createElement('tr');
+
+    const when = document.createElement('th');
+    when.scope = 'row';
+    const m = Number(rec.period_month) || 0;
+    when.textContent = `${MONTHS[Math.max(0, m - 1)]} ${rec.period_year || ''}`.trim();
+    row.appendChild(when);
+
+    const who = document.createElement('td');
+    who.textContent = String(rec.consultant || '').trim() || '(no name)';
+    row.appendChild(who);
+
+    const leave = document.createElement('td');
+    const words = leaveWords(sub ? leaveByMonth.get(sub.id) : null);
+    if (words) {
+      leave.textContent = words;
+      if (words === 'None') leave.className = 'history-missing';
+    } else {
+      leave.className = 'history-missing';
+      leave.textContent = 'Not read';
+      leave.title = 'The sheet this copy was filed against could not be read.';
+    }
+    row.appendChild(leave);
+
+    const copy = document.createElement('td');
+    const item = document.createElement('div');
+    item.className = 'history-document';
+    const words2 = document.createElement('div');
+    words2.className = 'history-document-words';
+    const name = document.createElement('span');
+    name.className = 'history-document-name';
+    name.textContent = (rec.files || [])[0] && rec.files[0].name || 'Signed time sheet';
+    words2.appendChild(name);
+    const meta = document.createElement('span');
+    meta.className = 'history-document-meta';
+    meta.textContent = [rec.invoice_no || '',
+      rec.created_at ? 'sent ' + new Date(rec.created_at).toLocaleDateString() : '']
+      .filter(Boolean).join(' · ');
+    words2.appendChild(meta);
+    item.appendChild(words2);
+
+    const acts = document.createElement('div');
+    acts.className = 'history-document-actions';
+    const label = `${rec.consultant || ''} — ${when.textContent}`;
+    acts.appendChild(iconButton('view', 'View the signed copy for ' + label,
+      'ghost small history-icon', () => viewStored(rec, when.textContent)));
+    acts.appendChild(iconButton('download', 'Download the signed copy for ' + label,
+      'ghost small history-icon', control => saveStored(rec, control)));
+    item.appendChild(acts);
+    copy.appendChild(item);
+    row.appendChild(copy);
+
+    body.appendChild(row);
+  });
+  table.appendChild(body);
+  wrap.appendChild(table);
+  return wrap;
+}
+
+/** open the filed copy in the viewer the claims use */
+async function viewStored (rec, label) {
+  try {
+    const full = await Sync.storedOne(rec.id);
+    const f = full && (full.files || [])[0];
+    if (!f || !f.content) { toast('That file is not on the record.', true); return; }
+    const type = f.type || 'application/pdf';
+    const bytes = dataUrlToBytes('data:' + type + ';base64,' + f.content);
+    openFilePreview(`${rec.consultant || ''} — ${label}`,
+                    f.name || 'signed.pdf', new Blob([bytes], { type: type }));
+  } catch (err) {
+    toast(err.message || 'Could not open that file.', true);
+  }
+}
+
+/** and save a copy of it */
+async function saveStored (rec, control) {
+  if (control) control.disabled = true;
+  try {
+    const full = await Sync.storedOne(rec.id);
+    const f = full && (full.files || [])[0];
+    if (!f || !f.content) { toast('That file is not on the record.', true); return; }
+    const type = f.type || 'application/octet-stream';
+    const bytes = dataUrlToBytes('data:' + type + ';base64,' + f.content);
+    saveAs(new Blob([bytes], { type: type }), archiveFileName(rec, f));
+  } catch (err) {
+    toast(err.message || 'Could not fetch that file.', true);
+  } finally {
+    if (control) control.disabled = false;
+  }
+}

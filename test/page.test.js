@@ -253,7 +253,7 @@ check('and approving is a capability too',
 // asked an administrator opening the app to see whether Amila had sent
 // September to choose a document they were never going to produce.
 check('a reporting step is not gated behind the form',
-  /const INFO_STEPS = \['approvals', 'history', 'resubmit', 'todownload', 'toupload'\]/.test(appjs) &&
+  /const INFO_STEPS = \['approvals', 'history', 'resubmit', 'todownload', 'toupload', 'filed'\]/.test(appjs) &&
   /!skipGuard && !reporting/.test(appjs), true);
 check('the stage headings name who does the stage',
   /Auth\.personFor\(st\.who\)/.test(approvals), true);
@@ -512,6 +512,19 @@ check('the status table has no waiting-on-me filter',
   !/onlyMine|statustoggle/.test(approvals + css + html), true);
 check('and it still says what is waiting, in words',
   /Nothing is waiting on you\./.test(approvals), true);
+/* Download and Upload are the job in front; this is the job behind. A
+   signed sheet is a month's evidence, and the question asked about a closed
+   month is how many days of it were not worked — which is inside the form
+   the copy was filed against, not in anybody's note of it. */
+check('the PA has a record of what went through',
+  /id="p-filed"/.test(html) && /id: 'filed',[^}]*view: true/.test(appjs), true);
+check('it is a table, with the leave read off the sheet',
+  /function filedTable/.test(signingjs) &&
+  /monthLeaveCounts\(state\.timesheet\)/.test(signingjs), true);
+check('and the lookup is bounded, like every other one',
+  /want\.slice\(0, KIND_LOOKUP_MAX\)/.test(signingjs), true);
+check('each row can be read and taken away',
+  /function viewStored/.test(signingjs) && /function saveStored/.test(signingjs), true);
 check('and it is named for the person who gets them',
   /'Submit to ' \+ collectorShort\(\)/.test(signingjs) &&
   /finance: 'Jiha'/.test(authjs), true);
