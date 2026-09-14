@@ -455,6 +455,15 @@ check('the collect table lists everybody, not only those who filed',
    supposed to have is not a decision worth putting on a form. */
 check('the invoice prints the consultant signature without being asked',
   !/showSig/.test(html + statejs + geninvoice), true);
+/* "Not connected" is true of an expired session, an account BDOS will not
+   let into the claim system, missing routes and a dead network, and useful
+   about none of them. The status code already knows which. */
+check('the offline note says why, not just that',
+  /function whyNot/.test(syncjs) &&
+  /code === 401/.test(syncjs) && /code === 403/.test(syncjs) &&
+  /code === 404/.test(syncjs), true);
+check('and the screens show that reason',
+  /syncProblem \? syncProblem/.test(syncjs), true);
 check('and it is named for the person who gets them',
   /'Submit to ' \+ collectorShort\(\)/.test(signingjs) &&
   /finance: 'Jiha'/.test(authjs), true);

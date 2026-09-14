@@ -23,6 +23,7 @@ const PUSH_DELAY  = 5000;              // draft pushes are lazy, not per-keystro
 let syncOn      = false;               // did the probe find the endpoints?
 let probing     = false;               // is the probe still out?
 let probed      = false;               // has it even been sent yet?
+let syncProblem = '';                  // why the probe failed, in words
 let pushTimer   = null;
 let pushing     = false;
 let pendingPush = null;
@@ -461,9 +462,14 @@ async function initSync (S, adopt) {
   probing = true;
   try {
     draft = await pullDraft();
+    syncProblem = '';
   } catch (err) {
-    // Not deployed yet, not permitted, or unreachable — all the same to us.
-    console.info('CCS sync unavailable; working from this browser only.');
+    /* "Not connected" is true of all of these and useful about none of them.
+       Somebody staring at that sentence has to know whether to sign in
+       again, ring whoever runs BDOS, or wait — and the status code already
+       says which. */
+    syncProblem = whyNot(err);
+    console.info('CCS sync unavailable: ' + syncProblem);
     return result;
   } finally {
     probing = false;
@@ -510,6 +516,33 @@ async function initSync (S, adopt) {
   return result;
 }
 
+/**
+ * What the probe's failure means, said to whoever is looking at the screen.
+ *
+ * The three that matter are three different jobs. A 401 is this browser's
+ * session, and signing in again fixes it. A 403 is the account: BDOS let
+ * them in but this part of it is not theirs, which is what an address that
+ * has not been added to CCS_ROLES looks like from here. A 404 is BDOS
+ * itself, missing the routes.
+ */
+function whyNot (err) {
+  const code = err && err.status;
+  if (code === 401) {
+    return 'Your session has run out. Sign out and sign in again.';
+  }
+  if (code === 403) {
+    return 'BDOS knows this account but will not let it into the claim system. ' +
+           'The address has to be in CCS_ROLES there — see docs/BDOS-CCS-Endpoints.md.';
+  }
+  if (code === 404) {
+    return 'BDOS has not shipped the claim endpoints yet — see docs/BDOS-CCS-Endpoints.md.';
+  }
+  if (code) {
+    return 'BDOS answered ' + code + '. Nothing here can fix that; whoever runs it can.';
+  }
+  return 'This browser could not reach BDOS at all. Check the connection, then press Refresh.';
+}
+
 /** Forget this browser's sync bookkeeping (used by Reset All). */
 function forgetSync () {
   try { localStorage.removeItem(SYNCED_KEY); } catch (e) {}
@@ -552,10 +585,15 @@ const Sync = {
       !(typeof navigator !== 'undefined' && navigator.onLine === false);
   },
   /** what a screen that needs the database says while it has none */
+  /** why the probe failed, in words — '' before it has run or when it worked */
+  get problem () { return syncProblem; },
   offlineNote (what) {
-    return this.connecting
-      ? '<p class="emptynote">Connecting to the database…</p>'
-      : '<p class="emptynote"><b>Not connected to the database.</b> ' + what + '</p>';
+    if (this.connecting) return '<p class="emptynote">Connecting to the database…</p>';
+    /* The reason first, because it is the actionable half. What the screen
+       in particular loses comes after it. */
+    return '<p class="emptynote"><b>Not connected to the database.</b> ' +
+      // every one of these sentences is written here, not typed by anybody
+      (syncProblem ? syncProblem + ' ' : '') + what + '</p>';
   },
   /** is there an archive to file into? false while BDOS has not shipped one */
   get archiveOn () { return syncOn && !archiveMissing; }
