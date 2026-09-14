@@ -629,8 +629,30 @@ body.locked > .sitefoot{display:none}
    The archive — signed copies on file
    ======================================================================= */
 .archivehead{margin:32px 0 6px}
-.archivefilter{font-size:12.5px;color:var(--muted);display:inline-flex;align-items:center;gap:8px}
-.archivefilter select{max-width:260px}
+/* ---------- the History toolbar ----------
+
+   Everything on one line, sitting on one baseline: the two buttons and the
+   three pickers are all 38px tall, so nothing floats above or below
+   anything else. Each picker's word is over its own control and left-
+   aligned with it — centred over a box of a different width is what made
+   the row look thrown together.
+
+   `label` is a column everywhere in this app, which is why these needed
+   saying rather than inheriting: the shared rule already stacks them, and
+   only the alignment was ever wrong. */
+.archivebar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;margin-top:14px}
+.archivebar .btn{height:38px;min-height:38px;padding:0 16px;display:inline-flex;align-items:center}
+/* the one thing that acts on everything listed, at the far end of the row */
+.archivebar #btnDownloadAll{margin-left:auto}
+.archivefilter{
+  display:flex;flex-direction:column;align-items:flex-start;gap:5px;
+  font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
+  color:var(--navy-soft);
+}
+.archivefilter select{
+  height:38px;padding:0 30px 0 10px;font-size:13px;font-weight:400;
+  min-width:150px;max-width:230px;width:auto;
+}
 .archive{display:flex;flex-direction:column;gap:10px;margin-top:12px}
 .archiveperson{
   margin:16px 0 2px;font-size:12px;letter-spacing:.6px;text-transform:uppercase;
@@ -770,6 +792,7 @@ body.locked > .sitefoot{display:none}
 
 /* the History step's counts and the document tag on a filed record */
 .historycount{margin:0 0 4px;font-size:12.5px;color:var(--muted)}
+.archivebar+.historycount,.archivebar+.keynote{margin-top:14px}
 .archhead .doctag{margin-left:2px}
 
 /* the stage headings carry the person who does that stage */
@@ -881,8 +904,11 @@ body.locked > .sitefoot{display:none}
 
   .archupload{padding:14px}
   .archfiles .btn{flex:1 1 auto}
+  .archivebar{gap:10px}
+  .archivebar .btn{flex:1 1 auto;justify-content:center}
+  .archivebar #btnDownloadAll{margin-left:0}
   .archivefilter{width:100%}
-  .archivefilter select{max-width:none}
+  .archivefilter select{max-width:none;width:100%}
 
   /* iOS Safari cannot show a PDF in an iframe, so point at the way out */
   .pdfview-mobile{display:block;color:#cfdae4;font-size:12px;width:100%}

@@ -464,6 +464,17 @@ check('the offline note says why, not just that',
   /code === 404/.test(syncjs), true);
 check('and the screens show that reason',
   /syncProblem \? syncProblem/.test(syncjs), true);
+/* The toolbar over the collect table sits on one baseline: two buttons and
+   three pickers at the same height, each word left-aligned over its own
+   control rather than centred over a box of a different width. */
+check('the collect toolbar is a row of its own, not a button row',
+  /<div class="archivebar">/.test(html) &&
+  /\.archivebar\{[^}]*align-items:flex-end/.test(css), true);
+check('and every control in it is the same height',
+  /\.archivebar \.btn\{[^}]*height:38px/.test(css) &&
+  /\.archivefilter select\{[^}]*height:38px/.test(css), true);
+check('with each word left-aligned over its own picker',
+  /\.archivefilter\{[^}]*align-items:flex-start/.test(css), true);
 check('and it is named for the person who gets them',
   /'Submit to ' \+ collectorShort\(\)/.test(signingjs) &&
   /finance: 'Jiha'/.test(authjs), true);
