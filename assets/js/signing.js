@@ -90,14 +90,24 @@ async function learnSigningKinds () {
  * @param {string[]} columns  the document columns after Consultant
  * @param {function} cells    sub -> one element per column
  */
-function signingMonthTables (host, rows, columns, cells) {
+function signingMonthTables (host, rows, columns, cells, options) {
+  const opts = options || {};
   const months = new Map();
   rows.forEach(sub => {
     const key = periodOf(sub);
-    if (!months.has(key)) months.set(key, []);
-    months.get(key).push(sub);
+    if (!months.has(key)) {
+      months.set(key, { y: Number(sub.period_year), m: Number(sub.period_month), subs: [] });
+    }
+    months.get(key).subs.push(sub);
   });
-  months.forEach((inMonth, month) => {
+  /* Nothing waiting is still a month with people in it. The table is drawn
+     for this month, so the list of everybody and where they have got is on
+     the page even on a day nothing needs signing. */
+  if (!months.size && opts.fallbackMonth) {
+    const f = opts.fallbackMonth;
+    months.set(periodOf({ period_year: f.y, period_month: f.m }), { y: f.y, m: f.m, subs: [] });
+  }
+  months.forEach((entry, month) => {
     const wrap = document.createElement('div');
     wrap.className = 'history-table-wrap';
     wrap.tabIndex = 0;
@@ -119,18 +129,31 @@ function signingMonthTables (host, rows, columns, cells) {
     head.appendChild(titles);
     table.appendChild(head);
     const body = document.createElement('tbody');
-    inMonth.slice()
-      .sort((a, b) => String(a.consultant || '').localeCompare(String(b.consultant || '')))
-      .forEach(sub => {
+
+    /* Everybody on the roster first, then the rows handed in on top of them,
+       so a person with a time sheet waiting gets its actions and a person
+       without one still has a line saying where they have got. */
+    const byName = new Map();
+    (opts.roster || []).forEach(n => {
+      const who = String(n || '').trim();
+      if (who) byName.set(who, null);
+    });
+    entry.subs.forEach(sub => byName.set(String(sub.consultant || '').trim() || '(no name)', sub));
+
+    [...byName.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .forEach(([name, sub]) => {
         const row = document.createElement('tr');
+        if (!sub) row.className = 'signrow-quiet';
         const person = document.createElement('th');
         person.scope = 'row';
-        person.textContent = sub.consultant || '(no name)';
+        person.textContent = name;
         row.appendChild(person);
-        cells(sub).forEach((content, i) => {
+        const content = sub ? cells(sub) : (opts.missing ? opts.missing(name, entry) : []);
+        content.forEach((c, i) => {
           const td = document.createElement('td');
           td.setAttribute('data-label', columns[i]);
-          td.appendChild(content);
+          td.appendChild(c);
           row.appendChild(td);
         });
         body.appendChild(row);
@@ -139,6 +162,60 @@ function signingMonthTables (host, rows, columns, cells) {
     wrap.appendChild(table);
     host.appendChild(wrap);
   });
+}
+
+/** everybody with a profile, and anybody who has a time sheet in the system */
+function signingRoster () {
+  const names = new Set(typeof filingNames === 'function' ? filingNames() : []);
+  signingSubs.forEach(s => {
+    const who = String(s.consultant || '').trim();
+    if (who && kindOf(s) === 'claim') names.add(who);
+  });
+  return [...names];
+}
+
+/** this month, for a table that has no waiting rows to take a month from */
+function currentSigningMonth () {
+  const d = new Date();
+  return { y: d.getFullYear(), m: d.getMonth() + 1 };
+}
+
+/**
+ * Where one person's time sheet for a month has got, in words.
+ *
+ * "Not submitted" only when there is no time sheet at all. A claim sitting
+ * with the project manager or the HOD has been submitted, and saying
+ * otherwise would send somebody chasing a person who already did their part.
+ */
+function sheetStatusWords (name, y, m) {
+  const sub = signingSubs
+    .filter(s => String(s.consultant || '').trim() === name &&
+      Number(s.period_year) === y && Number(s.period_month) === m && kindOf(s) === 'claim')
+    .sort((a, b) => String(b.updated_at || b.created_at || '')
+      .localeCompare(String(a.updated_at || a.created_at || '')))[0];
+  if (!sub) return 'Not submitted';
+  if (sub.status === SIGNING_STATUS) return 'Waiting for signature';
+  if (sub.status === 'complete') return 'Sent to ' + collectorShort();
+  return (typeof STATUS_TEXT === 'object' && STATUS_TEXT[sub.status]) || sub.status;
+}
+
+/** a status as a small labelled pill, coloured by what it asks of the PA */
+function statusBadge (words) {
+  const badge = document.createElement('span');
+  badge.className = 'signstatus' +
+    (words === 'Not submitted' ? ' missing'
+      : words === 'Waiting for signature' ? ' waiting'
+      : /^Sent to /.test(words) ? ' done' : '');
+  badge.textContent = words;
+  return badge;
+}
+
+/** an empty cell that says it is empty, rather than looking forgotten */
+function emptyCell () {
+  const dash = document.createElement('span');
+  dash.className = 'history-missing';
+  dash.textContent = '\u2014';
+  return dash;
 }
 
 /** a document as the collect table shows one: its name, its reference, its actions */
@@ -193,31 +270,34 @@ async function renderSignDownload () {
   if (!rows.length) {
     const empty = document.createElement('p');
     empty.className = 'emptynote';
-    empty.textContent = 'Nothing is waiting for the HOD’s signature. When the HOD approves a ' +
-      'time sheet it appears here, ready to download.';
+    empty.textContent = 'Nothing is waiting for the HOD\u2019s signature. Everybody is listed below ' +
+      'with where their time sheet has got.';
     host.appendChild(empty);
-    return;
+  } else {
+    const count = document.createElement('p');
+    count.className = 'historycount';
+    count.setAttribute('role', 'status');
+    count.textContent = `${rows.length} time sheet${rows.length === 1 ? '' : 's'} ready to download for signing.`;
+    host.appendChild(count);
+    const bar = document.createElement('div');
+    bar.className = 'btnrow';
+    const all = button(`Download all (${rows.length})`, 'small',
+                       () => downloadAllForSigning(rows, all));
+    bar.appendChild(all);
+    host.appendChild(bar);
   }
 
-  const bar = document.createElement('div');
-  bar.className = 'btnrow';
-  const count = document.createElement('p');
-  count.className = 'historycount';
-  count.setAttribute('role', 'status');
-  count.textContent = `${rows.length} time sheet${rows.length === 1 ? '' : 's'} ready to download for signing.`;
-  host.appendChild(count);
-  const all = button(`Download all (${rows.length})`, 'small',
-                     () => downloadAllForSigning(rows, all));
-  bar.appendChild(all);
-  host.appendChild(bar);
-
-  signingMonthTables(host, rows, ['Time sheet'], sub => {
+  signingMonthTables(host, rows, ['Status', 'Time sheet'], sub => {
     const who = `${sub.consultant || 'consultant'}, ${periodOf(sub)}`;
-    return [signingDocument('Time sheet', sub.invoice_no || '', [
+    return [statusBadge('Waiting for signature'), signingDocument('Time sheet', sub.invoice_no || '', [
       labelledIcon('view', 'View', 'View the time sheet for ' + who, () => reviewSubmission(sub.id)),
       labelledIcon('download', 'Download', 'Download the time sheet for ' + who,
                    control => downloadForSigning(sub, control))
     ])];
+  }, {
+    roster: signingRoster(),
+    fallbackMonth: currentSigningMonth(),
+    missing: (name, month) => [statusBadge(sheetStatusWords(name, month.y, month.m)), emptyCell()]
   });
 }
 
@@ -329,9 +409,14 @@ async function renderSignUpload () {
     empty.textContent = 'Nothing is waiting. Every time sheet the HOD approved has been ' +
       'signed and sent on.';
     host.appendChild(empty);
-  } else {
-    signingMonthTables(host, waiting, ['Time sheet', 'Signed copy'], uploadCells);
   }
+  signingMonthTables(host, waiting, ['Status', 'Time sheet', 'Signed copy'],
+    sub => [statusBadge('Waiting for signature')].concat(uploadCells(sub)), {
+      roster: signingRoster(),
+      fallbackMonth: currentSigningMonth(),
+      missing: (name, month) =>
+        [statusBadge(sheetStatusWords(name, month.y, month.m)), emptyCell(), emptyCell()]
+    });
 
 
   host.appendChild(submitBar());

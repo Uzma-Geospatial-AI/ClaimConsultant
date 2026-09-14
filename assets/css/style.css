@@ -695,6 +695,15 @@ body.locked > .sitefoot{display:none}
 .signpick input[type=file]{font-size:12.5px;max-width:100%}
 .signready-doc .history-document-name{color:var(--ok)}
 .signonfile{padding-top:10px;border-top:1px dashed var(--line)}
+/* where each person's time sheet has got, coloured by what it asks of the PA */
+.signstatus{
+  display:inline-block;font-size:12px;font-weight:600;line-height:1.3;
+  padding:3px 10px;border-radius:20px;background:#eef2f6;color:var(--navy-soft);white-space:nowrap;
+}
+.signstatus.waiting{background:var(--orange-soft);color:#b4491a}
+.signstatus.missing{background:#f3f4f6;color:var(--muted)}
+.signstatus.done{background:#e7f5ee;color:var(--ok)}
+.signrow-quiet th{color:var(--muted);font-weight:600}
 /* a scan put on a card and not yet sent: named, so it can be checked */
 .signready{
   flex:1 1 220px;min-width:0;font-size:12.5px;font-weight:600;color:var(--navy);

@@ -558,9 +558,18 @@ check('the preview is shown before the document is loaded into it',
 /* Fatin and Jiha look at the same months from either end of one step, so the
    PA's Download and Upload pages are the same table the collect list is. */
 check("the PA's pages are tables, like the collect list",
-  /signingMonthTables\(host, rows, \['Time sheet'\]/.test(signingjs) &&
-  /signingMonthTables\(host, waiting, \['Time sheet', 'Signed copy'\], uploadCells\)/.test(signingjs) &&
+  /signingMonthTables\(host, rows, \['Status', 'Time sheet'\]/.test(signingjs) &&
+  /signingMonthTables\(host, waiting, \['Status', 'Time sheet', 'Signed copy'\]/.test(signingjs) &&
   /table\.className = 'history-table signingtable'/.test(signingjs), true);
+/* Everybody with a profile has a line, the way the collect list does, so
+   the PA sees who has not sent anything as well as what is waiting. */
+check("the PA's tables list everybody with a profile",
+  /function signingRoster/.test(signingjs) &&
+  (signingjs.match(/roster: signingRoster\(\)/g) || []).length === 2, true);
+check('somebody with no time sheet that month reads Not submitted',
+  /if \(!sub\) return 'Not submitted'/.test(signingjs), true);
+check('but a claim still with the project manager or the HOD is not called that',
+  /STATUS_TEXT\[sub\.status\]/.test(signingjs), true);
 check('and the cards they replaced are gone',
   !/archrow signcard|function monthGroups|function uploadCard/.test(signingjs), true);
 check('and an icon with its word keeps its icon while it downloads',
