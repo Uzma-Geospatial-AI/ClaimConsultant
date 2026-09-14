@@ -455,6 +455,9 @@ check('the collect table lists everybody, not only those who filed',
    supposed to have is not a decision worth putting on a form. */
 check('the invoice prints the consultant signature without being asked',
   !/showSig/.test(html + statejs + geninvoice), true);
+check('and the note when an amount is typed over sits beside the amount',
+  /id="amountOverride"[\s\S]{0,40}<\/p>/.test(html) &&
+  /doc-underbar[\s\S]{0,400}id="amountOverride"/.test(html), true);
 /* "Not connected" is true of an expired session, an account BDOS will not
    let into the claim system, missing routes and a dead network, and useful
    about none of them. The status code already knows which. */
@@ -489,6 +492,19 @@ check('Download all builds one archive',
   /saveAs\(zipFiles\(files\), archiveZipName\(rows\)\)/.test(archivejs) &&
   /function zipFiles/.test(fs.readFileSync(path.join(ROOT, 'assets/js/zip.js'), 'utf8')),
   true);
+/* Status is not something you do after Submit — it is where you go to see
+   where Submit got to. Numbering it made a question look like a stage and
+   made the run look longer than the work. */
+check('Status and History are places to look, not steps',
+  /id: 'approvals',\s+label: 'Status', view: true/.test(appjs) &&
+  /id: 'history',[^}]*view: true/.test(appjs), true);
+check('so the bar keeps them apart from the numbered run',
+  /className = 'stepgroup'/.test(appjs) && /className = 'stepviews'/.test(appjs) &&
+  /\.stepgroup \.step:not\(:last-child\)::after/.test(css), true);
+check('and the counter counts the work, not the bar',
+  /list\.filter\(s => !s\.view\)\.length/.test(appjs), true);
+check('the amount is worked out without a second box for the rate',
+  !/calcFormula|wrapMonthly/.test(html + appjs), true);
 check('and it is named for the person who gets them',
   /'Submit to ' \+ collectorShort\(\)/.test(signingjs) &&
   /finance: 'Jiha'/.test(authjs), true);

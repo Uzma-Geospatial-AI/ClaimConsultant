@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Consultant Claim System</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20260914q">
+<link rel="stylesheet" href="assets/css/style.css?v=20260914r">
 </head>
 <body class="locked">
 <a class="skip-link" href="#main-content">Skip to main content</a>
@@ -223,6 +223,9 @@
     <div class="doc-underbar">
       <button class="btn ghost small" id="btnAddItem">+ Add item</button>
     </div>
+    <!-- Only ever seen when the amount on the line above was typed over the
+         one the days come to. It sits here, beside the figure it is about. -->
+    <p class="overridenote" id="amountOverride" hidden></p>
 
     <div class="doc-totals">
       <div><span>Subtotal</span><b id="t_sub">0.00</b></div>
@@ -247,17 +250,6 @@
   </div>
   </div>
 
-  <div class="sidenote">
-    <h3>How the amount is worked out</h3>
-    <!-- One way of working it out, so there is nothing to choose. A month
-         settled at some other figure is typed straight over the amount in
-         the table above, which says so when you do. -->
-    <div class="grid2">
-      <label id="wrapMonthly">Monthly Rate (RM)<input type="number" data-bind="invoice.monthlyRate" data-type="num" step="0.01"></label>
-    </div>
-    <p class="formula" id="calcFormula">&nbsp;</p>
-    <p class="overridenote" id="amountOverride" hidden></p>
-  </div>
 </section>
 
 <!-- ============ STEP 4: CLAIM (document replica) ============ -->
@@ -545,28 +537,28 @@
      fetches the page again but keeps the old JavaScript for up to ten minutes
      — which reads as "the fix did not work". Bump this stamp whenever
      anything under assets/ changes and a reload picks it all up at once. -->
-<script src="vendor/jspdf.umd.min.js?v=20260914q"></script>
-<script src="vendor/jspdf.plugin.autotable.min.js?v=20260914q"></script>
-<script src="vendor/carlito.js?v=20260914q"></script>
-<script src="vendor/exceljs.min.js?v=20260914q"></script>
-<script src="vendor/FileSaver.min.js?v=20260914q"></script>
-<script src="vendor/signature_pad.umd.min.js?v=20260914q"></script>
-<script src="vendor/docx.umd.js?v=20260914q"></script>
-<script src="assets/js/state.js?v=20260914q"></script>
-<script src="assets/js/holidays.js?v=20260914q"></script>
-<script src="assets/js/logo.js?v=20260914q"></script>
-<script src="assets/js/timesheet.js?v=20260914q"></script>
-<script src="assets/js/signature.js?v=20260914q"></script>
-<script src="assets/js/gen-invoice.js?v=20260914q"></script>
-<script src="assets/js/gen-claim.js?v=20260914q"></script>
-<script src="assets/js/preview.js?v=20260914q"></script>
-<script src="assets/js/auth.js?v=20260914q"></script>
-<script src="assets/js/sync.js?v=20260914q"></script>
-<script src="assets/js/zip.js?v=20260914q"></script>
-<script src="assets/js/approvals.js?v=20260914q"></script>
-<script src="assets/js/archive.js?v=20260914q"></script>
-<script src="assets/js/resubmit.js?v=20260914q"></script>
-<script src="assets/js/signing.js?v=20260914q"></script>
-<script src="assets/js/app.js?v=20260914q"></script>
+<script src="vendor/jspdf.umd.min.js?v=20260914r"></script>
+<script src="vendor/jspdf.plugin.autotable.min.js?v=20260914r"></script>
+<script src="vendor/carlito.js?v=20260914r"></script>
+<script src="vendor/exceljs.min.js?v=20260914r"></script>
+<script src="vendor/FileSaver.min.js?v=20260914r"></script>
+<script src="vendor/signature_pad.umd.min.js?v=20260914r"></script>
+<script src="vendor/docx.umd.js?v=20260914r"></script>
+<script src="assets/js/state.js?v=20260914r"></script>
+<script src="assets/js/holidays.js?v=20260914r"></script>
+<script src="assets/js/logo.js?v=20260914r"></script>
+<script src="assets/js/timesheet.js?v=20260914r"></script>
+<script src="assets/js/signature.js?v=20260914r"></script>
+<script src="assets/js/gen-invoice.js?v=20260914r"></script>
+<script src="assets/js/gen-claim.js?v=20260914r"></script>
+<script src="assets/js/preview.js?v=20260914r"></script>
+<script src="assets/js/auth.js?v=20260914r"></script>
+<script src="assets/js/sync.js?v=20260914r"></script>
+<script src="assets/js/zip.js?v=20260914r"></script>
+<script src="assets/js/approvals.js?v=20260914r"></script>
+<script src="assets/js/archive.js?v=20260914r"></script>
+<script src="assets/js/resubmit.js?v=20260914r"></script>
+<script src="assets/js/signing.js?v=20260914r"></script>
+<script src="assets/js/app.js?v=20260914r"></script>
 </body>
 </html>

@@ -86,14 +86,18 @@ const STEPS = [
      not a status, it is a job — and a job nobody can see is a month nobody
      gets paid for. */
   { id: 'resubmit',   label: 'Re-submit', whenReturned: true },
-  { id: 'approvals',  label: 'Status' },
+  /* Not a step. Nothing is prepared here and nothing moves on from it —
+     it is where you go to see where things got to, which is a question
+     rather than a stage. So it is off the end of the numbered run, with
+     the record beside it, and the numbers stop at Submit. */
+  { id: 'approvals',  label: 'Status', view: true },
   /* The administrator, and only them: the Status step answers "where is this
      month", and somebody has to be able to answer "where is last March" as
      well. `admin: true` is the only thing that keeps a step out of the flow
      for everybody else. */
   /* The whole record, for the two accounts whose job it is: the
      administrator, and whoever keeps the finished paper. */
-  { id: 'history',    label: 'History', records: true },
+  { id: 'history',    label: 'History', records: true, view: true },
   /* The PA's two pages, and their only two: the time sheets waiting for the
      HOD's signature, to print; and the same list with a box for the signed
      scan, to file. The admin stands in everywhere, so the admin gets them
@@ -109,6 +113,9 @@ const permittedSteps = () => STEPS.filter(s =>
   (!s.whenReturned || (typeof returnedCount === 'function' && returnedCount() > 0)));
 
 let stepIndex = 0;
+/* The last step of the form that was open, so a place you went to look
+   knows where to send you back to. */
+let lastFormStep = 0;
 let activeProfile = '';          // the saved profile the form was opened from
 
 function activeSteps () {
@@ -193,6 +200,7 @@ function goToStep (i, skipGuard) {
 function showStep () {
   const list = activeSteps();
   const step = list[Math.min(stepIndex, list.length - 1)];
+  if (!step.view) lastFormStep = stepIndex;
 
   /* The Re-submit step borrows the Invoice or Claim step to edit a document
      in place. Give it back before anything else is drawn, or the step it was
@@ -219,26 +227,68 @@ function showStep () {
   window.scrollTo({ top: 0, behavior: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
 }
 
+/**
+ * The bar along the top: the process, then the places you go to look.
+ *
+ * They were one numbered run, and the numbers were a promise the last of
+ * them did not keep — Status is not something you do after Submit, it is
+ * where you go to see where Submit got to. Numbering it made a question
+ * look like a stage, and made the run look longer than the work.
+ *
+ * So the numbers stop where the work stops, and what is left is set apart
+ * at the end of the bar: the same buttons, no numbers, no line joining
+ * them to anything.
+ */
 function renderStepper () {
   const list = activeSteps();
   const host = document.getElementById('stepper');
   host.innerHTML = '';
+
+  const steps = document.createElement('div');
+  steps.className = 'stepgroup';
+  const views = document.createElement('div');
+  views.className = 'stepviews';
+
+  // standing on a view is not standing past the process, so nothing behind
+  // it is "done" — a consultant reading Status has not finished anything
+  const onView = !!(list[stepIndex] && list[stepIndex].view);
+  let number = 0;
+
   list.forEach((s, i) => {
+    const isView = !!s.view;
+    if (!isView) number++;
+
     const b = document.createElement('button');
     b.type = 'button';
     if (i === stepIndex) b.setAttribute('aria-current', 'step');
-    b.className = 'step' + (i === stepIndex ? ' active' : (i < stepIndex ? ' done' : ''));
+    b.className = 'step' + (isView ? ' view' : '') +
+      (i === stepIndex ? ' active' : (!isView && !onView && i < stepIndex ? ' done' : ''));
+
+    if (!isView) {
+      const num = document.createElement('span');
+      num.className = 'step-num';
+      num.textContent = String(number);
+      b.appendChild(num);
+    }
+    const label = document.createElement('span');
+    label.textContent = s.label;          // step names are ours, not markup
+    b.appendChild(label);
+
     const n = s.whenReturned && typeof returnedCount === 'function' ? returnedCount() : 0;
-    b.innerHTML = `<span class="step-num">${i + 1}</span><span>${s.label}</span>`;
     if (n) {
       const badge = document.createElement('i');
       badge.className = 'stepbadge';
       badge.textContent = String(n);
       b.appendChild(badge);
     }
+
     b.addEventListener('click', () => goToStep(i));
-    host.appendChild(b);
+    (isView ? views : steps).appendChild(b);
   });
+
+  if (steps.children.length) host.appendChild(steps);
+  if (views.children.length) host.appendChild(views);
+
   const current = host.querySelector && host.querySelector('[aria-current="step"]');
   if (current && current.scrollIntoView) current.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
@@ -253,6 +303,23 @@ function renderNavRows () {
   const row = document.createElement('div');
   row.className = 'navrow';
 
+  /* A place you went to look has no next and no number. What it has is the
+     way back to what you were doing, which is the only thing anybody wants
+     from the bottom of it. */
+  if (step.view) {
+    const first = list.findIndex(s => !s.view);
+    if (first >= 0) {
+      const back = document.createElement('button');
+      back.className = 'btn ghost';
+      back.textContent = '← Back to the form';
+      back.addEventListener('click', () =>
+        goToStep(list[lastFormStep] && !list[lastFormStep].view ? lastFormStep : first, true));
+      row.appendChild(back);
+    }
+    panel.appendChild(row);
+    return;
+  }
+
   const back = document.createElement('button');
   back.className = 'btn ghost';
   back.textContent = '← Back';
@@ -260,14 +327,21 @@ function renderNavRows () {
   back.addEventListener('click', () => goToStep(stepIndex - 1, true));
   row.appendChild(back);
 
+  /* Counted against the work, not against the bar: Status and History are on
+     the bar and are not steps, and saying "Step 6 of 10" over a run of six
+     was the numbering promising four more than there were. */
+  const total = list.filter(s => !s.view).length;
+  const here = list.slice(0, stepIndex + 1).filter(s => !s.view).length;
   const note = document.createElement('span');
   note.className = 'stepnote';
-  note.textContent = `Step ${stepIndex + 1} of ${list.length}`;
+  note.textContent = `Step ${here} of ${total}`;
   row.appendChild(note);
 
   row.appendChild(Object.assign(document.createElement('span'), { className: 'spacerflex' }));
 
-  if (stepIndex < list.length - 1) {
+  // the next thing to do, which is never a place you go to look
+  const nextAt = list.findIndex((s, i) => i > stepIndex && !s.view);
+  if (nextAt >= 0) {
     const next = document.createElement('button');
     next.className = 'btn';
     next.textContent = 'Next →';
@@ -280,7 +354,7 @@ function renderNavRows () {
       next.title = missing.length ? 'Still needed: ' + missing.join(', ')
         : profileDirty ? 'Press Save Profile first' : '';
     }
-    next.addEventListener('click', () => goToStep(stepIndex + 1));
+    next.addEventListener('click', () => goToStep(nextAt));
     row.appendChild(next);
   }
   panel.appendChild(row);
@@ -712,7 +786,6 @@ function refreshTotals () {
 
 function syncAutoAmount () {
   const calc = computeAmount(S);
-  document.getElementById('calcFormula').innerHTML = calc.formula || '&nbsp;';
 
   if (!S.invoice.items.length) {
     S.invoice.items.push({ desc: 'Consultancy Service Fee', position: S.consultant.position, period: '', amount: 0 });

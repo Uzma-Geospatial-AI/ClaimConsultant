@@ -96,7 +96,15 @@ body{
   font-family:inherit;font-size:13px;font-weight:600;color:var(--muted);
   cursor:pointer;white-space:nowrap;
 }
-.step:not(:last-child)::after{content:"";width:22px;height:1px;background:var(--line);margin:0 4px 0 10px;flex:none}
+/* the joining line belongs inside the run of numbered steps; the places you
+   go to look are not on the way to anything */
+.stepgroup{display:flex;align-items:center}
+.stepgroup .step:not(:last-child)::after{content:"";width:22px;height:1px;background:var(--line);margin:0 4px 0 10px;flex:none}
+.stepviews{display:flex;align-items:center;gap:4px;margin-left:auto;padding-left:16px;position:relative}
+.stepviews::before{content:"";position:absolute;left:0;top:11px;bottom:11px;width:1px;background:var(--line)}
+.step.view{padding-left:12px;padding-right:12px;border-radius:7px}
+.step.view:hover{background:#eef2f6}
+.step.view.active{background:var(--orange-soft);color:var(--orange)}
 .step-num{
   width:23px;height:23px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:11.5px;
   background:#eef2f6;color:var(--muted);border:1px solid var(--line);
