@@ -653,9 +653,23 @@ body.locked > .sitefoot{display:none}
 .archslot span{font-weight:600}
 .archslot input[type=file]{font-size:12.5px}
 .archnote{margin-top:12px;width:100%}
-/* the PA's upload card: the file box and its button, side by side */
+/* the PA's upload card: the file box and its buttons, side by side */
 .signrow{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:10px}
 .signrow input[type=file]{font-size:12.5px;flex:1 1 220px;min-width:0}
+.signhint{color:var(--muted);font-size:12px}
+/* a scan put on a card and not yet sent: named, so it can be checked */
+.signready{
+  flex:1 1 220px;min-width:0;font-size:12.5px;font-weight:600;color:var(--navy);
+  background:#eef6ec;border:1px solid #bfdcb8;border-radius:7px;padding:7px 10px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.signcard{border-color:var(--navy-soft)}
+/* the one thing on the page that sends anything, by itself at the bottom */
+.signsubmit{
+  margin-top:22px;padding-top:16px;border-top:1px solid var(--line);
+  display:flex;flex-direction:column;gap:10px;
+}
+.signsaid{margin:0;font-size:12.5px;color:var(--muted);max-width:80ch}
 
 /* ---------- Save Profile, where the details it saves end ---------- */
 .saverow{

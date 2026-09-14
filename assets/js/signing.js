@@ -10,10 +10,12 @@
      Download — every time sheet the HOD has approved and not yet signed.
                Print it, put it in front of him.
      Upload   — the same list, each with a box for the signed scan. Putting
-               a file in it files the scan and marks the month signed, in
-               that order, for everybody. A month already signed can be
-               uploaded again, and the newest copy is the one the whole
-               office sees from then on.
+               a scan on a card is not sending it: it can be looked at and
+               swapped until it is right. One Submit at the bottom sends
+               every one of them, closes those months and hands them to
+               Group People & Finance. A month already sent can be given a
+               newer copy the same way, and the newest is what everybody
+               reads from then on.
 
    The administrator keeps the full flow and gets these two as well, because
    the admin stands in everywhere.
@@ -212,7 +214,17 @@ async function downloadAllForSigning (rows, btn) {
 
 /* -------------------------------------------------------------------
    Upload
+
+   Two acts, not one. Putting the scan on the card is the PA saying "this is
+   the signed one" — it can be looked at, and swapped for a better scan.
+   Submitting is the PA saying "these months are done", and that one cannot
+   be taken back: it files the scans, closes the claims and hands the months
+   to Group People & Finance. So the button that does it is by itself, at the
+   bottom, after everything it is going to send.
    ------------------------------------------------------------------- */
+
+/* The scans put on cards and not yet sent: submission id → File. */
+const attached = new Map();
 
 async function renderSignUpload () {
   const host = document.getElementById('signUploadList');
@@ -234,6 +246,11 @@ async function renderSignUpload () {
   const waiting = waitingSignature();
   const done = signedAlready();
 
+  /* A scan is held in this browser until Submit sends it, so one put on a
+     card that is no longer in the list has nowhere to go. */
+  const live = new Set(waiting.concat(done).map(s => s.id));
+  [...attached.keys()].forEach(id => { if (!live.has(id)) attached.delete(id); });
+
   const h1 = document.createElement('h3');
   h1.textContent = 'Waiting for the signed copy';
   host.appendChild(h1);
@@ -241,8 +258,8 @@ async function renderSignUpload () {
   if (!waiting.length) {
     const empty = document.createElement('p');
     empty.className = 'emptynote';
-    empty.textContent = 'Nothing is waiting. Every time sheet the HOD approved has its signed ' +
-      'copy on file.';
+    empty.textContent = 'Nothing is waiting. Every time sheet the HOD approved has been ' +
+      'signed and sent on.';
     host.appendChild(empty);
   } else {
     monthGroups(host, waiting, sub => uploadCard(sub, false));
@@ -250,92 +267,201 @@ async function renderSignUpload () {
 
   if (done.length) {
     const h2 = document.createElement('h3');
-    h2.textContent = 'Already signed — upload a newer copy';
+    h2.textContent = 'Already sent — upload a newer copy';
     host.appendChild(h2);
     const lead = document.createElement('p');
     lead.className = 'archlead';
-    lead.textContent = 'These are on file. Upload again if a better scan turns up, or the ' +
-      'wrong file went in: the newest copy is the one everybody sees from then on.';
+    lead.textContent = 'These have been through. Put a newer scan on one if a better copy ' +
+      'turns up, or the wrong file went in: once it is submitted, that is the copy ' +
+      'everybody sees from then on.';
     host.appendChild(lead);
     monthGroups(host, done, sub => uploadCard(sub, true));
   }
+
+  host.appendChild(submitBar());
 }
 
 /**
- * One time sheet and the box its signed scan goes in.
- * @param {boolean} again  it is already signed: this replaces the copy on file
+ * One time sheet, and whatever has been put on it.
+ * @param {boolean} again  it has been through already: a newer scan replaces
+ *        the copy on file rather than closing the month
  */
 function uploadCard (sub, again) {
   const card = document.createElement('div');
   card.className = 'archrow signcard';
   card.appendChild(signingHead(sub));
 
-  const filedBy = typeof archiveBy === 'function'
-    ? archiveBy(sub.consultant, sub.period_year, Number(sub.period_month) - 1, 'claim') : '';
-  if (filedBy) {
+  /* What is already on file, if anything. Whoever is about to replace a copy
+     should be able to look at the copy they are replacing. */
+  const filed = typeof archiveFor === 'function'
+    ? archiveFor(sub.consultant, sub.period_year, Number(sub.period_month) - 1, 'claim') : null;
+  if (filed) {
     const on = document.createElement('p');
     on.className = 'subnote';
-    on.textContent = 'On file — uploaded by ' + filedBy + '.';
+    on.textContent = 'On file — uploaded by ' + (filed.created_by || 'somebody') +
+      (filed.created_at ? ' on ' + new Date(filed.created_at).toLocaleDateString() : '') + '.';
     card.appendChild(on);
+    const bar = document.createElement('div');
+    bar.className = 'archfiles';
+    bar.appendChild(button('View the copy on file', 'ghost small', () => viewFiled(filed, sub)));
+    card.appendChild(bar);
   }
 
+  const file = attached.get(sub.id);
   const row = document.createElement('div');
   row.className = 'signrow';
-  const inp = document.createElement('input');
-  inp.type = 'file';
-  inp.accept = '.pdf,.png,.jpg,.jpeg,image/*,application/pdf';
-  row.appendChild(inp);
-  const go = button(again ? 'Replace the copy on file' : 'Upload the signed copy',
-                    again ? 'small' : 'primary small',
-                    () => uploadSigned(sub, inp, again, go));
-  row.appendChild(go);
+
+  if (file) {
+    /* Put on, not sent. The card names the file it is holding, offers it to
+       be looked at, and offers to let it go again — all three, because the
+       only thing worse than the wrong scan is the wrong scan nobody read. */
+    const ready = document.createElement('span');
+    ready.className = 'signready';
+    ready.textContent = file.name;
+    row.appendChild(ready);
+    row.appendChild(button('View', 'ghost small', () =>
+      openFilePreview(sub.consultant + ' — ' + periodOf(sub), file.name, file)));
+    row.appendChild(button('Remove', 'ghost small', () => {
+      attached.delete(sub.id);
+      renderSignUpload();
+    }));
+  } else {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.pdf,.png,.jpg,.jpeg,image/*,application/pdf';
+    inp.addEventListener('change', () => {
+      const picked = inp.files && inp.files[0];
+      if (!picked) return;
+      if (picked.size > ARCHIVE_MAX_BYTES) {
+        toast(picked.name + ' is over the ' +
+              Math.round(ARCHIVE_MAX_BYTES / 1048576) + ' MB limit.', true);
+        inp.value = '';
+        return;
+      }
+      attached.set(sub.id, picked);
+      renderSignUpload();
+    });
+    row.appendChild(inp);
+    const hint = document.createElement('small');
+    hint.className = 'signhint';
+    hint.textContent = again
+      ? 'Choose a newer scan to replace the one on file.'
+      : 'Choose the signed time sheet.';
+    row.appendChild(hint);
+  }
   card.appendChild(row);
   return card;
 }
 
-/**
- * File the scan, then — for a month still waiting — mark it signed.
- *
- * File first. A scan on record for a month still waiting is a small oddity;
- * a month marked signed with the scan lost to a failed upload is a month
- * nobody can produce. Once the record is written it is the newest one for
- * that person and month, which is what every other screen reads.
- */
-async function uploadSigned (sub, inp, again, go) {
-  if (signingBusy) return;
-  const file = inp.files && inp.files[0];
-  if (!file) { toast('Choose the signed time sheet first.', true); return; }
-  if (file.size > ARCHIVE_MAX_BYTES) {
-    toast(`${file.name} is over the ${Math.round(ARCHIVE_MAX_BYTES / 1048576)} MB limit.`, true);
-    return;
+/** look at the copy already on file, without downloading it first */
+async function viewFiled (rec, sub) {
+  try {
+    const full = await Sync.storedOne(rec.id);
+    const f = full && (full.files || [])[0];
+    if (!f || !f.content) { toast('That file is not on the record.', true); return; }
+    const type = f.type || 'application/pdf';
+    const bytes = dataUrlToBytes('data:' + type + ';base64,' + f.content);
+    openFilePreview((sub.consultant || '') + ' — ' + periodOf(sub) + ' — on file',
+                    f.name || 'signed.pdf', new Blob([bytes], { type: type }));
+  } catch (err) {
+    toast(err.message || 'Could not open that file.', true);
   }
+}
+
+/* -------------------------------------------------------------------
+   Submitting
+   ------------------------------------------------------------------- */
+
+/** whoever collects the finished paper, named rather than described */
+const collectorName = () => Auth.roleName('finance') || 'Group People & Finance';
+
+function submitBar () {
+  const bar = document.createElement('div');
+  bar.className = 'signsubmit';
+
+  const ready = attached.size;
+  const who = collectorName();
+
+  const said = document.createElement('p');
+  said.className = 'signsaid';
+  said.textContent = ready
+    ? ready + ' signed cop' + (ready === 1 ? 'y is' : 'ies are') + ' ready. Nothing has gone ' +
+      'anywhere yet — Submit files ' + (ready === 1 ? 'it' : 'them') + ', closes the month and ' +
+      'hands it to ' + who + '.'
+    : 'Put the signed copies on the cards above. Nothing reaches ' + who +
+      ' until you press Submit.';
+  bar.appendChild(said);
+
+  const row = document.createElement('div');
+  row.className = 'btnrow';
+  const go = button(ready ? 'Submit ' + ready + ' to ' + who : 'Submit',
+                    'primary', () => submitSigned(go));
+  go.disabled = !ready;
+  row.appendChild(go);
+  bar.appendChild(row);
+  return bar;
+}
+
+/**
+ * Send everything that has been put on a card.
+ *
+ * The scan is filed first and the month closed second. A scan on record for
+ * a month still open is a small oddity; a month closed with the scan lost to
+ * a failed upload is a month nobody can produce. A month that has already
+ * been through is only refiled — there is nothing left to close, and the
+ * newer copy is simply the one everybody reads from then on.
+ */
+async function submitSigned (go) {
+  if (signingBusy) return;
+  const jobs = [...attached.entries()]
+    .map(([id, file]) => ({ sub: signingSubs.filter(s => s.id === id)[0], file }))
+    .filter(j => j.sub);
+  if (!jobs.length) { toast('Nothing has been put on a card yet.', true); return; }
+
+  const who = collectorName();
+  if (!confirm(
+    'Submit ' + jobs.length + ' signed cop' + (jobs.length === 1 ? 'y' : 'ies') +
+    ' to ' + who + '?\n\n' +
+    jobs.map(j => j.sub.consultant + ' · ' + periodOf(j.sub)).join('\n') +
+    '\n\nThe months are closed and cannot be taken back.')) return;
 
   signingBusy = true;
   const was = go.textContent;
   go.disabled = true;
-  go.textContent = 'Uploading…';
+  let done = 0;
+  const failed = [];
+  const by = (Auth.user() || {}).name || myEmail();
+
   try {
-    const full = await Sync.submission(sub.id);
-    const state = mergeDefaults((full && full.data) || {});
-    const payload = await Sync.readFile(file);
-    payload.name = `${kindLabel('claim')} (signed) — ${payload.name}`;
-    const by = (Auth.user() || {}).name || myEmail();
-    await Sync.store(state, [payload],
-      `${kindLabel('claim')} signed by ${by}` + (again ? ' · replaces the earlier copy' : ''),
-      'claim', SIGNING_STATUS);
-
-    if (!again) await Sync.act(sub.id, 'approve', '');
-
-    archiveLoaded = false;          // everybody else reads the newest copy
-    toast(again
-      ? `Replaced the signed copy for ${sub.consultant}, ${periodOf(sub)}.`
-      : `Signed and filed — ${sub.consultant}, ${periodOf(sub)}.`);
-    await renderSignUpload();
-  } catch (err) {
-    toast(err.message || 'Could not upload that.', true);
-    go.disabled = false;
-    go.textContent = was;
+    for (let i = 0; i < jobs.length; i++) {
+      const sub = jobs[i].sub;
+      go.textContent = 'Sending ' + (i + 1) + ' of ' + jobs.length + '…';
+      try {
+        const full = await Sync.submission(sub.id);
+        const state = mergeDefaults((full && full.data) || {});
+        const payload = await Sync.readFile(jobs[i].file);
+        payload.name = kindLabel('claim') + ' (signed) — ' + payload.name;
+        const again = sub.status !== SIGNING_STATUS;
+        await Sync.store(state, [payload],
+          kindLabel('claim') + ' signed by ' + by +
+          (again ? ' · replaces the earlier copy' : ''), 'claim', SIGNING_STATUS);
+        if (!again) await Sync.act(sub.id, 'approve', '');
+        attached.delete(sub.id);
+        done++;
+      } catch (err) {
+        failed.push((sub.consultant || sub.id) + ': ' + err.message);
+      }
+    }
   } finally {
     signingBusy = false;
+    go.disabled = false;
+    go.textContent = was;
   }
+
+  archiveLoaded = false;            // everybody else reads the newest copy
+  toast(failed.length
+    ? done + ' sent. ' + failed.length + ' could not be: ' + failed[0]
+    : done + ' signed cop' + (done === 1 ? 'y' : 'ies') + ' sent to ' + who + '.',
+    !!failed.length);
+  await renderSignUpload();
 }

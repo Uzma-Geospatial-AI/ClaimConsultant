@@ -42,18 +42,33 @@ function closePdfPreview () {
  * @param {object} doc       a jsPDF document
  */
 function openPdfPreview (label, filename, doc) {
+  openFilePreview(label, filename, doc.output('blob'));
+}
+
+/**
+ * Show a file that already exists, rather than one just generated.
+ *
+ * A signed scan comes back as bytes — from the person's disk before it is
+ * sent, or out of the archive after. Looking at one is the same act as
+ * looking at a generated claim, so it is the same viewer: the browser's own,
+ * pointed at a blob, with Download and Open in new tab where they always are.
+ *
+ * @param {Blob} blob  the file itself; a PDF or an image
+ */
+function openFilePreview (label, filename, blob) {
   const { box, frame, title, tab } = pdfViewerNodes();
   if (!box || !frame) return;
 
   closePdfPreview();                       // never stack two blobs
 
-  previewBlob = doc.output('blob');
+  previewBlob = blob;
   previewName = filename;
   previewUrl  = URL.createObjectURL(previewBlob);
 
   if (title) title.textContent = label;
   // #view=FitH opens at page width, which is how somebody checking a form
   // wants to see it — not zoomed to whatever the viewer last remembered.
+  // An image ignores it, which is the right thing to do with it.
   frame.src = previewUrl + '#view=FitH';
   if (tab) tab.href = previewUrl;
   box.hidden = false;

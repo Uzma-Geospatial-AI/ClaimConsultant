@@ -395,14 +395,29 @@ check('and the status table resubmits the same way',
 console.log('\nThe PA: download, then upload');
 
 const signingjs = fs.readFileSync(path.join(ROOT, 'assets/js/signing.js'), 'utf8');
+const previewjs = fs.readFileSync(path.join(ROOT, 'assets/js/preview.js'), 'utf8');
 check('both pages are in the page',
   /id="p-todownload"/.test(html) && /id="p-toupload"/.test(html), true);
 check('and the PA sees those two and nothing else',
   /if \(Auth\.places\(\)\) return all\.filter\(s => s\.signs\)/.test(appjs), true);
 check('Download lists what is waiting for the HOD’s signature',
   /s\.status === SIGNING_STATUS && kindOf\(s\) === 'claim'/.test(signingjs), true);
-check('Upload files the scan before it marks the month signed',
-  /await Sync\.store\([\s\S]{0,200}if \(!again\) await Sync\.act\(sub\.id, 'approve'/.test(signingjs), true);
+/* Putting a scan on a card is not sending it. It can be looked at and taken
+   off again; one Submit at the bottom is what closes the months and hands
+   them to whoever collects the paper. */
+check('a scan put on a card is held, not sent',
+  /const attached = new Map\(\)/.test(signingjs) &&
+  /attached\.set\(sub\.id, picked\)/.test(signingjs), true);
+check('and can be read before it goes',
+  /openFilePreview\(sub\.consultant/.test(signingjs) &&
+  /function openFilePreview/.test(previewjs), true);
+check('the copy already on file can be read too',
+  /async function viewFiled/.test(signingjs), true);
+check('one Submit at the bottom sends them',
+  /host\.appendChild\(submitBar\(\)\)/.test(signingjs) &&
+  /go\.disabled = !ready/.test(signingjs), true);
+check('and it files the scan before it closes the month',
+  /await Sync\.store\([\s\S]{0,220}if \(!again\) await Sync\.act\(sub\.id, 'approve'/.test(signingjs), true);
 check('a month already signed can be uploaded again',
   /s\.status === 'complete' && kindOf\(s\) === 'claim'/.test(signingjs), true);
 check('and the newest copy is the one everybody reads',
