@@ -505,6 +505,13 @@ check('and the counter counts the work, not the bar',
   /list\.filter\(s => !s\.view\)\.length/.test(appjs), true);
 check('the amount is worked out without a second box for the rate',
   !/calcFormula|wrapMonthly/.test(html + appjs), true);
+/* The table is small enough to read whole, and a filter that hides most of
+   it is one more thing to remember having left on. What is waiting is said
+   in words beside the month, and the lights say it row by row. */
+check('the status table has no waiting-on-me filter',
+  !/onlyMine|statustoggle/.test(approvals + css + html), true);
+check('and it still says what is waiting, in words',
+  /Nothing is waiting on you\./.test(approvals), true);
 check('and it is named for the person who gets them',
   /'Submit to ' \+ collectorShort\(\)/.test(signingjs) &&
   /finance: 'Jiha'/.test(authjs), true);

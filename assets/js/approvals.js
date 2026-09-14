@@ -82,7 +82,6 @@ const KIND_LOOKUP_MAX = 24;
 let subs = [];                 // what the last load returned
 let openRow = '';              // the submission whose panel is expanded
 let busy = false;
-let onlyMine = false;          // the "waiting on me" filter
 let statusMonth = null;        // { y, m } — the month the table is showing
 const kindCache = new Map();   // submission id → 'invoice' | 'claim'
 
@@ -407,16 +406,6 @@ function filterBar (waiting) {
     : 'Nothing is waiting on you.';
   bar.appendChild(count);
 
-  const toggle = document.createElement('label');
-  toggle.className = 'statustoggle';
-  const box = document.createElement('input');
-  box.type = 'checkbox';
-  box.checked = onlyMine;
-  box.addEventListener('change', () => { onlyMine = box.checked; paintApprovals(); });
-  toggle.appendChild(box);
-  toggle.appendChild(document.createTextNode(' Only what is waiting on me'));
-  bar.appendChild(toggle);
-
   return bar;
 }
 
@@ -451,7 +440,6 @@ function statusTable () {
   everybody().forEach(name => {
     KIND_ORDER.forEach((kind, i) => {
       const sub = submissionFor(name, statusMonth, kind);
-      if (onlyMine && !waitingOnMe(sub)) return;
       tbody.appendChild(statusRow(name, kind, sub, i === 0));
       drawn++;
       if (sub && openRow === sub.id) tbody.appendChild(decideRow(sub));
@@ -463,9 +451,8 @@ function statusTable () {
     const cell = document.createElement('td');
     cell.colSpan = 8;
     cell.className = 'statusempty';
-    cell.textContent = onlyMine
-      ? 'Nothing in this month is waiting on you.'
-      : 'Nobody has a profile yet — save one on the Profile step and they appear here.';
+    cell.textContent =
+      'Nobody has a profile yet — save one on the Profile step and they appear here.';
     tr.appendChild(cell);
     tbody.appendChild(tr);
   }

@@ -734,7 +734,6 @@ body.locked > .sitefoot{display:none}
   margin-bottom:12px;font-size:12.5px;
 }
 .statuscount{color:var(--navy-soft);font-weight:600}
-.statustoggle{display:inline-flex;align-items:center;gap:6px;color:var(--muted);cursor:pointer}
 
 .statuswrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:#fff}
 .statustable{width:100%;border-collapse:collapse;font-size:12.5px;min-width:760px}
