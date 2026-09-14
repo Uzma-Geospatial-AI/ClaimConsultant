@@ -13,6 +13,7 @@ const chromePath = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Ap
 const OUTPUT = fs.mkdtempSync(path.join(os.tmpdir(), 'claim-ui-audit-'));
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const option = name => process.argv.find(arg => arg.startsWith('--' + name + '='))?.split('=').slice(1).join('=');
+const cropOnly = process.argv.includes('--crop-only');
 const fixtures = `
 window.fetch = async () => { throw new Error('External requests disabled in local UI audit'); };
 if (new URLSearchParams(location.search).get('role') !== 'login') {
@@ -96,6 +97,274 @@ if (new URLSearchParams(location.search).get('role') !== 'login') {
 }
 `;
 
+async function auditCropper({ command, evaluate, pressKey, width, report }) {
+  const mobile = width < 500;
+  const check = (test, passed, detail = {}) => {
+    const result = { width, input: mobile ? 'touch' : 'mouse', test, passed, ...detail };
+    report.interactions.push(result);
+    console.log(JSON.stringify({ width, input: result.input, test, passed }));
+  };
+  await command('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: 1 });
+  await evaluate(`(() => {
+    const panel = document.querySelector('.panel.active');
+    panel.innerHTML = '<h2>Signature crop interaction audit</h2><div id="cropAudit"></div>';
+    window.auditSignatureState = { sig: { personnel: '' } };
+    window.auditSignatureSaved = 0;
+    window.auditCanvas = document.createElement('canvas');
+    auditCanvas.width = 960; auditCanvas.height = 640;
+    const context = auditCanvas.getContext('2d');
+    context.fillStyle = '#fff'; context.fillRect(0, 0, 960, 640);
+    context.strokeStyle = '#172d46'; context.lineWidth = 12;
+    context.beginPath(); context.moveTo(300, 320); context.lineTo(350, 245);
+    context.lineTo(420, 360); context.lineTo(480, 250); context.lineTo(580, 350);
+    context.lineTo(660, 270); context.stroke();
+    buildCropper(document.getElementById('cropAudit'), auditCanvas, auditSignatureState, () => auditSignatureSaved++);
+    window.auditPointerTrace = [];
+    const cropWrap = document.querySelector('#cropAudit .cropwrap');
+    for (const type of ['pointerdown','pointermove','pointerup','pointercancel','gotpointercapture','lostpointercapture']) {
+      for (const capture of [true, false]) cropWrap.addEventListener(type, event => {
+        const record = { type, phase: capture ? 'before' : 'after', pointerId: event.pointerId,
+          tag: event.target.tagName, cls: event.target.className,
+          handle: event.target.closest('[data-resize]')?.dataset.resize || '',
+          x: event.clientX, y: event.clientY, hasCapture: cropWrap.hasPointerCapture(event.pointerId),
+          dragging: cropWrap.classList.contains('dragging') };
+        if (type === 'pointerdown' && capture) window.auditPointerLast = record;
+        auditPointerTrace.push(record);
+      }, capture);
+    }
+    document.getElementById('toast').className = 'toast';
+    document.querySelector('.cropwrap').scrollIntoView({ block: 'center' });
+  })()`);
+  const waitPreview = async () => {
+    for (let i = 0; i < 80; i++) {
+      if (await evaluate('!!document.querySelector("#cropAudit .croppreview img").getAttribute("src") && !document.querySelector("#cropAudit [data-a=use]").disabled')) return true;
+      await delay(25);
+    }
+    return false;
+  };
+  await waitPreview();
+  const rects = () => evaluate(`(() => {
+    const box = document.querySelector('#cropAudit .cropbox').getBoundingClientRect();
+    const canvas = auditCanvas.getBoundingClientRect();
+    return {
+      x: box.left - canvas.left, y: box.top - canvas.top, w: box.width, h: box.height,
+      left: box.left, top: box.top, cx: box.left + box.width / 2, cy: box.top + box.height / 2,
+      canvas: { left: canvas.left, top: canvas.top, w: canvas.width, h: canvas.height },
+      disabled: document.querySelector('#cropAudit [data-a=use]').disabled,
+      pointer: window.auditPointerLast, hitBefore: window.auditHitBefore, trace: window.auditPointerTrace.slice(-30)
+    };
+  })()`);
+  const pointer = async (phase, x, y) => {
+    if (phase === 'start') await evaluate(`(() => { auditPointerTrace=[]; const el=document.elementFromPoint(${x},${y}); window.auditHitBefore={x:${x},y:${y},tag:el?.tagName,cls:el?.className,handle:el?.closest('[data-resize]')?.dataset.resize || ''}; })()`);
+    if (mobile) {
+      await command('Input.dispatchTouchEvent', {
+        type: { start: 'touchStart', move: 'touchMove', end: 'touchEnd', cancel: 'touchCancel' }[phase],
+        touchPoints: phase === 'end' || phase === 'cancel' ? [] : [{ x, y, id: 1, radiusX: 1, radiusY: 1, force: 1 }]
+      });
+    } else {
+      await command('Input.dispatchMouseEvent', {
+        type: { start: 'mousePressed', move: 'mouseMoved', end: 'mouseReleased' }[phase],
+        x, y, button: 'left', buttons: phase === 'end' ? 0 : 1,
+        clickCount: phase === 'move' ? 0 : 1
+      });
+    }
+  };
+  const drag = async (from, to) => {
+    await pointer('start', from.x, from.y);
+    await pointer('move', to.x, to.y);
+    await pointer('end', to.x, to.y);
+    await waitPreview();
+  };
+  const sameBox = (a, b) => ['x', 'y', 'w', 'h'].every(key => Math.abs(a[key] - b[key]) < 1.5);
+  const inside = box => box.x >= -1 && box.y >= -1 && box.x + box.w <= box.canvas.w + 1 && box.y + box.h <= box.canvas.h + 1;
+  const handles = await evaluate('[...document.querySelectorAll("#cropAudit [data-resize]")].map(el => el.dataset.resize).sort()');
+  check('Eight accessible resize handles', handles.join(',') === 'e,n,ne,nw,s,se,sw,w' && await evaluate('[...document.querySelectorAll("#cropAudit [data-resize]")].every(el => el.tagName === "BUTTON" && !!el.getAttribute("aria-label"))'), { handles });
+
+  let before = await rects();
+  await pointer('start', before.cx, before.cy);
+  await pointer('end', before.cx, before.cy);
+  await waitPreview();
+  check('Tap preserves selected rectangle', sameBox(before, await rects()));
+
+  before = await rects();
+  await pointer('start', before.cx, before.cy);
+  check('Use is disabled during a gesture', (await rects()).disabled);
+  await pointer('move', before.cx + 15, before.cy + 12);
+  await pointer('end', before.cx + 15, before.cy + 12);
+  await waitPreview();
+  let after = await rects();
+  check('Drag inside moves without resizing', Math.abs(after.x - before.x - 15) < 2 && Math.abs(after.y - before.y - 12) < 2 && Math.abs(after.w - before.w) < 1.5 && Math.abs(after.h - before.h) < 1.5, { before, after });
+
+  for (const handle of ['e', 'w', 'n', 's', 'nw', 'ne', 'sw', 'se']) {
+    before = await rects();
+    const point = await evaluate(`(() => { const r = document.querySelector('#cropAudit [data-resize="${handle}"]').getBoundingClientRect(); return { x:r.left+r.width/2, y:r.top+r.height/2 }; })()`);
+    const dx = handle.includes('e') ? 5 : handle.includes('w') ? -5 : 0;
+    const dy = handle.includes('s') ? 5 : handle.includes('n') ? -5 : 0;
+    await drag(point, { x: point.x + dx, y: point.y + dy });
+    after = await rects();
+    check('Resize ' + handle.toUpperCase() + ' changes the intended edges',
+      (!dx || after.w > before.w + 2) && (!dy || after.h > before.h + 2) &&
+      (dx || Math.abs(after.w - before.w) < 1.5) && (dy || Math.abs(after.h - before.h) < 1.5) && inside(after), { before, after });
+  }
+
+  before = await rects();
+  const outside = { x: before.canvas.left + 8, y: before.canvas.top + 8 };
+  await pointer('start', outside.x, outside.y);
+  await pointer('end', outside.x, outside.y);
+  await waitPreview();
+  check('Tap outside preserves the existing rectangle', sameBox(before, await rects()));
+  const drawTo = { x: outside.x + before.canvas.w * .23, y: outside.y + before.canvas.h * .19 };
+  await drag(outside, drawTo);
+  after = await rects();
+  check('Dragging outside creates a new rectangle', Math.abs(after.x - 8) < 2 && Math.abs(after.y - 8) < 2 && after.w < before.w && after.h < before.h);
+
+  before = await rects();
+  const boundTo = { x: before.canvas.left + before.canvas.w + 40, y: before.canvas.top + before.canvas.h + 40 };
+  await drag({ x: before.cx, y: before.cy }, boundTo);
+  after = await rects();
+  check('Moving reaches the image bounds and preserves size', inside(after) && Math.abs(after.x + after.w - after.canvas.w) < 2 && Math.abs(after.y + after.h - after.canvas.h) < 2 && Math.abs(after.w - before.w) < 1.5 && Math.abs(after.h - before.h) < 1.5, { before, after });
+
+  before = await rects();
+  await pointer('start', before.cx, before.cy);
+  await pointer('move', before.cx - 25, before.cy - 25);
+  await pressKey('Escape', 'Escape', 27);
+  await pointer('end', before.cx - 25, before.cy - 25);
+  await waitPreview();
+  check('Escape restores the rectangle before a gesture', sameBox(before, await rects()));
+  if (mobile) {
+    before = await rects();
+    await pointer('start', before.cx, before.cy);
+    await pointer('move', before.cx - 20, before.cy - 20);
+    await pointer('cancel', before.cx - 20, before.cy - 20);
+    await waitPreview();
+    check('Touch cancellation restores the original rectangle', sameBox(before, await rects()));
+  }
+
+  before = await rects();
+  const thinFrom = { x: before.canvas.left + before.canvas.w * .2, y: before.canvas.top + before.canvas.h * .6 };
+  await drag(thinFrom, { x: thinFrom.x + Math.min(160, before.canvas.w * .45), y: thinFrom.y + 18 });
+  before = await rects();
+  await drag({ x: before.cx, y: before.cy }, { x: before.cx + 10, y: before.cy - 6 });
+  after = await rects();
+  check('The center of a thin crop remains draggable between overlapping handles',
+    Math.abs(after.x - before.x - 10) < 2 && Math.abs(after.y - before.y + 6) < 2 &&
+    Math.abs(after.w - before.w) < 1.5 && Math.abs(after.h - before.h) < 1.5, { before, after });
+
+  before = await rects();
+  await evaluate('document.querySelector("#cropAudit .cropbox").focus()');
+  await pressKey('ArrowLeft', 'ArrowLeft', 37);
+  await waitPreview();
+  after = await rects();
+  check('Keyboard arrow moves the selection', after.x < before.x && Math.abs(after.w - before.w) < 1.5);
+  before = after;
+  await pressKey('ArrowLeft', 'ArrowLeft', 37, 8);
+  await waitPreview();
+  after = await rects();
+  check('Shift arrow resizes the selection', after.w < before.w && Math.abs(after.x - before.x) < 1.5);
+  before = after;
+  await evaluate('document.querySelector("#cropAudit [data-resize=w]").focus()');
+  await pressKey('ArrowRight', 'ArrowRight', 39);
+  await waitPreview();
+  after = await rects();
+  check('Resize handle keyboard changes its edge', after.x > before.x && after.w < before.w);
+
+  const resizedWidth = mobile ? 360 : 1100;
+  before = await rects();
+  await command('Emulation.setDeviceMetricsOverride', { width: resizedWidth, height: mobile ? 844 : 960, deviceScaleFactor: 1, mobile });
+  await delay(100);
+  after = await rects();
+  check('Viewport resize keeps the crop aligned to the image', ['x', 'y', 'w', 'h'].every(key => Math.abs(before[key] / before.canvas.w - after[key] / after.canvas.w) < .006));
+  await command('Emulation.setDeviceMetricsOverride', { width, height: mobile ? 844 : 960, deviceScaleFactor: 1, mobile });
+  await delay(100);
+
+  // Leave the visual artifact on the synthetic ink rather than the blank
+  // corner used for the boundary checks.
+  before = await rects();
+  await drag({ x: before.canvas.left + before.canvas.w * .28, y: before.canvas.top + before.canvas.h * .33 },
+    { x: before.canvas.left + before.canvas.w * .73, y: before.canvas.top + before.canvas.h * .6 });
+
+  const screenshot = await command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
+  const filename = width + '-signature-crop.png';
+  fs.writeFileSync(path.join(OUTPUT, filename), Buffer.from(screenshot.data, 'base64'));
+  report.screens.push({ width, role: 'admin', panel: 'signature-crop', screenshot: filename,
+    documentWidth: await evaluate('document.documentElement.scrollWidth'), unnamedButtons: [], unlabeledFields: [] });
+  // Resolve two preview jobs out of order to reproduce a slow image decode.
+  // The replacement returns only synthetic swatches in this isolated fixture.
+  await evaluate(`(() => {
+    window.auditPreviewJobs = [];
+    cropToSignature = () => new Promise(resolve => {
+      const swatch = document.createElement('canvas'); swatch.width = 40; swatch.height = 20;
+      const ctx = swatch.getContext('2d');
+      ctx.fillStyle = auditPreviewJobs.length ? '#187d48' : '#8f2530';
+      ctx.fillRect(0, 0, 40, 20);
+      auditPreviewJobs.push({ resolve, url: swatch.toDataURL() });
+    });
+    document.querySelector('#cropAudit .cropbox').focus();
+  })()`);
+  const waitJobs = async count => {
+    for (let i = 0; i < 80; i++) {
+      if (await evaluate('auditPreviewJobs.length >= ' + count)) return true;
+      await delay(25);
+    }
+    return false;
+  };
+  await pressKey('ArrowLeft', 'ArrowLeft', 37);
+  const firstJob = await waitJobs(1);
+  check('Use is disabled while a replacement preview is pending', firstJob && (await rects()).disabled);
+  await evaluate('document.querySelector("#cropAudit [data-a=use]").click()');
+  check('Pending preview cannot save an earlier crop', await evaluate('auditSignatureSaved === 0'));
+  await pressKey('ArrowUp', 'ArrowUp', 38);
+  await delay(35);
+  const concurrentJobs = await evaluate('auditPreviewJobs.length > 1');
+  if (firstJob && !concurrentJobs) {
+    await evaluate('auditPreviewJobs[0].resolve(auditPreviewJobs[0].url)');
+    await delay(25);
+    check('A superseded preview stays unavailable while the latest crop renders',
+      await evaluate('document.querySelector("#cropAudit .croppreview img").src !== auditPreviewJobs[0].url && document.querySelector("#cropAudit [data-a=use]").disabled'));
+  }
+  const secondJob = await waitJobs(2);
+  if (firstJob && secondJob) {
+    await evaluate('auditPreviewJobs[1].resolve(auditPreviewJobs[1].url)');
+    await waitPreview();
+    if (concurrentJobs) await evaluate('auditPreviewJobs[0].resolve(auditPreviewJobs[0].url)');
+    await delay(30);
+    check('Late preview completion cannot replace the newest selection', await evaluate('document.querySelector("#cropAudit .croppreview img").src === auditPreviewJobs[1].url'));
+  } else {
+    check('Two separate crop changes schedule fresh previews', false, { firstJob, secondJob });
+  }
+  const kept = await evaluate(`(() => {
+    const expected = document.querySelector('#cropAudit .croppreview img').src;
+    document.querySelector('#cropAudit [data-a=use]').click();
+    return { samePreview: auditSignatureState.sig.personnel === expected, saves: auditSignatureSaved };
+  })()`);
+  check('Use saves exactly the displayed preview once', kept.samePreview && kept.saves === 1, kept);
+
+  await evaluate(`(() => {
+    const host = document.createElement('div'); host.id = 'signatureLifecycleAudit';
+    document.querySelector('.panel.active').appendChild(host);
+    window.auditOldUploadState = { sig: { personnel: '' } };
+    window.auditReplacementState = { sig: { personnel: '' } };
+    window.auditLifecycleSaves = 0;
+    uploadToCanvas = () => new Promise(resolve => { window.auditResolveUpload = resolve; });
+    mountProfileSignature(host, auditOldUploadState, () => auditLifecycleSaves++);
+    const input = host.querySelector('input[type=file]');
+    const files = new DataTransfer();
+    files.items.add(new File(['synthetic input'], 'local-crop-audit.png', { type: 'image/png' }));
+    input.files = files.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    window.auditOldCrop = host.querySelector('.sigcrop');
+    mountProfileSignature(host, auditReplacementState, () => auditLifecycleSaves++);
+    auditResolveUpload(auditCanvas);
+  })()`);
+  await delay(50);
+  check('An upload finishing after the signature panel is rebuilt stays discarded', await evaluate(`(() => {
+    const host = document.getElementById('signatureLifecycleAudit');
+    return host.isConnected && !auditOldCrop.isConnected && !auditOldCrop.querySelector('.cropwrap') &&
+      !host.querySelector('.cropwrap') && host.querySelector('.sigcrop').hidden &&
+      !auditOldUploadState.sig.personnel && !auditReplacementState.sig.personnel && auditLifecycleSaves === 0;
+  })()`));
+}
+
 async function main() {
   const mime = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml' };
   const server = http.createServer((req, res) => {
@@ -161,16 +430,16 @@ async function main() {
     if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
     return result.result.value;
   };
-  const pressKey = async (key, code, keyCode) => {
-    await command('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode: keyCode, nativeVirtualKeyCode: keyCode,
+  const pressKey = async (key, code, keyCode, modifiers = 0) => {
+    await command('Input.dispatchKeyEvent', { type: 'keyDown', key, code, modifiers, windowsVirtualKeyCode: keyCode, nativeVirtualKeyCode: keyCode,
       ...(key === 'Enter' ? { text: '\r', unmodifiedText: '\r' } : key === ' ' ? { text: ' ', unmodifiedText: ' ' } : {}) });
-    await command('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: keyCode, nativeVirtualKeyCode: keyCode });
+    await command('Input.dispatchKeyEvent', { type: 'keyUp', key, code, modifiers, windowsVirtualKeyCode: keyCode, nativeVirtualKeyCode: keyCode });
   };
   try {
     await command('Page.enable'); await command('Runtime.enable'); await command('Network.enable');
     await command('Network.setBlockedURLs', { urls: ['https://*', 'http://bdos.*'] });
     const report = { output: OUTPUT, screens: [], interactions: [], runtimeErrors };
-    const roles = option('roles')?.split(',') || ['login', 'admin', 'consultant', 'manager', 'boss', 'pa', 'finance'];
+    const roles = cropOnly ? ['admin', 'consultant'] : option('roles')?.split(',') || ['login', 'admin', 'consultant', 'manager', 'boss', 'pa', 'finance'];
     for (const width of [1440, 390]) {
       const height = width === 390 ? 844 : 960;
       await command('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width < 500 });
@@ -179,6 +448,26 @@ async function main() {
         for (let i = 0; i < 60; i++) {
           await delay(100);
           if (await evaluate('document.readyState === "complete" && (new URLSearchParams(location.search).get("role") === "login" || document.querySelectorAll("#stepper button").length > 0)')) break;
+        }
+        if (cropOnly) {
+          if (role === 'admin') await auditCropper({ command, evaluate, pressKey, width, report });
+          else {
+            await evaluate('goToStep(activeSteps().findIndex(s => s.id === "claim"), true)');
+            const signatures = await evaluate(`(() => {
+              const slots = ['pm','hod','verified'].map(key => {
+                const slot = document.querySelector('#p-claim [data-sig="' + key + '"]');
+                return { key, readOnly: !!slot && !slot.querySelector('canvas, button, input[type=file]'),
+                  hint: slot?.querySelector('.sighint')?.textContent || '' };
+              });
+              const own = document.querySelector('#p-claim [data-sig="personnel"]');
+              return { slots, ownEditable: !!own?.querySelector('canvas') && !!own?.querySelector('[data-a=upload]') && !!own?.querySelector('[data-a=clear]'),
+                ownSignaturePreserved: !!S.sig.personnel };
+            })()`);
+            report.interactions.push({ width, test: 'Consultant approval signatures are read-only and own signature stays editable', ...signatures,
+              passed: signatures.slots.every(slot => slot.readOnly && slot.hint) && signatures.ownEditable && signatures.ownSignaturePreserved });
+            console.log(JSON.stringify(report.interactions[report.interactions.length - 1]));
+          }
+          continue;
         }
         let panels = role === 'login' ? ['login'] : await evaluate('activeSteps().map(s => s.id)');
         if (option('panels')) panels = panels.filter(panel => option('panels').split(',').includes(panel));
@@ -283,7 +572,8 @@ async function main() {
     fs.writeFileSync(path.join(OUTPUT, 'report.json'), JSON.stringify(report, null, 2));
     console.log('AUDIT_OUTPUT=' + OUTPUT);
     console.log('RUNTIME_ERRORS=' + JSON.stringify(runtimeErrors));
-    console.log('INTERACTIONS=' + JSON.stringify(report.interactions));
+    console.log('INTERACTIONS=' + JSON.stringify({ passed: report.interactions.filter(r => r.passed).length,
+      failures: report.interactions.filter(r => r.passed === false).map(({ width, test }) => ({ width, test })) }));
     if (runtimeErrors.length || report.interactions.some(r => r.passed === false) || report.screens.some(s => s.documentWidth > s.width + 2 || s.unnamedButtons.length || s.unlabeledFields.length)) process.exitCode = 1;
   } finally {
     try { await send('Browser.close'); } catch {}

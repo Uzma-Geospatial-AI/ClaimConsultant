@@ -27,6 +27,20 @@ const Sig = (() => {
   /** build one pad inside `container`, bound to `key` */
   function mount (container, key) {
     if (!container) return;
+    // Consultants supply their own signature. Approval signatures are shown
+    // from the saved record and edited only by the administrator here.
+    const editable = key === 'personnel' || (typeof Auth !== 'undefined' && Auth.isAdmin());
+    if (!editable) {
+      container.innerHTML = `
+        <div class="sigslot readonly">
+          <img class="sig-readonly-image" alt="${{ pm: 'Project manager', hod: 'HOD', verified: 'Finance' }[key] || 'Approver'} signature" hidden>
+          <span class="sighint"></span>
+        </div>`;
+      const entry = { root: container, image: container.querySelector('.sig-readonly-image'), readonly: true };
+      (pads[key] = pads[key] || []).push(entry);
+      paintReadOnly(entry, key);
+      return;
+    }
     container.innerHTML = `
       <div class="sigslot">
         <canvas></canvas>
@@ -85,9 +99,23 @@ const Sig = (() => {
   /** redraw every pad bound to `key`, optionally skipping the one being drawn in */
   function syncKey (key, skip) {
     (pads[key] || []).forEach(e => {
+      if (e.readonly) { paintReadOnly(e, key); return; }
       if (e !== skip) { e.pad.clear(); paint(e, S.sig[key]); }
       setHint(e, key, !!S.sig[key]);
     });
+  }
+
+  function paintReadOnly (entry, key) {
+    const signature = S && S.sig && S.sig[key];
+    entry.image.hidden = !signature;
+    if (signature) entry.image.src = signature;
+    else entry.image.removeAttribute('src');
+    const hint = entry.root.querySelector('.sighint');
+    hint.textContent = signature ? 'Signature on record' : ({
+      pm: 'Added during project manager review',
+      hod: 'Added by the PA after HOD approval',
+      verified: 'For Group People & Finance'
+    }[key] || 'Added during approval');
   }
 
   function sizeCanvas (e) {
@@ -128,6 +156,7 @@ const Sig = (() => {
   function resizeAll () {
     Object.keys(pads).forEach(key => {
       (pads[key] || []).forEach(e => {
+        if (e.readonly) { paintReadOnly(e, key); return; }
         if (sizeCanvas(e)) { paint(e, S && S.sig[key]); setHint(e, key, !!(S && S.sig[key])); }
       });
     });
@@ -216,6 +245,13 @@ function normalizeSignature (dataUrl) {
 
 /** the biggest a rendered page is worked on — enough to read fine pen strokes */
 const SIG_RENDER_MAX = 1600;
+const signatureCropCleanups = new WeakMap();
+let signatureCropId = 0;
+
+function disposeSignatureCropper (host) {
+  const cleanup = host && signatureCropCleanups.get(host);
+  if (cleanup) cleanup();
+}
 
 /** where the ink is on a canvas, or null when the page is blank */
 function detectInkBox (canvas) {
@@ -359,6 +395,7 @@ async function cropToSignature (canvas, box) {
  */
 function mountProfileSignature (host, S, onChange) {
   if (!host) return;
+  disposeSignatureCropper(host.querySelector('.sigcrop'));
   host.innerHTML = `
     <div class="sigshow">
       <img alt="Your signature" hidden>
@@ -378,6 +415,7 @@ function mountProfileSignature (host, S, onChange) {
   const draw  = host.querySelector('.sigdraw');
   const crop  = host.querySelector('.sigcrop');
   const file  = host.querySelector('input[type=file]');
+  let uploadVersion = 0;
 
   const paintCurrent = () => {
     const have = !!(S.sig && S.sig.personnel);
@@ -388,6 +426,8 @@ function mountProfileSignature (host, S, onChange) {
   };
 
   host.querySelector('[data-a="draw"]').addEventListener('click', () => {
+    uploadVersion++;
+    disposeSignatureCropper(crop);
     crop.hidden = true;
     draw.hidden = !draw.hidden;
     if (!draw.hidden) {
@@ -398,6 +438,8 @@ function mountProfileSignature (host, S, onChange) {
 
   host.querySelector('[data-a="file"]').addEventListener('click', () => file.click());
   host.querySelector('[data-a="clear"]').addEventListener('click', () => {
+    uploadVersion++;
+    disposeSignatureCropper(crop);
     S.sig.personnel = '';
     draw.hidden = true;
     crop.hidden = true;
@@ -410,13 +452,17 @@ function mountProfileSignature (host, S, onChange) {
     const f = file.files && file.files[0];
     file.value = '';
     if (!f) return;
+    const version = ++uploadVersion;
+    disposeSignatureCropper(crop);
     draw.hidden = true;
     crop.hidden = false;
     crop.innerHTML = '<p class="croplead">Reading it…</p>';
     try {
       const canvas = await uploadToCanvas(f);
+      if (version !== uploadVersion || !crop.isConnected || !host.contains(crop)) return;
       buildCropper(crop, canvas, S, () => { paintCurrent(); onChange(); });
     } catch (err) {
+      if (version !== uploadVersion || !crop.isConnected || !host.contains(crop)) return;
       crop.innerHTML = '';
       const p = document.createElement('p');
       p.className = 'warn';
@@ -437,88 +483,215 @@ function mountProfileSignature (host, S, onChange) {
  * the signature, and a preview of exactly what will be kept.
  */
 function buildCropper (host, canvas, S, done) {
+  disposeSignatureCropper(host);
+  const helpId = 'signatureCropHelp' + (++signatureCropId);
+  const handles = {
+    nw: 'top left corner', n: 'top edge', ne: 'top right corner', e: 'right edge',
+    se: 'bottom right corner', s: 'bottom edge', sw: 'bottom left corner', w: 'left edge'
+  };
   host.innerHTML = `
-    <p class="croplead">This is the page as it was read. The box is where the ink is &mdash;
-      drag a new one if it caught the wrong thing.</p>
-    <div class="cropwrap"><div class="cropbox"></div></div>
+    <p class="croplead" id="${helpId}"><b>Drag inside the box to move it.</b> Drag a corner or edge to resize it, or drag outside to select a different signature.
+      <span class="cropkeys">Arrow keys move the box. Shift + arrow keys resize it. Press Escape to cancel a drag.</span></p>
+    <div class="cropwrap"><div class="cropbox" tabindex="0" role="group" aria-label="Signature selection" aria-describedby="${helpId}">
+      ${Object.entries(handles).map(([key, label]) => `<button type="button" class="crophandle" data-resize="${key}" aria-label="Resize ${label}" title="Resize ${label}"></button>`).join('')}
+    </div></div>
     <div class="croppreview"><span>Will be kept as:</span><img alt="Signature preview"></div>
+    <p class="warn croperror" role="alert" hidden></p>
     <div class="btnrow">
-      <button type="button" class="btn primary" data-a="use">Use this signature</button>
+      <button type="button" class="btn primary" data-a="use" disabled>Use this signature</button>
       <button type="button" class="btn ghost" data-a="cancel">Choose another file</button>
     </div>`;
 
   const wrap = host.querySelector('.cropwrap');
   const boxEl = host.querySelector('.cropbox');
   const preview = host.querySelector('.croppreview img');
+  const previewArea = host.querySelector('.croppreview');
+  const error = host.querySelector('.croperror');
+  const use = host.querySelector('[data-a="use"]');
   canvas.classList.add('cropcanvas');
   wrap.insertBefore(canvas, boxEl);
 
   let box = detectInkBox(canvas) ||
             { x0: 0, y0: 0, x1: canvas.width - 1, y1: canvas.height - 1 };
+  let gesture = null;
+  let disposed = false;
+  const events = new AbortController();
+  const listen = (target, name, fn) => target.addEventListener(name, fn, { signal: events.signal });
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+  const minWidth = Math.min(8, canvas.width), minHeight = Math.min(8, canvas.height);
+  box.x1 = Math.min(canvas.width - 1, Math.max(box.x1, box.x0 + minWidth - 1));
+  box.y1 = Math.min(canvas.height - 1, Math.max(box.y1, box.y0 + minHeight - 1));
+  box.x0 = Math.min(box.x0, box.x1 - minWidth + 1);
+  box.y0 = Math.min(box.y0, box.y1 - minHeight + 1);
+
+  // Coordinates remain in source pixels even when the uploaded page scales
+  // down on a phone. Moving preserves its size; resizing anchors the far edge.
+  const adjust = (start, mode, dx, dy) => {
+    const next = { ...start };
+    dx = Math.round(dx); dy = Math.round(dy);
+    if (mode === 'move') {
+      dx = clamp(dx, -start.x0, canvas.width - 1 - start.x1);
+      dy = clamp(dy, -start.y0, canvas.height - 1 - start.y1);
+      return { x0: start.x0 + dx, y0: start.y0 + dy, x1: start.x1 + dx, y1: start.y1 + dy };
+    }
+    if (mode.includes('w')) next.x0 = clamp(start.x0 + dx, 0, start.x1 - minWidth + 1);
+    if (mode.includes('e')) next.x1 = clamp(start.x1 + dx, start.x0 + minWidth - 1, canvas.width - 1);
+    if (mode.includes('n')) next.y0 = clamp(start.y0 + dy, 0, start.y1 - minHeight + 1);
+    if (mode.includes('s')) next.y1 = clamp(start.y1 + dy, start.y0 + minHeight - 1, canvas.height - 1);
+    return next;
+  };
 
   const showBox = () => {
     const rect = canvas.getBoundingClientRect();
     if (!rect.width) return;
+    const outer = wrap.getBoundingClientRect();
     const sx = rect.width / canvas.width, sy = rect.height / canvas.height;
-    boxEl.style.left = (box.x0 * sx) + 'px';
-    boxEl.style.top = (box.y0 * sy) + 'px';
+    boxEl.style.left = (rect.left - outer.left - wrap.clientLeft + box.x0 * sx) + 'px';
+    boxEl.style.top = (rect.top - outer.top - wrap.clientTop + box.y0 * sy) + 'px';
     boxEl.style.width = ((box.x1 - box.x0 + 1) * sx) + 'px';
     boxEl.style.height = ((box.y1 - box.y0 + 1) * sy) + 'px';
   };
 
   let pending = null;
-  const refreshPreview = async () => {
-    const url = await cropToSignature(canvas, box);
-    pending = url;
-    preview.src = url;
+  let previewVersion = 0, previewFrame = null, previewRunning = false;
+  const schedulePreview = () => {
+    if (disposed || previewFrame !== null || previewRunning) return;
+    previewFrame = requestAnimationFrame(async () => {
+      previewFrame = null;
+      previewRunning = true;
+      const version = previewVersion;
+      try {
+        const url = await cropToSignature(canvas, { ...box });
+        if (disposed || version !== previewVersion) return;
+        pending = url;
+        preview.src = url;
+        previewArea.removeAttribute('aria-busy');
+        use.disabled = !!gesture;
+      } catch (err) {
+        if (disposed || version !== previewVersion) return;
+        error.textContent = 'Could not preview this selection. Adjust the box or choose another file.';
+        error.hidden = false;
+        previewArea.removeAttribute('aria-busy');
+      } finally {
+        previewRunning = false;
+        if (!disposed && version !== previewVersion) schedulePreview();
+      }
+    });
+  };
+  const refreshPreview = () => {
+    previewVersion++;
+    pending = null;
+    use.disabled = true;
+    error.hidden = true;
+    previewArea.setAttribute('aria-busy', 'true');
+    schedulePreview();
   };
 
-  /* Dragging a new box. Pointer events cover mouse, pen and finger with one
-     set of handlers, which is the whole reason they exist. */
-  let from = null;
   const at = ev => {
     const rect = canvas.getBoundingClientRect();
     return {
-      x: Math.min(canvas.width - 1, Math.max(0, (ev.clientX - rect.left) / rect.width * canvas.width)),
-      y: Math.min(canvas.height - 1, Math.max(0, (ev.clientY - rect.top) / rect.height * canvas.height))
+      x: clamp(Math.round((ev.clientX - rect.left) / rect.width * canvas.width), 0, canvas.width - 1),
+      y: clamp(Math.round((ev.clientY - rect.top) / rect.height * canvas.height), 0, canvas.height - 1)
     };
   };
-  wrap.addEventListener('pointerdown', ev => {
-    from = at(ev);
+  listen(wrap, 'pointerdown', ev => {
+    if (gesture || ev.button !== 0 || ev.isPrimary === false) return;
+    // Touch browsers may retarget a press in the middle to a nearby button.
+    // Use the element under the finger so the middle still moves a small box.
+    const target = document.elementFromPoint(ev.clientX, ev.clientY) || ev.target;
+    const rect = boxEl.getBoundingClientRect();
+    const insetX = Math.min(14, rect.width / 4), insetY = Math.min(14, rect.height / 4);
+    const inMiddle = ev.clientX > rect.left + insetX && ev.clientX < rect.right - insetX &&
+      ev.clientY > rect.top + insetY && ev.clientY < rect.bottom - insetY;
+    // Keep a move area even when the handles overlap on a thin signature.
+    const handle = inMiddle ? null : target.closest('[data-resize]');
+    const mode = handle ? handle.dataset.resize : boxEl.contains(target) ? 'move' : 'draw';
+    gesture = { id: ev.pointerId, mode, from: at(ev), start: { ...box },
+      clientX: ev.clientX, clientY: ev.clientY, changed: false };
+    (handle || boxEl).focus({ preventScroll: true });
+    use.disabled = true;
+    wrap.classList.add('dragging');
     wrap.setPointerCapture(ev.pointerId);
     ev.preventDefault();
   });
-  wrap.addEventListener('pointermove', ev => {
-    if (!from) return;
+  const movePointer = ev => {
+    if (!gesture || ev.pointerId !== gesture.id) return;
+    if (!gesture.changed && Math.hypot(ev.clientX - gesture.clientX, ev.clientY - gesture.clientY) < 3) return;
     const to = at(ev);
-    box = { x0: Math.min(from.x, to.x), y0: Math.min(from.y, to.y),
-            x1: Math.max(from.x, to.x), y1: Math.max(from.y, to.y) };
+    const { from, start, mode } = gesture;
+    gesture.changed = true;
+    box = mode === 'draw'
+      ? { x0: Math.min(from.x, to.x), y0: Math.min(from.y, to.y), x1: Math.max(from.x, to.x), y1: Math.max(from.y, to.y) }
+      : adjust(start, mode, to.x - from.x, to.y - from.y);
     showBox();
+    refreshPreview();
+  };
+  listen(wrap, 'pointermove', movePointer);
+  const finishGesture = cancel => {
+    if (!gesture) return;
+    const { id, start, changed } = gesture;
+    if (cancel || !changed || box.x1 - box.x0 + 1 < minWidth || box.y1 - box.y0 + 1 < minHeight) box = start;
+    gesture = null;
+    wrap.classList.remove('dragging');
+    if (wrap.hasPointerCapture(id)) wrap.releasePointerCapture(id);
+    showBox();
+    if (changed) refreshPreview();
+    else use.disabled = !pending;
+  };
+  listen(wrap, 'pointerup', ev => {
+    if (!gesture || ev.pointerId !== gesture.id) return;
+    movePointer(ev);
+    finishGesture(false);
   });
-  wrap.addEventListener('pointerup', () => {
-    if (!from) return;
-    from = null;
-    if (box.x1 - box.x0 < 8 || box.y1 - box.y0 < 8) {
-      // a tap rather than a drag: take the whole page back
-      box = { x0: 0, y0: 0, x1: canvas.width - 1, y1: canvas.height - 1 };
-      showBox();
-    }
+  listen(wrap, 'pointercancel', ev => { if (gesture && ev.pointerId === gesture.id) finishGesture(true); });
+  listen(wrap, 'lostpointercapture', ev => {
+    if (gesture && ev.pointerId === gesture.id && !wrap.hasPointerCapture(ev.pointerId)) finishGesture(true);
+  });
+  listen(wrap, 'keydown', ev => {
+    if (ev.key === 'Escape' && gesture) { ev.preventDefault(); finishGesture(true); return; }
+    if (gesture || ev.altKey || ev.ctrlKey || ev.metaKey) return;
+    const delta = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[ev.key];
+    if (!delta) return;
+    ev.preventDefault();
+    const handle = ev.target.closest('[data-resize]');
+    const mode = handle ? handle.dataset.resize : ev.shiftKey ? 'se' : 'move';
+    const step = ev.shiftKey ? 10 : 1;
+    box = adjust(box, mode, delta[0] * step, delta[1] * step);
+    showBox();
     refreshPreview();
   });
 
-  host.querySelector('[data-a="use"]').addEventListener('click', () => {
-    if (!pending) return;
+  let observer = null;
+  const cleanup = () => {
+    disposed = true;
+    previewVersion++;
+    if (previewFrame !== null) cancelAnimationFrame(previewFrame);
+    events.abort();
+    if (observer) observer.disconnect();
+    if (gesture && wrap.hasPointerCapture(gesture.id)) wrap.releasePointerCapture(gesture.id);
+    signatureCropCleanups.delete(host);
+  };
+  signatureCropCleanups.set(host, cleanup);
+
+  listen(use, 'click', () => {
+    if (!pending || use.disabled || gesture) return;
     S.sig.personnel = pending;
+    cleanup();
     host.hidden = true;
     Sig.refresh();
     done();
   });
-  host.querySelector('[data-a="cancel"]').addEventListener('click', () => {
+  listen(host.querySelector('[data-a="cancel"]'), 'click', () => {
+    cleanup();
     host.hidden = true;
     host.innerHTML = '';
   });
 
-  setTimeout(showBox, 20);
-  window.addEventListener('resize', showBox);
+  if (typeof ResizeObserver !== 'undefined') {
+    observer = new ResizeObserver(showBox);
+    observer.observe(canvas);
+  }
+  showBox();
+  listen(window, 'resize', showBox);
   refreshPreview();
 }

@@ -85,3 +85,6 @@ jobs:
 
       - name: Test who gets the profile controls
         run: node test/profile-access.test.js
+
+      - name: Test signature controls by account role
+        run: node test/signature-access.test.js

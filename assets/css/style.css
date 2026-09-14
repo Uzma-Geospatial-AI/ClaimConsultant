@@ -964,6 +964,9 @@ body.locked > .sitefoot{display:none}
 .sigactions{margin-top:10px}
 .sigdraw{margin-top:12px;max-width:420px}
 .sigdraw[hidden]{display:none}
+.sigslot.readonly{min-height:88px;justify-content:center;border:0;background:transparent}
+.sig-readonly-image{display:block;max-width:100%;height:64px;object-fit:contain}
+.sigslot.readonly .sighint{font-size:11px;line-height:1.45;color:var(--muted);text-align:center}
 
 .sigcrop{
   margin-top:14px;padding:14px;background:#f7fafd;
@@ -974,13 +977,29 @@ body.locked > .sitefoot{display:none}
 .cropwrap{
   position:relative;display:inline-block;max-width:100%;
   border:1px solid var(--line);background:#fff;line-height:0;
-  cursor:crosshair;touch-action:none;
+  cursor:crosshair;touch-action:none;user-select:none;
 }
 .cropcanvas{max-width:100%;height:auto;display:block}
 .cropbox{
-  position:absolute;border:2px solid var(--orange);background:rgba(241,102,42,.12);
-  pointer-events:none;
+  position:absolute;border:2px solid var(--accent);background:rgba(241,102,42,.12);
+  cursor:move;touch-action:none;
 }
+.cropbox:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+.cropkeys{display:block;margin-top:5px;font-size:12px;color:var(--muted)}
+.crophandle{position:absolute;width:28px;height:28px;padding:0;border:0;border-radius:4px;background:transparent;transform:translate(-50%,-50%);touch-action:none;z-index:1}
+.crophandle::after{content:"";display:block;width:11px;height:11px;margin:auto;border:2px solid var(--accent);border-radius:2px;background:#fff;box-shadow:0 1px 3px rgba(34,49,64,.16)}
+.crophandle:hover::after,.crophandle:focus-visible::after{background:var(--orange-soft);border-color:var(--navy)}
+.crophandle[data-resize=nw]{left:0;top:0;cursor:nwse-resize}
+.crophandle[data-resize=n]{left:50%;top:0;cursor:ns-resize}
+.crophandle[data-resize=ne]{left:100%;top:0;cursor:nesw-resize}
+.crophandle[data-resize=e]{left:100%;top:50%;cursor:ew-resize}
+.crophandle[data-resize=se]{left:100%;top:100%;cursor:nwse-resize}
+.crophandle[data-resize=s]{left:50%;top:100%;cursor:ns-resize}
+.crophandle[data-resize=sw]{left:0;top:100%;cursor:nesw-resize}
+.crophandle[data-resize=w]{left:0;top:50%;cursor:ew-resize}
+.cropwrap.dragging .cropbox{cursor:grabbing}
+.cropwrap.dragging .crophandle{cursor:inherit}
+.croppreview[aria-busy=true] img{opacity:.55}
 .croppreview{
   display:flex;align-items:center;gap:14px;flex-wrap:wrap;
   margin-top:12px;padding:10px 12px;background:#fff;

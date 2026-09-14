@@ -666,6 +666,7 @@ node test/generate.test.js    # arithmetic and all four document formats
 node test/zip.test.js         # the download archive
 node test/history.test.js     # filed document grouping and downloads
 node test/profile-access.test.js # profile ownership and action guards
+node test/signature-access.test.js # consultant and administrator signature controls
 ```
 
 No `npm install`, and nothing touches the network. Three of the suites load the application
@@ -702,7 +703,7 @@ and nothing else, and the app is left exactly as it was. It then checks that a d
 only when no work can be lost, that profiles converge in both directions, and that a recorded
 claim carries the month as 1&ndash;12 rather than the 0&ndash;11 the form uses internally.
 
-GitHub Actions runs all seven on every push across Node 20 and 22, alongside a JavaScript syntax
+GitHub Actions runs all eight on every push across Node 20 and 22, alongside a JavaScript syntax
 check, a vendored-library check, and a scan that fails the build if a real IC number or bank
 account number ever lands in the repository.
 
@@ -712,6 +713,13 @@ The audit starts an isolated browser and local fixture server, blocks external r
 uses synthetic profiles for every role. It checks desktop and phone layouts, control labels,
 password visibility and PDF dialog focus. Screenshots and its JSON report go to a temporary
 directory printed at the end. It never signs in to BDOS or submits a real claim.
+
+Use `node test/ui-smoke.cjs --crop-only` to test signature selection with a synthetic scan.
+Drag inside a selected box to move it, use any corner or edge to resize it, or drag outside
+to select another area. Arrow keys move the selection; Shift + arrow keys resize it. The
+preview follows the latest selection, and the saved signature matches that preview.
+Consultants can edit their own signature; the Project Manager, HOD and Finance signature
+spaces on the claim show saved signatures without drawing, Clear or Upload controls.
 
 The workspace supports keyboard navigation through the day grid: Tab enters an activity row,
 arrow keys move between days and rows, Home/End jump to the first/last day, and Enter/Space
