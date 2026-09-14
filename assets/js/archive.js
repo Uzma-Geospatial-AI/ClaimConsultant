@@ -297,20 +297,117 @@ function paintHistory () {
     return;
   }
 
-  // grouped by month, because that is how anybody asks for one
-  let seen = null;
+  const months = new Map();
   rows.forEach(r => {
-    const m = Number(r.period_month) || 0;
-    const label = `${MONTHS[Math.max(0, m - 1)]} ${r.period_year || ''}`.trim();
-    if (label !== seen) {
-      seen = label;
-      const h = document.createElement('h4');
-      h.className = 'archiveperson';
-      h.textContent = label;
-      host.appendChild(h);
-    }
-    host.appendChild(archiveRow(r, true));
+    const key = `${r.period_year}-${r.period_month}`;
+    if (!months.has(key)) months.set(key, []);
+    months.get(key).push(r);
   });
+  months.forEach(records => host.appendChild(historyTable(records)));
+}
+
+/** Keep the two document types together for each person in a month. */
+function historyTable (records) {
+  const wrap = document.createElement('div');
+  wrap.className = 'history-table-wrap';
+  wrap.tabIndex = 0;
+  wrap.setAttribute('role', 'region');
+  const first = records[0];
+  const month = `${MONTHS[Math.max(0, Number(first.period_month) - 1)]} ${first.period_year || ''}`.trim();
+  wrap.setAttribute('aria-label', month + ' documents');
+  const table = document.createElement('table');
+  table.className = 'history-table';
+  const caption = document.createElement('caption');
+  caption.textContent = month;
+  table.appendChild(caption);
+  const head = document.createElement('thead');
+  const titles = document.createElement('tr');
+  ['Consultant', 'Time Sheet', 'Invoice'].forEach(label => {
+    const cell = document.createElement('th');
+    cell.scope = 'col';
+    cell.textContent = label;
+    titles.appendChild(cell);
+  });
+  head.appendChild(titles);
+  table.appendChild(head);
+  const body = document.createElement('tbody');
+  const people = new Map();
+  records.forEach(r => {
+    const name = String(r.consultant || '').trim() || '(no name)';
+    if (!people.has(name)) people.set(name, []);
+    people.get(name).push(r);
+  });
+  people.forEach((copies, name) => {
+    const row = document.createElement('tr');
+    const person = document.createElement('th');
+    person.scope = 'row';
+    person.textContent = name;
+    row.appendChild(person);
+    ['claim', 'invoice'].forEach(kind => {
+      const cell = document.createElement('td');
+      // Older records contained both documents and did not carry a kind.
+      const matching = copies.filter(r => !r.kind || r.kind === kind);
+      let fileCount = 0;
+      matching.forEach(r => (r.files || []).forEach((f, index) => {
+        fileCount++;
+        const item = document.createElement('div');
+        item.className = 'history-document';
+        const description = document.createElement('span');
+        description.className = 'history-document-meta';
+        description.textContent = [r.invoice_no,
+          stageOf(r) === ARCHIVE_FINAL ? 'Final copy' : 'Reviewed copy',
+          !r.kind ? 'Combined record' : '',
+          (r.files || []).length > 1 ? `File ${index + 1}` : ''].filter(Boolean).join(' ? ');
+        description.title = [f.name, r.note].filter(Boolean).join(' ? ');
+        const actions = document.createElement('div');
+        actions.className = 'history-document-actions';
+        ['view', 'download'].forEach(action => {
+          const label = `${action === 'view' ? 'View' : 'Download'} ${kind === 'claim' ? 'Time Sheet' : 'Invoice'} ? ${name} ? ${f.name || 'document'}`;
+          const control = button(action === 'view' ? '\u{1F441}\uFE0E' : '?', 'ghost small history-icon',
+            () => openHistoryFile(r, index, action, control));
+          control.type = 'button';
+          control.title = label;
+          control.setAttribute('aria-label', label);
+          actions.appendChild(control);
+        });
+        item.appendChild(description);
+        item.appendChild(actions);
+        cell.appendChild(item);
+      }));
+      if (!fileCount) {
+        const empty = document.createElement('span');
+        empty.className = 'history-missing';
+        empty.textContent = 'Not available';
+        cell.appendChild(empty);
+      }
+      row.appendChild(cell);
+    });
+    body.appendChild(row);
+  });
+  table.appendChild(body);
+  wrap.appendChild(table);
+  return wrap;
+}
+
+async function openHistoryFile (record, index, action, control) {
+  control.disabled = true;
+  control.setAttribute('aria-busy', 'true');
+  try {
+    const stored = await Sync.storedOne(record.id);
+    const file = stored && (stored.files || [])[index];
+    if (!file || !file.content) throw new Error('That file is not on the record. Refresh and try again.');
+    const type = file.type || (/\.pdf$/i.test(file.name || '') ? 'application/pdf' : 'application/octet-stream');
+    const bytes = dataUrlToBytes('data:' + type + ';base64,' + file.content);
+    const blob = new Blob([bytes], { type });
+    const filename = file.name || archiveFileName(record, file);
+    if (action === 'view') openFilePreview(filename, filename, blob);
+    else saveAs(blob, filename);
+  } catch (err) {
+    toast(err.message || 'Could not open that file. Please try again.', true);
+  } finally {
+    control.disabled = false;
+    control.removeAttribute('aria-busy');
+  }
 }
 
 /** what the History step is showing, after its three filters */

@@ -1,0 +1,37 @@
+const fs = require('fs');
+const vm = require('vm');
+const assert = require('assert/strict');
+class Element {
+  constructor(tag) { this.tag = tag; this.children = []; this.attrs = {}; }
+  appendChild(el) { this.children.push(el); }
+  setAttribute(k,v) { this.attrs[k] = v; }
+  removeAttribute(k) { delete this.attrs[k]; }
+}
+let saved = 0, viewed = 0, errors = 0;
+const ctx = vm.createContext({
+  document: { createElement: tag => new Element(tag) },
+  MONTHS: ['January'], Blob,
+  button: (text, cls, handler) => Object.assign(new Element('button'), {textContent:text, className:cls, handler}),
+  Sync: { storedOne: async () => ({files:[{name:'signed.pdf',type:'application/pdf',content:'YQ=='}]}) },
+  dataUrlToBytes: () => new Uint8Array([97]),
+  openFilePreview: () => viewed++, saveAs: () => saved++, toast: () => errors++
+});
+vm.runInContext(fs.readFileSync('assets/js/archive.js','utf8'),ctx);
+const record = {id:1,consultant:'Person <A>',period_month:1,period_year:2026,kind:'claim',files:[{name:'signed.pdf'}]};
+const wrap = ctx.historyTable([record,{...record,id:2,kind:'invoice'}]);
+const body = wrap.children[0].children[2];
+assert.equal(body.children.length,1);
+assert.equal(body.children[0].children.length,3);
+assert.equal(body.children[0].children[0].textContent,'Person <A>');
+const missing = ctx.historyTable([record]).children[0].children[2].children[0].children[2];
+assert.equal(missing.children[0].textContent,'Not available');
+(async()=>{
+ const control = new Element('button');
+ await ctx.openHistoryFile(record,0,'view',control);
+ assert.equal(viewed,1); assert.equal(saved,0); assert.equal(control.disabled,false);
+ await ctx.openHistoryFile(record,0,'download',control);
+ assert.equal(saved,1);
+ await ctx.openHistoryFile(record,9,'view',control);
+ assert.equal(errors,1); assert.equal(control.disabled,false);
+ console.log('History grouping, missing documents, preview, download and error recovery passed.');
+})().catch(e=>{console.error(e);process.exitCode=1;});
