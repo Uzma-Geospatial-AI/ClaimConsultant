@@ -165,8 +165,12 @@ async function buildInvoicePDF (S) {
     ['Bank:', C.bank], ['Account Name:', C.accName], ['Account No.:', C.accNo]
   ], L, VAL_X, R - VAL_X, y) + 6;
 
-  /* ---- signature (optional) ---- */
-  if (IV.showSig && S.sig.personnel) {
+  /* ---- the consultant's signature ----
+
+     The one signature an invoice carries. Nobody approving a bill signs it,
+     so this is not a choice to be offered: an invoice from somebody who has
+     a signature on their profile goes out with it on. */
+  if (S.sig.personnel) {
     const sig = await normalizeSignature(S.sig.personnel);
     if (sig) {
       const maxW = 45, maxH = 18;
@@ -351,8 +355,8 @@ async function generateInvoiceXLSX (S) {
     r++;
   });
 
-  /* ---- signature (optional) ---- */
-  if (IV.showSig && S.sig.personnel) {
+  /* ---- the consultant's signature, as on the PDF ---- */
+  if (S.sig.personnel) {
     const sig = await normalizeSignature(S.sig.personnel);
     if (sig) {
       r += 1;

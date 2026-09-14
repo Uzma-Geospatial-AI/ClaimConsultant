@@ -60,8 +60,7 @@ function defaultState () {
          form should not argue. null means "whatever the sum says". */
       override: null,
       items: [],
-      note: 'Invoice submitted with original timesheet signed by Consultant as per Clause 7.1 of the Service Agreement.',
-      showSig: false
+      note: 'Invoice submitted with original timesheet signed by Consultant as per Clause 7.1 of the Service Agreement.'
     },
     timesheet: {
       month: now.getMonth(),           // 0-11

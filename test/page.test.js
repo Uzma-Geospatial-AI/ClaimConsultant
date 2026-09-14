@@ -103,6 +103,7 @@ console.log('\nTwo documents, two approvals');
 
 const statejs = fs.readFileSync(path.join(ROOT, 'assets/js/state.js'), 'utf8');
 const syncjs  = fs.readFileSync(path.join(ROOT, 'assets/js/sync.js'), 'utf8');
+const geninvoice = fs.readFileSync(path.join(ROOT, 'assets/js/gen-invoice.js'), 'utf8');
 
 check('the Submit step asks which ones go', /id="submitPick"/.test(html), true);
 check('and a submission says which one it is', /kind:\s*which/.test(syncjs), true);
@@ -449,6 +450,11 @@ check('the profile controls belong to whoever prepares claims',
 check('the collect table lists everybody, not only those who filed',
   /function collectorRoster/.test(archivejs) &&
   /\(roster \|\| \[\]\)\.forEach\(name => people\.set\(name, \[\]\)\)/.test(archivejs), true);
+/* An invoice carries one signature, the consultant's own, and nobody
+   approving a bill adds to it. Whether to print the one signature it is
+   supposed to have is not a decision worth putting on a form. */
+check('the invoice prints the consultant signature without being asked',
+  !/showSig/.test(html + statejs + geninvoice), true);
 check('and it is named for the person who gets them',
   /'Submit to ' \+ collectorShort\(\)/.test(signingjs) &&
   /finance: 'Jiha'/.test(authjs), true);
