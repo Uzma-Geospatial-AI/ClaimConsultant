@@ -108,7 +108,7 @@ const run = expr => vm.runInContext(expr, ctx);
 
 (async () => {
   console.log('\nThe allow-list');
-  check('the owner is allowed',        run("isAllowed('adlishah0821@gmail.com')"), true);
+  check('the owner is allowed',        run("isAllowed('geospatial.ai@uzmagroup.com')"), true);
   check('the second consultant allowed', run("isAllowed('nuramilazulfa@gmail.com')"), true);
   check('the project manager allowed', run("isAllowed('hanis.rashidan@uzmagroup.com')"), true);
   check('the HOD allowed',             run("isAllowed('fadhli.jamaluddin@uzmagroup.com')"), true);
@@ -116,7 +116,7 @@ const run = expr => vm.runInContext(expr, ctx);
   check('case and spaces ignored',     run("isAllowed('  Hanis.Rashidan@UzmaGroup.com ')"), true);
   check('any other BDOS user refused', run("isAllowed('someone.else@uzmagroup.com')"), false);
   check('empty refused',               run("isAllowed('')"), false);
-  check('nine accounts, no more',      run('ALLOWED_USERS.length'), 9);
+  check('ten accounts, no more',       run('ALLOWED_USERS.length'), 10);
   // Najihah collects the finished paper; she approves nothing and prepares
   // nothing, so she gets the record and the way to take a copy of it
   check('Najihah keeps the records',   run("ROLES['najihah.zakir@uzmagroup.com']"), 'finance');
@@ -141,7 +141,9 @@ const run = expr => vm.runInContext(expr, ctx);
   // A claim is prepared, reviewed, approved and then signed — each account
   // has exactly one part in that, and the list is the roles it comes from.
   console.log('\nWho does what');
-  check('the owner runs the thing',    run("ROLES['adlishah0821@gmail.com']"), 'admin');
+  check('the owner runs the thing',    run("ROLES['geospatial.ai@uzmagroup.com']"), 'admin');
+  check('and the address it moved from is an ordinary account now',
+        run("ROLES['adlishah0821@gmail.com']"), 'consultant');
   check('the second account prepares', run("ROLES['nuramilazulfa@gmail.com']"), 'consultant');
   check('an admin prepares claims too', run("prepares('admin')"), true);
   check('an approver does not',        run("prepares('manager')"), false);

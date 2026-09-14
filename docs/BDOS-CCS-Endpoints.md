@@ -32,7 +32,8 @@ Everybody who sends a claim has an account, and each has one part in it:
 
 | Account | Role | What they do |
 |---|---|---|
-| `adlishah0821@gmail.com` | `admin` | Runs the app; prepares claims and can stand in at any stage |
+| `geospatial.ai@uzmagroup.com` | `admin` | Runs the app; prepares claims and can stand in at any stage |
+| `adlishah0821@gmail.com` | `consultant` | Prepares their own claim and submits it |
 | `nuramilazulfa@gmail.com` | `consultant` | Prepares their own claim and submits it |
 | `zharif.zaidi@uzmagroup.com` | `consultant` | Prepares their own claim and submits it |
 | `afifah.zamzari@uzmagroup.com` | `consultant` | Prepares their own claim and submits it |
@@ -149,7 +150,7 @@ DELETE /ccs/profiles/{id}         → { "ok": true }
   "id": 12,
   "name": "Ahmad bin Abdullah",
   "data": { "...": "the CCS state object, verbatim" },
-  "updated_by": "adlishah0821@gmail.com",
+  "updated_by": "geospatial.ai@uzmagroup.com",
   "updated_at": "2026-09-09T02:11:04Z"
 }
 ```

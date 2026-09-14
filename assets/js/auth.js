@@ -31,7 +31,8 @@ const BDOS_BASE = 'https://bdos.uzmadigitalearth.app';
  * there. See docs/BDOS-CCS-Endpoints.md.
  */
 const ROLES = {
-  'adlishah0821@gmail.com':          'admin',
+  'geospatial.ai@uzmagroup.com':     'admin',
+  'adlishah0821@gmail.com':          'consultant',
   'nuramilazulfa@gmail.com':         'consultant',
   'zharif.zaidi@uzmagroup.com':      'consultant',
   'afifah.zamzari@uzmagroup.com':    'consultant',
@@ -55,6 +56,7 @@ const ALLOWED_USERS = Object.keys(ROLES);
  */
 const PROFILE_HINTS = {
   'adlishah0821@gmail.com':       /adlishah/i,
+  'geospatial.ai@uzmagroup.com':  /geospatial/i,
   'nuramilazulfa@gmail.com':      /amila/i,
   'zharif.zaidi@uzmagroup.com':   /zharif/i,
   'afifah.zamzari@uzmagroup.com': /afifah/i,

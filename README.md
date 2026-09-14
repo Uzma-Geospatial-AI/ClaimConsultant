@@ -60,6 +60,7 @@ The app is for five people, so the door is a **BDOS** account
 
 ```js
 const ROLES = {
+  'geospatial.ai@uzmagroup.com':     'admin',
   'adlishah0821@gmail.com':          'consultant',
   'nuramilazulfa@gmail.com':         'consultant',
   'hanis.rashidan@uzmagroup.com':    'manager',
