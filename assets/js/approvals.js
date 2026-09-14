@@ -584,6 +584,18 @@ function statusRow (name, kind, sub, first) {
       acts.appendChild(button(verb, 'small', () => toggleDecide(sub.id, 'approve')));
       acts.appendChild(button('Reject', 'ghost small danger', () => toggleDecide(sub.id, 'return')));
     }
+    /* An invoice approved before CCS filed them itself is finished but has
+       no copy on record, so it never reached whoever collects the paper.
+       One press puts it there. */
+    if (sub.status === 'complete' && kind === 'invoice' && Sync.archiveOn &&
+        typeof canFileSigned === 'function' && canFileSigned() &&
+        typeof archiveHas === 'function' &&
+        !archiveHas(name, statusMonth.y, statusMonth.m, 'invoice')) {
+      const put = button('File it', 'ghost small', () => fileInvoiceNow(sub, put));
+      put.title = 'Put the approved invoice on file, so it reaches ' +
+                  (Auth.personFor('finance') || 'whoever collects the paper');
+      acts.appendChild(put);
+    }
     if (sub.status === 'returned' && (sub.created_by === myEmail() || Auth.isAdmin())) {
       acts.appendChild(button('Open', 'ghost small', () => loadIntoForm(sub.id)));
       acts.appendChild(button('Resubmit', 'small', () => toggleDecide(sub.id, 'resubmit')));
@@ -725,7 +737,8 @@ async function bulk (waiting, action, note) {
         // the day somebody signed is a fact, not a default to be kept current
         (data.timesheet.dateAuto = data.timesheet.dateAuto || {})[signs.auto] = false;
       }
-      await Sync.act(sub.id, action, note, data);
+      const moved = await Sync.act(sub.id, action, note, data);
+      if (action === 'approve') await fileApprovedInvoice(sub, moved);
       done++;
     } catch (err) {
       // one that somebody else moved first must not stop the rest
@@ -906,7 +919,11 @@ async function decide (sub, note, pad, filed, go) {
        with the file lost to a failed upload is a month nobody can produce. */
     if (file) await fileFinished(sub, file, note);
 
-    await Sync.act(sub.id, decideAction, note, data);
+    const moved = await Sync.act(sub.id, decideAction, note, data);
+    /* An approved invoice is finished here: nobody signs one, so the copy
+       worth keeping is the invoice as it was approved, and it is filed now
+       rather than waiting for a signature that does not exist. */
+    if (decideAction === 'approve') await fileApprovedInvoice(sub, moved);
     openRow = '';
     toast(decideAction === 'return' ? 'Sent back to the consultant.'
         : decideAction === 'resubmit' ? 'Sent for approval again.'
@@ -921,6 +938,80 @@ async function decide (sub, note, pad, filed, go) {
   } finally {
     busy = false;
     if (go) { go.disabled = false; if (was) go.textContent = was; }
+  }
+}
+
+/* -------------------------------------------------------------------
+   An approved invoice is a finished document
+
+   A time sheet becomes paper: it goes out, gets signed, and the scan that
+   comes back is the finished article. An invoice never does. It carries one
+   signature, the consultant's, it is already on the document when it is
+   sent, and the HOD approving it is the last thing that happens to it.
+
+   So the moment the HOD approves one it is finished, and the copy worth
+   keeping is the invoice exactly as it was approved. CCS files that copy
+   itself rather than waiting for somebody to upload a signed version that
+   will never exist — which is what left approved invoices out of the list
+   Group People & Finance collects from.
+   ------------------------------------------------------------------- */
+
+/** build the invoice as it stands on the record and put it on file */
+async function storeInvoiceCopy (sub) {
+  const full = await Sync.submission(sub.id);
+  if (!full || !full.data) throw new Error('That invoice could not be read.');
+  const state = mergeDefaults(full.data);
+  const doc = await buildInvoicePDF(state);
+  const name = invoiceFileBase(state) + '.pdf';
+  // Sync.readFile wants something with a name on it, which a blob has not
+  const payload = await Sync.readFile(
+    new File([doc.output('blob')], name, { type: 'application/pdf' }));
+  payload.name = `${kindLabel('invoice')} (approved) — ${payload.name}`;
+  await Sync.store(state, [payload],
+    `${kindLabel('invoice')} approved — filed as it was approved`,
+    'invoice', ARCHIVE_FINAL);
+  archiveLoaded = false;            // the On file column has something to read
+}
+
+/**
+ * File the copy, if this approval is the one that finished an invoice.
+ *
+ * Quietly: the approval itself has already happened and is what mattered.
+ * A failure here is worth saying out loud, but it must not be reported as
+ * though the invoice had not been approved.
+ */
+async function fileApprovedInvoice (sub, moved) {
+  if (kindOf(sub) !== 'invoice') return;
+  if (!moved || moved.status !== 'complete') return;
+  if (!Sync.archiveOn) return;
+  if (typeof archiveHas === 'function' &&
+      archiveHas(sub.consultant, sub.period_year, Number(sub.period_month) - 1, 'invoice')) return;
+  try {
+    await storeInvoiceCopy(sub);
+  } catch (err) {
+    console.warn(err);
+    toast('Approved. The copy could not be filed: ' + (err.message || err), true);
+  }
+}
+
+/** the same thing, for an invoice that was approved before this was here */
+async function fileInvoiceNow (sub, btn) {
+  if (busy) return;
+  busy = true;
+  const was = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Filing…';
+  try {
+    await storeInvoiceCopy(sub);
+    toast('The approved invoice is on file.');
+    if (typeof renderArchive === 'function') await renderArchive(true);
+    await renderApprovals();
+  } catch (err) {
+    toast(err.message || 'Could not file it.', true);
+  } finally {
+    busy = false;
+    btn.disabled = false;
+    btn.textContent = was;
   }
 }
 

@@ -128,6 +128,17 @@ check('a stage that signs will not pass a time sheet on unsigned',
   /if \(signing && !signs && !file\)/.test(approvals), true);
 check('but an invoice is approved, not signed',
   /function mustSign[\s\S]{0,80}kindOf\(sub\) === 'claim'/.test(approvals), true);
+/* Nobody signs an invoice, so the HOD approving one is the last thing that
+   happens to it — and the copy worth keeping is the invoice as approved.
+   Waiting for a signed scan that will never exist is what kept approved
+   invoices out of the list Group People & Finance collects from. */
+check('and an approved invoice files itself',
+  /async function fileApprovedInvoice/.test(approvals) &&
+  /moved\.status !== 'complete'/.test(approvals), true);
+check('on both the single decision and the bulk one',
+  (approvals.match(/fileApprovedInvoice\(sub, moved\)/g) || []).length, 2);
+check('and one approved before that can be put on file by hand',
+  /async function fileInvoiceNow/.test(approvals) && /'File it'/.test(approvals), true);
 check('and the project manager is one of them',
   /key: 'pending_manager',[\s\S]{0,120}filed: 'reviewed'/.test(approvals), true);
 check('while the HOD signs nothing',
