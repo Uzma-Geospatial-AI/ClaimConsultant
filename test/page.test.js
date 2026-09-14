@@ -482,6 +482,13 @@ check('the collect list is finished copies, with no filter for it',
   /stageOf\(r\) === ARCHIVE_FINAL\)/.test(archivejs), true);
 check('and the Who picker offers everybody, not only those who filed',
   /const names = filingNames\(\)/.test(archivejs), true);
+/* Download all handed the browser one file at a time and the browser asked
+   whether it could save several. Say no by accident and half a year of
+   signed claims goes nowhere. */
+check('Download all builds one archive',
+  /saveAs\(zipFiles\(files\), archiveZipName\(rows\)\)/.test(archivejs) &&
+  /function zipFiles/.test(fs.readFileSync(path.join(ROOT, 'assets/js/zip.js'), 'utf8')),
+  true);
 check('and it is named for the person who gets them',
   /'Submit to ' \+ collectorShort\(\)/.test(signingjs) &&
   /finance: 'Jiha'/.test(authjs), true);
@@ -547,6 +554,8 @@ check('approvals.js comes after the generator and the viewer',
   at('gen-claim.js') < at('approvals.js') && at('preview.js') < at('approvals.js'), true);
 check('and before app.js, which calls into it', at('approvals.js') < at('app.js'), true);
 // signing.js reads the status table's helpers and the archive's
+// archive.js packs the archive with it
+check('zip.js comes before archive.js', at('zip.js') < at('archive.js'), true);
 check('signing.js comes after approvals.js and archive.js, before app.js',
   at('approvals.js') < at('signing.js') && at('archive.js') < at('signing.js') &&
   at('signing.js') < at('app.js'), true);

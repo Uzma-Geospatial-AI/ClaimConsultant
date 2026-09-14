@@ -485,13 +485,12 @@ function historyRows () {
 }
 
 /**
- * Take a copy of everything listed.
+ * Take a copy of everything listed, as one archive.
  *
- * Whoever keeps the records needs the whole month, not a file at a time —
- * so this walks what the filters are showing and saves every file in it,
- * named for the person and the month rather than for whatever the scanner
- * called it. The browser asks once whether it may save several files; say
- * yes and it stops asking.
+ * Whoever keeps the records needs the whole month, not a file at a time. So
+ * this walks what the filters are showing, fetches every file in it, names
+ * each one for the person and the month rather than for whatever the
+ * scanner called it, and puts the lot in a single zip.
  */
 async function downloadAllHistory (btn) {
   if (downloading) return;
@@ -509,28 +508,37 @@ async function downloadAllHistory (btn) {
   downloading = true;
   const was = btn.textContent;
   btn.disabled = true;
-  let saved = 0;
+  const files = [];
   const failed = [];
 
   try {
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
-      btn.textContent = `Downloading ${i + 1} of ${rows.length}…`;
-      say(`${saved} file${saved === 1 ? '' : 's'} saved so far. Leave this step open until it finishes.`);
+      btn.textContent = `Fetching ${i + 1} of ${rows.length}…`;
+      say(`${files.length} file${files.length === 1 ? '' : 's'} collected so far. ` +
+          'Leave this step open until it finishes.');
       try {
         const rec = await Sync.storedOne(r.id);
-        const files = (rec && rec.files) || [];
-        for (const f of files) {
+        (rec && rec.files || []).forEach(f => {
           const type = f.type || 'application/octet-stream';
-          const bytes = dataUrlToBytes('data:' + type + ';base64,' + (f.content || ''));
-          saveAs(new Blob([bytes], { type: type }), archiveFileName(r, f));
-          saved++;
-          // the browser needs a breath between saves, or it drops some
-          await new Promise(res => setTimeout(res, 250));
-        }
+          files.push({
+            name: archiveFileName(r, f),
+            bytes: dataUrlToBytes('data:' + type + ';base64,' + (f.content || ''))
+          });
+        });
       } catch (err) {
         failed.push(`${r.consultant || r.id}: ${err.message}`);
       }
+    }
+
+    /* One archive, not one download each. The browser asks before saving
+       several files in a row, and an afternoon's collecting turned on
+       whether somebody read that prompt — say no by accident and nothing
+       arrives, say yes and they land loose in Downloads among everything
+       else. A folder is what was wanted all along. */
+    if (files.length) {
+      btn.textContent = 'Packing…';
+      saveAs(zipFiles(files), archiveZipName(rows));
     }
   } finally {
     downloading = false;
@@ -538,9 +546,33 @@ async function downloadAllHistory (btn) {
     btn.textContent = was;
   }
 
-  say(failed.length
-    ? `${saved} file${saved === 1 ? '' : 's'} saved. ${failed.length} could not be: ${failed[0]}`
-    : `${saved} file${saved === 1 ? '' : 's'} saved to your Downloads folder.`, !!failed.length);
+  const n = files.length;
+  say(!n
+    ? `Nothing could be fetched. ${failed[0] || ''}`.trim()
+    : failed.length
+      ? `${n} file${n === 1 ? '' : 's'} in one zip. ${failed.length} could not be fetched: ${failed[0]}`
+      : `${n} file${n === 1 ? '' : 's'} saved to your Downloads folder, in one zip.`,
+    !n || !!failed.length);
+}
+
+/**
+ * What to call the archive.
+ *
+ * Named for what is in it, so three of them in a Downloads folder are told
+ * apart without opening any: whoever it was narrowed to, the year, or the
+ * month when everything listed happens to be one month.
+ */
+function archiveZipName (rows) {
+  const parts = ['Signed copies'];
+  if (historyWho) parts.push(historyWho);
+  const months = new Set(rows.map(r => `${r.period_year}-${r.period_month}`));
+  if (months.size === 1 && rows.length) {
+    const m = Number(rows[0].period_month) || 0;
+    parts.push(`${MONTHS[Math.max(0, m - 1)]} ${rows[0].period_year || ''}`.trim());
+  } else if (historyYear) {
+    parts.push(historyYear);
+  }
+  return safeFile(parts.join(' - ')) + '.zip';
 }
 
 /** named for the person and the month, not for whatever the scanner called it */

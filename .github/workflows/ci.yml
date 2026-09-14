@@ -77,6 +77,9 @@ jobs:
 
       # Added with the screens they cover, but never run — a test nothing
       # runs is a comment that takes longer to write.
+      - name: Test the archive Download all builds
+        run: node test/zip.test.js
+
       - name: Test the documents-to-collect table
         run: node test/history.test.js
 
