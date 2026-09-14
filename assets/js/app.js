@@ -183,6 +183,11 @@ function goToStep (i, skipGuard) {
   }
   stepIndex = target;
   showStep();
+  const heading = document.querySelector('.panel.active h2');
+  if (heading) {
+    heading.setAttribute('tabindex', '-1');
+    heading.focus({ preventScroll: true });
+  }
 }
 
 function showStep () {
@@ -211,7 +216,7 @@ function showStep () {
   if (step.id === 'resubmit') renderResubmit();
   if (step.id === 'todownload') renderSignDownload();
   if (step.id === 'toupload') renderSignUpload();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  window.scrollTo({ top: 0, behavior: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
 }
 
 function renderStepper () {
@@ -221,6 +226,7 @@ function renderStepper () {
   list.forEach((s, i) => {
     const b = document.createElement('button');
     b.type = 'button';
+    if (i === stepIndex) b.setAttribute('aria-current', 'step');
     b.className = 'step' + (i === stepIndex ? ' active' : (i < stepIndex ? ' done' : ''));
     const n = s.whenReturned && typeof returnedCount === 'function' ? returnedCount() : 0;
     b.innerHTML = `<span class="step-num">${i + 1}</span><span>${s.label}</span>`;
@@ -233,6 +239,8 @@ function renderStepper () {
     b.addEventListener('click', () => goToStep(i));
     host.appendChild(b);
   });
+  const current = host.querySelector && host.querySelector('[aria-current="step"]');
+  if (current && current.scrollIntoView) current.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 
 function renderNavRows () {

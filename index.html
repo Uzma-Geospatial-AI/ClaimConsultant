@@ -4,9 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Consultant Claim System</title>
-<link rel="stylesheet" href="assets/css/style.css?v=20260914d">
+<link rel="stylesheet" href="assets/css/style.css?v=20260914e">
 </head>
 <body class="locked">
+<a class="skip-link" href="#main-content">Skip to main content</a>
 
 <!-- ============ SIGN IN ============ -->
 <div class="authgate" id="authGate">
@@ -27,12 +28,11 @@
              placeholder="Your BDOS password" required>
     </label>
 
-    <p class="auth-error" id="authError" hidden></p>
+    <p class="auth-error" id="authError" role="alert" hidden></p>
     <button type="submit" class="btn primary auth-submit" id="authSubmit">Sign in</button>
 
     <p class="auth-note">
-      Access is limited to two named accounts. Passwords are checked by BDOS &mdash;
-      this app never sees or stores them. Forgotten yours? A BDOS administrator resets it.
+      Use your authorised BDOS account. If you have forgotten your password, contact your BDOS administrator to reset it.
     </p>
   </form>
 </div>
@@ -55,21 +55,20 @@
       <!-- one row per profile: open it, rename it, or delete that one -->
       <div class="profilemenu" id="profileMenu" hidden></div>
     </div>
-    <button class="btn danger" id="btnReset" title="Erase all saved data and start over">Reset All</button>
+    <button class="btn danger" id="btnReset" title="Erase all saved data and start over">Reset saved data</button>
     <span class="whoami" id="authWho" hidden></span>
     <button class="btn ghost" id="btnSignOut" hidden>Sign out</button>
   </div>
 </header>
 
-<nav class="stepper" id="stepper"></nav>
+<nav class="stepper" id="stepper" aria-label="Claim workflow"></nav>
 
-<main>
+<main id="main-content" tabindex="-1">
 
 <!-- ============ STEP 1: DETAILS ============ -->
 <section class="panel active" id="p-consultant" data-step="consultant">
   <h2>Step 1 &mdash; Whose claim is this?</h2>
-  <p class="lead">Pick a profile. Everything after this &mdash; the invoice, the time sheet, the
-    pay &mdash; fills itself in from what is saved here, and stays editable.</p>
+  <p class="lead">Choose your profile, check your details, then save any changes before continuing. Your saved details fill in the claim and invoice automatically.</p>
 
   <!-- a card each, with the year's leave on it, so the balance is visible
        before anybody opens anything -->
@@ -146,7 +145,7 @@
 <!-- ============ STEP 2: CHOOSE ============ -->
 <section class="panel" id="p-choose" data-step="choose">
   <h2>Step 2 &mdash; What do you need?</h2>
-  <p class="lead">Pick one. The next step becomes a fillable copy of that exact document, so you can see where every entry lands.</p>
+  <p class="lead">Choose the documents you need for this month. You can review and download them before submitting for approval.</p>
 
   <div class="choices" id="choices">
     <button type="button" class="choice" data-mode="claim">
@@ -546,34 +545,34 @@
   <iframe id="pdfViewFrame" title="PDF preview"></iframe>
 </div>
 
-<div id="toast" class="toast"></div>
+<div id="toast" role="status" aria-live="polite" aria-atomic="true" class="toast"></div>
 
 <!-- The ?v= on every local file is a cache key, not decoration. GitHub Pages
      serves this page and its assets with max-age=600, so an ordinary reload
      fetches the page again but keeps the old JavaScript for up to ten minutes
      — which reads as "the fix did not work". Bump this stamp whenever
      anything under assets/ changes and a reload picks it all up at once. -->
-<script src="vendor/jspdf.umd.min.js?v=20260914d"></script>
-<script src="vendor/jspdf.plugin.autotable.min.js?v=20260914d"></script>
-<script src="vendor/carlito.js?v=20260914d"></script>
-<script src="vendor/exceljs.min.js?v=20260914d"></script>
-<script src="vendor/FileSaver.min.js?v=20260914d"></script>
-<script src="vendor/signature_pad.umd.min.js?v=20260914d"></script>
-<script src="vendor/docx.umd.js?v=20260914d"></script>
-<script src="assets/js/state.js?v=20260914d"></script>
-<script src="assets/js/holidays.js?v=20260914d"></script>
-<script src="assets/js/logo.js?v=20260914d"></script>
-<script src="assets/js/timesheet.js?v=20260914d"></script>
-<script src="assets/js/signature.js?v=20260914d"></script>
-<script src="assets/js/gen-invoice.js?v=20260914d"></script>
-<script src="assets/js/gen-claim.js?v=20260914d"></script>
-<script src="assets/js/preview.js?v=20260914d"></script>
-<script src="assets/js/auth.js?v=20260914d"></script>
-<script src="assets/js/sync.js?v=20260914d"></script>
-<script src="assets/js/approvals.js?v=20260914d"></script>
-<script src="assets/js/archive.js?v=20260914d"></script>
-<script src="assets/js/resubmit.js?v=20260914d"></script>
-<script src="assets/js/signing.js?v=20260914d"></script>
-<script src="assets/js/app.js?v=20260914d"></script>
+<script src="vendor/jspdf.umd.min.js?v=20260914e"></script>
+<script src="vendor/jspdf.plugin.autotable.min.js?v=20260914e"></script>
+<script src="vendor/carlito.js?v=20260914e"></script>
+<script src="vendor/exceljs.min.js?v=20260914e"></script>
+<script src="vendor/FileSaver.min.js?v=20260914e"></script>
+<script src="vendor/signature_pad.umd.min.js?v=20260914e"></script>
+<script src="vendor/docx.umd.js?v=20260914e"></script>
+<script src="assets/js/state.js?v=20260914e"></script>
+<script src="assets/js/holidays.js?v=20260914e"></script>
+<script src="assets/js/logo.js?v=20260914e"></script>
+<script src="assets/js/timesheet.js?v=20260914e"></script>
+<script src="assets/js/signature.js?v=20260914e"></script>
+<script src="assets/js/gen-invoice.js?v=20260914e"></script>
+<script src="assets/js/gen-claim.js?v=20260914e"></script>
+<script src="assets/js/preview.js?v=20260914e"></script>
+<script src="assets/js/auth.js?v=20260914e"></script>
+<script src="assets/js/sync.js?v=20260914e"></script>
+<script src="assets/js/approvals.js?v=20260914e"></script>
+<script src="assets/js/archive.js?v=20260914e"></script>
+<script src="assets/js/resubmit.js?v=20260914e"></script>
+<script src="assets/js/signing.js?v=20260914e"></script>
+<script src="assets/js/app.js?v=20260914e"></script>
 </body>
 </html>
