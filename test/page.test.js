@@ -421,7 +421,7 @@ check('a scan put on a card is held, not sent',
   /const attached = new Map\(\)/.test(signingjs) &&
   /attached\.set\(sub\.id, picked\)/.test(signingjs), true);
 check('and can be read before it goes',
-  /openFilePreview\(sub\.consultant/.test(signingjs) &&
+  /openFilePreview\(`\$\{sub\.consultant/.test(signingjs) &&
   /function openFilePreview/.test(previewjs), true);
 check('the copy already on file can be read too',
   /async function viewFiled/.test(signingjs), true);
@@ -555,6 +555,16 @@ check("the PA's record of confirmed months is called History",
 check('the preview is shown before the document is loaded into it',
   /box\.hidden = false;[\s\S]{0,120}requestAnimationFrame[\s\S]{0,300}frame\.src = url/.test(
     fs.readFileSync(path.join(ROOT, 'assets/js/preview.js'), 'utf8')), true);
+/* Fatin and Jiha look at the same months from either end of one step, so the
+   PA's Download and Upload pages are the same table the collect list is. */
+check("the PA's pages are tables, like the collect list",
+  /signingMonthTables\(host, rows, \['Time sheet'\]/.test(signingjs) &&
+  /signingMonthTables\(host, waiting, \['Time sheet', 'Signed copy'\], uploadCells\)/.test(signingjs) &&
+  /table\.className = 'history-table signingtable'/.test(signingjs), true);
+check('and the cards they replaced are gone',
+  !/archrow signcard|function monthGroups|function uploadCard/.test(signingjs), true);
+check('and an icon with its word keeps its icon while it downloads',
+  /if \(!drawn\) btn\.textContent = 'Preparing…'/.test(signingjs), true);
 check('and it is named for the person who gets them',
   /'Submit to ' \+ collectorShort\(\)/.test(signingjs) &&
   /finance: 'Jiha'/.test(authjs), true);

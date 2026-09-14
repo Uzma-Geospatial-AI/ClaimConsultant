@@ -76,37 +76,105 @@ async function learnSigningKinds () {
   }));
 }
 
-/** the heading a card carries: person, month, invoice number */
-function signingHead (sub) {
-  const head = document.createElement('div');
-  head.className = 'archhead';
-  const who = document.createElement('b');
-  who.textContent = sub.consultant || '(no name)';
-  head.appendChild(who);
-  const tag = document.createElement('span');
-  tag.className = 'doctag claim';
-  tag.textContent = kindLabel('claim');
-  head.appendChild(tag);
-  const meta = document.createElement('span');
-  meta.textContent = [periodOf(sub), sub.invoice_no || ''].filter(Boolean).join(' · ');
-  head.appendChild(meta);
-  return head;
+/* -------------------------------------------------------------------
+   The same table Group People & Finance reads
+
+   Fatin and Jiha look at the same months from either end of one step, so
+   they look at them the same way: a table per month, a row per person, and
+   each document in its own column with its name, its reference and its
+   actions under it.
+   ------------------------------------------------------------------- */
+
+/**
+ * Draw rows as one collect-list table per month.
+ * @param {string[]} columns  the document columns after Consultant
+ * @param {function} cells    sub -> one element per column
+ */
+function signingMonthTables (host, rows, columns, cells) {
+  const months = new Map();
+  rows.forEach(sub => {
+    const key = periodOf(sub);
+    if (!months.has(key)) months.set(key, []);
+    months.get(key).push(sub);
+  });
+  months.forEach((inMonth, month) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'history-table-wrap';
+    wrap.tabIndex = 0;
+    wrap.setAttribute('role', 'region');
+    wrap.setAttribute('aria-label', month + ' time sheets');
+    const table = document.createElement('table');
+    table.className = 'history-table signingtable';
+    const caption = document.createElement('caption');
+    caption.textContent = month;
+    table.appendChild(caption);
+    const head = document.createElement('thead');
+    const titles = document.createElement('tr');
+    ['Consultant'].concat(columns).forEach(label => {
+      const th = document.createElement('th');
+      th.scope = 'col';
+      th.textContent = label;
+      titles.appendChild(th);
+    });
+    head.appendChild(titles);
+    table.appendChild(head);
+    const body = document.createElement('tbody');
+    inMonth.slice()
+      .sort((a, b) => String(a.consultant || '').localeCompare(String(b.consultant || '')))
+      .forEach(sub => {
+        const row = document.createElement('tr');
+        const person = document.createElement('th');
+        person.scope = 'row';
+        person.textContent = sub.consultant || '(no name)';
+        row.appendChild(person);
+        cells(sub).forEach((content, i) => {
+          const td = document.createElement('td');
+          td.setAttribute('data-label', columns[i]);
+          td.appendChild(content);
+          row.appendChild(td);
+        });
+        body.appendChild(row);
+      });
+    table.appendChild(body);
+    wrap.appendChild(table);
+    host.appendChild(wrap);
+  });
 }
 
-/** group cards under the month they belong to */
-function monthGroups (host, rows, card) {
-  let seen = null;
-  rows.forEach(sub => {
-    const label = periodOf(sub);
-    if (label !== seen) {
-      seen = label;
-      const h = document.createElement('h4');
-      h.className = 'archiveperson';
-      h.textContent = label;
-      host.appendChild(h);
-    }
-    host.appendChild(card(sub));
-  });
+/** a document as the collect table shows one: its name, its reference, its actions */
+function signingDocument (name, meta, actions) {
+  const item = document.createElement('div');
+  item.className = 'history-document';
+  const words = document.createElement('div');
+  words.className = 'history-document-words';
+  const title = document.createElement('span');
+  title.className = 'history-document-name';
+  title.textContent = name;
+  words.appendChild(title);
+  if (meta) {
+    const line = document.createElement('span');
+    line.className = 'history-document-meta';
+    line.textContent = meta;
+    words.appendChild(line);
+  }
+  words.title = [name, meta].filter(Boolean).join(' \u00b7 ');
+  item.appendChild(words);
+  if (actions && actions.length) {
+    const acts = document.createElement('div');
+    acts.className = 'history-document-actions';
+    actions.forEach(a => acts.appendChild(a));
+    item.appendChild(acts);
+  }
+  return item;
+}
+
+/** an icon with its word beside it, drawn the way the collect table draws them */
+function labelledIcon (icon, text, label, onClick) {
+  const b = iconButton(icon, label, 'ghost small history-icon', onClick);
+  const word = document.createElement('span');
+  word.textContent = text;
+  b.appendChild(word);
+  return b;
 }
 
 /* -------------------------------------------------------------------
@@ -143,20 +211,13 @@ async function renderSignDownload () {
   bar.appendChild(all);
   host.appendChild(bar);
 
-  monthGroups(host, rows, sub => {
-    const card = document.createElement('div');
-    card.className = 'archrow';
-    card.appendChild(signingHead(sub));
-    const acts = document.createElement('div');
-    acts.className = 'archfiles';
-    const dl = button('Download PDF', 'primary small', () => downloadForSigning(sub, dl));
-    dl.setAttribute('aria-label', `Download time sheet for ${sub.consultant || 'consultant'}, ${periodOf(sub)}`);
-    acts.appendChild(dl);
-    const view = button('View document', 'ghost small', () => reviewSubmission(sub.id));
-    view.setAttribute('aria-label', `View time sheet for ${sub.consultant || 'consultant'}, ${periodOf(sub)}`);
-    acts.appendChild(view);
-    card.appendChild(acts);
-    return card;
+  signingMonthTables(host, rows, ['Time sheet'], sub => {
+    const who = `${sub.consultant || 'consultant'}, ${periodOf(sub)}`;
+    return [signingDocument('Time sheet', sub.invoice_no || '', [
+      labelledIcon('view', 'View', 'View the time sheet for ' + who, () => reviewSubmission(sub.id)),
+      labelledIcon('download', 'Download', 'Download the time sheet for ' + who,
+                   control => downloadForSigning(sub, control))
+    ])];
   });
 }
 
@@ -171,9 +232,12 @@ async function signingPdf (sub) {
 async function downloadForSigning (sub, btn) {
   if (signingBusy) return;
   signingBusy = true;
+  // an icon with its word would lose the icon if its text were swapped out
+  const drawn = btn.classList && btn.classList.contains('iconbtn');
   const was = btn.textContent;
   btn.disabled = true;
-  btn.textContent = 'Preparing…';
+  btn.setAttribute('aria-busy', 'true');
+  if (!drawn) btn.textContent = 'Preparing…';
   try {
     const pdf = await signingPdf(sub);
     saveAs(pdf.blob, pdf.name);
@@ -182,7 +246,8 @@ async function downloadForSigning (sub, btn) {
   } finally {
     signingBusy = false;
     btn.disabled = false;
-    btn.textContent = was;
+    btn.removeAttribute('aria-busy');
+    if (!drawn) btn.textContent = was;
   }
 }
 
@@ -265,58 +330,50 @@ async function renderSignUpload () {
       'signed and sent on.';
     host.appendChild(empty);
   } else {
-    monthGroups(host, waiting, sub => uploadCard(sub));
+    signingMonthTables(host, waiting, ['Time sheet', 'Signed copy'], uploadCells);
   }
 
 
   host.appendChild(submitBar());
 }
 
-/** One time sheet waiting for its signed copy, and whatever has been put on it. */
-function uploadCard (sub) {
-  const card = document.createElement('div');
-  card.className = 'archrow signcard';
-  card.appendChild(signingHead(sub));
+/**
+ * One time sheet waiting for its signed copy, as two cells of its row: the
+ * sheet that was approved, and the signed copy put against it.
+ */
+function uploadCells (sub) {
+  const who = `${sub.consultant || 'consultant'}, ${periodOf(sub)}`;
+  const sheet = signingDocument('Time sheet', sub.invoice_no || '', [
+    labelledIcon('view', 'View', 'View the time sheet for ' + who, () => reviewSubmission(sub.id))
+  ]);
+
+  const cell = document.createElement('div');
+  cell.className = 'signcell';
 
   /* What is already on file, if anything. Whoever is about to replace a copy
      should be able to look at the copy they are replacing. */
   const filed = typeof archiveFor === 'function'
     ? archiveFor(sub.consultant, sub.period_year, Number(sub.period_month) - 1, 'claim') : null;
-  if (filed) {
-    const on = document.createElement('p');
-    on.className = 'subnote';
-    on.textContent = 'A copy is already on file, uploaded by ' + (filed.created_by || 'somebody') +
-      (filed.created_at ? ' on ' + new Date(filed.created_at).toLocaleDateString() : '') +
-      '. Submitting a new one replaces it.';
-    card.appendChild(on);
-    const bar = document.createElement('div');
-    bar.className = 'archfiles';
-    bar.appendChild(button('View the copy on file', 'ghost small', () => viewFiled(filed, sub)));
-    card.appendChild(bar);
-  }
-
   const file = attached.get(sub.id);
-  const row = document.createElement('div');
-  row.className = 'signrow';
 
   if (file) {
-    /* Put on, not sent. The card names the file it is holding, offers it to
+    /* Put on, not sent. The cell names the file it is holding, offers it to
        be looked at, and offers to let it go again — all three, because the
        only thing worse than the wrong scan is the wrong scan nobody read. */
-    const ready = document.createElement('span');
-    ready.className = 'signready';
-    ready.textContent = `${file.name} · ${Math.max(1, Math.round(file.size / 1024))} KB · Ready to submit`;
-    row.appendChild(ready);
-    row.appendChild(button('View', 'ghost small', () =>
-      openFilePreview(sub.consultant + ' — ' + periodOf(sub), file.name, file)));
-    row.appendChild(button('Remove', 'ghost small', () => {
-      attached.delete(sub.id);
-      renderSignUpload();
-    }));
+    const ready = signingDocument(file.name,
+      `${Math.max(1, Math.round(file.size / 1024))} KB \u00b7 Ready to submit`, [
+        labelledIcon('view', 'View', 'View the signed copy chosen for ' + who,
+                     () => openFilePreview(`${sub.consultant || ''} \u2014 ${periodOf(sub)}`, file.name, file)),
+        button('Remove', 'ghost small', () => { attached.delete(sub.id); renderSignUpload(); })
+      ]);
+    ready.classList.add('signready-doc');
+    cell.appendChild(ready);
   } else {
+    const pick = document.createElement('div');
+    pick.className = 'signpick';
     const inp = document.createElement('input');
     inp.type = 'file';
-    inp.setAttribute('aria-label', `Signed time sheet for ${sub.consultant || 'consultant'}, ${periodOf(sub)}`);
+    inp.setAttribute('aria-label', `Signed time sheet for ${who}`);
     inp.accept = '.pdf,.png,.jpg,.jpeg,image/*,application/pdf';
     inp.addEventListener('change', () => {
       const picked = inp.files && inp.files[0];
@@ -330,15 +387,26 @@ function uploadCard (sub) {
       attached.set(sub.id, picked);
       renderSignUpload();
     });
-    row.appendChild(inp);
+    pick.appendChild(inp);
     const hint = document.createElement('small');
     hint.className = 'signhint';
     hint.textContent = (filed ? 'Choose the replacement. ' : 'Choose the signed time sheet. ') +
       'PDF or image, up to 12 MB.';
-    row.appendChild(hint);
+    pick.appendChild(hint);
+    cell.appendChild(pick);
   }
-  card.appendChild(row);
-  return card;
+
+  if (filed) {
+    const onFile = signingDocument('Copy on file',
+      'uploaded by ' + (filed.created_by || 'somebody') +
+      (filed.created_at ? ' on ' + new Date(filed.created_at).toLocaleDateString() : '') +
+      ' \u00b7 replaced when you submit', [
+        labelledIcon('view', 'View', 'View the copy on file for ' + who, () => viewFiled(filed, sub))
+      ]);
+    onFile.classList.add('signonfile');
+    cell.appendChild(onFile);
+  }
+  return [sheet, cell];
 }
 
 /** look at the copy already on file, without downloading it first */
