@@ -1145,6 +1145,7 @@ function boot () {
 
   /* --- reset everything --- */
   document.getElementById('btnReset').addEventListener('click', () => {
+    if (!Auth.prepares()) return;
     const n = Object.keys(Store.profiles()).length;
     if (!confirm(
       [ 'Erase ALL data stored by this app?',
@@ -1357,6 +1358,7 @@ function log (msg, cls) {
  * is the name it would have been given anyway.
  */
 function saveProfileNow () {
+  if (!Auth.prepares()) return;
   const name = (activeProfile || String(S.consultant.name || '')).trim();
   if (!name) {
     toast('Enter the Full Name first — that is what the profile is saved under.', true);
@@ -1393,6 +1395,7 @@ function saveProfileNow () {
    ======================================================================= */
 
 function openProfiles (open) {
+  if (open && !Auth.prepares()) return;
   const menu = document.getElementById('profileMenu');
   const btn  = document.getElementById('btnProfiles');
   if (!menu || !btn) return;
@@ -1406,7 +1409,9 @@ function openProfiles (open) {
  * in, and Save Profile puts them back under the same name.
  */
 function editProfile (name) {
+  if (!Auth.prepares()) return;
   const p = Store.profiles()[name];
+  if (p && !Auth.owns(mergeDefaults(p))) return;
   if (!p) { toast(`Profile "${name}" is no longer there.`, true); refreshProfileList(); return; }
   S = mergeDefaults(p);
   activeProfile = name;
@@ -1429,6 +1434,7 @@ function editProfile (name) {
  * abandoned by mistake — an empty profile is never left lying in the list.
  */
 function newProfile () {
+  if (!Auth.prepares()) return;
   if (!confirm('Start a new profile?\n\nThe form open right now is cleared. Saved profiles are not touched.')) return;
   S = defaultState();
   fillDefaultsForMonth();
@@ -1443,6 +1449,8 @@ function newProfile () {
 }
 
 function removeProfile (name) {
+  const profile = Store.profiles()[name];
+  if (!Auth.prepares() || !profile || !Auth.owns(mergeDefaults(profile))) return;
   if (!confirm(`Delete the profile "${name}"?
 
 The form open right now is not touched.`)) return;
@@ -1558,6 +1566,7 @@ function renderProfileCards () {
 }
 
 function startNewProfile () {
+  if (!Auth.prepares()) return;
   if (String(S.consultant.name || '').trim() &&
       !confirm('Start a new profile? The details on screen stay saved under their own profile.')) return;
   S = defaultState();
@@ -1576,7 +1585,19 @@ function startNewProfile () {
 function refreshProfileList () {
   const menu  = document.getElementById('profileMenu');
   const label = document.getElementById('profileCurrent');
-  const names = Object.keys(Store.profiles()).sort();
+  const canPrepare = Auth.prepares();
+  const box = document.getElementById('profileBox');
+  const reset = document.getElementById('btnReset');
+  if (box) box.hidden = !canPrepare;
+  if (reset) reset.hidden = !canPrepare;
+  if (!canPrepare) {
+    openProfiles(false);
+    if (menu) menu.innerHTML = '';
+    if (label) label.textContent = '';
+    return;
+  }
+  const profiles = Store.profiles();
+  const names = Object.keys(profiles).filter(name => Auth.owns(mergeDefaults(profiles[name]))).sort();
 
   if (label) label.textContent = activeProfile || '— Select a profile —';
   renderProfileCards();
